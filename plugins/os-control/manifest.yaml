@@ -1,0 +1,5 @@
+id: os-control
+name: "OS Control"
+version: "1.0.0"
+hub: hub.ts
+agent: agent.ts
