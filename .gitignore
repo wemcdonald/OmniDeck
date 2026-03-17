@@ -1,1 +1,11 @@
 docs/plans/
+node_modules/
+dist/
+*.js.map
+.env
+secrets.yaml
+data/
+*.db
+icon-cache/
+agent.toml
+.DS_Store
