@@ -1,11 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { WebSocketProvider } from "./hooks/useWebSocket.tsx";
+import App from "./App.tsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-      <h1 className="text-2xl font-bold">OmniDeck</h1>
-    </div>
+    <BrowserRouter>
+      <WebSocketProvider>
+        <App />
+      </WebSocketProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
