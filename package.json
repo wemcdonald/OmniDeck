@@ -1,0 +1,9 @@
+{
+  "name": "omnideck",
+  "private": true,
+  "workspaces": [
+    "hub",
+    "packages/*",
+    "agent"
+  ]
+}
