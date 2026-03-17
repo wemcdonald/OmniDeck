@@ -39,13 +39,13 @@ OmniDeck lets a single Stream Deck control multiple computers and networked serv
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Hub language | TypeScript (Node.js) | WebSocket/API glue code; shares types with future web UI; Pi already runs Node for ecosystem compatibility |
-| Agent language | Go | Single binary cross-compilation; excellent OS-level APIs; build tags for platform code |
+| Agent language | TypeScript (Bun) | Single compiled binary via `bun build --compile`; same language as hub; plugin ecosystem shared across sides |
 | Stream Deck HID | `@elgato-stream-deck/node` | Battle-tested library (used by Bitfocus Companion); headless udev rules included |
 | Button rendering | `sharp` (libvips) | Fast image compositing on Pi's ARM; JPEG output for Stream Deck keys |
 | Config format | YAML | Human-readable, AI-writable, supports complex nested structures |
 | Package manager | pnpm | Fast, disk-efficient, no monorepo tooling needed yet |
 | Communication | WebSocket (JSON) | Persistent, bidirectional, low-latency (~1-5ms message delivery on LAN) |
-| Protocol types | Protobuf (buf) → TypeScript + Go | Single source of truth; JSON on the wire for debuggability |
+| Protocol types | Hand-maintained TypeScript interfaces | JSON on the wire; types shared via `@omnideck/plugin-schema` workspace package |
 | Plugin system | TypeScript classes with declarative manifests | Familiar pattern; plugins can use any npm package |
 | No Bitfocus Companion | Custom system | We use &lt;1% of Companion's modules; the bridge/translation layer adds complexity without value for our multi-computer use case |
 
@@ -255,39 +255,61 @@ The "smart" layer that makes OmniDeck more than a dumb button grid. See [Orchest
 
 ## Agent (Mac/Windows)
 
-A single Go binary per platform. Connects to the hub via WebSocket. Executes OS-level commands and streams local state.
+A single TypeScript binary compiled with `bun build --compile` per platform. Connects to the hub via WebSocket. Executes OS-level commands via built-in primitives, and dynamically loads TypeScript plugins distributed from the hub.
 
 ### Architecture
 
 ```
 ┌────────────────────────────────────────┐
-│           OmniDeck Agent              │
+│           OmniDeck Agent (Bun)        │
 │                                        │
 │  ┌──────────────┐  ┌───────────────┐  │
-│  │  WS Client   │  │  Command      │  │
-│  │  (to Hub)    │◄─►│  Executor     │  │
+│  │  WS Client   │  │  Built-in     │  │
+│  │  (to Hub)    │◄─►│  Primitives   │  │
 │  │              │  │               │  │
-│  └──────────────┘  │  - App mgmt   │  │
-│                    │  - Volume      │  │
-│  ┌──────────────┐  │  - Keystrokes │  │
-│  │  State       │  │  - Sleep      │  │
-│  │  Streamer    │  │  - Processes  │  │
-│  │              │  └───────────────┘  │
-│  │  - Active    │                     │
-│  │    window    │  ┌───────────────┐  │
-│  │  - Idle time │  │  Local        │  │
-│  │  - Audio     │  │  Integrations │  │
-│  │    output    │  │               │  │
-│  │  - Input     │  │  - Discord    │  │
-│  │    devices   │  │    RPC        │  │
-│  └──────────────┘  └───────────────┘  │
-│                                        │
-│  ┌──────────────┐  ┌───────────────┐  │
-│  │  mDNS        │  │  System Tray  │  │
-│  │  Advertiser  │  │  (optional)   │  │
-│  └──────────────┘  └───────────────┘  │
+│  └──────────────┘  │  exec()       │  │
+│                    │  active window│  │
+│  ┌──────────────┐  │  idle time    │  │
+│  │  Plugin      │  │  volume       │  │
+│  │  Loader      │  └───────────────┘  │
+│  │              │                     │
+│  │  - Download  │  ┌───────────────┐  │
+│  │    bundles   │  │  Agent        │  │
+│  │  - Cache     │  │  Plugins      │  │
+│  │    (~/.omni) │  │  (TypeScript) │  │
+│  │  - Dynamic   │  │               │  │
+│  │    import()  │  │  os-control   │  │
+│  └──────────────┘  │  btt, obs...  │  │
+│                    └───────────────┘  │
+│  ┌──────────────┐                     │
+│  │  mDNS        │                     │
+│  │  Advertiser  │                     │
+│  └──────────────┘                     │
 └────────────────────────────────────────┘
 ```
+
+### Plugin Distribution Flow
+
+The hub distributes agent-side plugin code at connection time:
+
+1. Agent connects → sends `state_update` with platform info
+2. Hub responds with `plugin_manifest` listing available plugins + sha256 hashes
+3. Agent checks local cache (`~/.omnideck/plugins/{id}/{sha256}.mjs`)
+4. Cache miss → `plugin_download_request` → hub sends bundled JS via `plugin_download_response`
+5. Agent dynamic-imports the bundle, calls `plugin.init(omnideck)`
+6. Agent reports `plugin_status` (active/failed) to hub
+
+Plugin config is pushed from hub → agent via `plugin_config_update` messages whenever the user changes plugin settings. Plugins handle this via `omnideck.onReloadConfig()`.
+
+### Built-in Primitives
+
+These are always available to agent plugins via the `OmniDeck` object, without any distribution:
+
+- `exec(command, args)` — run any shell command, returns stdout/stderr/exitCode
+- `setState(key, value)` — push state to hub state store (fire-and-forget)
+- `platform` — `"darwin" | "windows" | "linux"`
+- `setInterval(fn, ms)` / `clearInterval(handle)` — managed timers cleared on plugin unload
+- `log.info/warn/error` — forwarded to hub logs
 
 ### Supported Commands
 
@@ -333,25 +355,24 @@ type Commander interface {
 
 ### State Streaming
 
-The agent continuously streams local state to the hub at configurable intervals:
+The agent periodically pushes local state to the hub (default 5s interval):
 
-```go
-type AgentState struct {
-    DeviceID      string        `json:"device_id"`
-    Hostname      string        `json:"hostname"`
-    Platform      string        `json:"platform"`      // "darwin" | "windows"
-    Online        bool          `json:"online"`
-    ActiveWindow  WindowInfo    `json:"active_window"`
-    IdleTime      Duration      `json:"idle_time"`
-    AudioOutput   AudioDevice   `json:"audio_output"`   // Current output device
-    AudioInput    AudioDevice   `json:"audio_input"`     // Current input device
-    Volume        int           `json:"volume"`
-    MicVolume     int           `json:"mic_volume"`
-    DiscordVoice  *DiscordState `json:"discord_voice"`   // nil if not in voice
+```typescript
+interface AgentStateData {
+  hostname: string;
+  platform: "darwin" | "windows" | "linux";
+  active_window_title?: string;
+  active_window_app?: string;
+  idle_time_ms?: number;
+  volume?: number;
+  mic_volume?: number;
+  is_muted?: boolean;
+  mic_muted?: boolean;
+  agent_version: string;
 }
 ```
 
-State is pushed on change (event-driven where possible) with a fallback poll interval of 1-2 seconds for things that can't be observed via events.
+Agent plugins can extend this by calling `omnideck.setState(key, value)` to push plugin-specific state (e.g., Spotify playback, BTT trigger list) into the hub's state store.
 
 ### Discord Local RPC
 
@@ -364,13 +385,12 @@ This is how the hub knows *which machine* Discord voice is active on (since the 
 
 ### Agent Lifecycle
 
-1. **Start**: Read config (hub address, device ID, shared secret) from `~/.omnideck/agent.toml`
-2. **Discover**: If no hub address configured, browse mDNS for `_omnideck._tcp`
-3. **Connect**: Open WebSocket to hub, authenticate with shared secret
-4. **Stream**: Begin pushing state updates
-5. **Listen**: Execute commands from hub
-6. **Reconnect**: On disconnect, exponential backoff reconnection (1s, 2s, 4s, 8s, max 30s)
-7. **Tray icon** (optional): Show connection status, allow pause/quit
+1. **Start**: Read `OMNIDECK_HUB_URL` env (default: `ws://omnideck.local:9200`)
+2. **Connect**: Open WebSocket to hub, send `state_update` hello
+3. **Plugin Init**: Receive `plugin_manifest`, download/cache missing plugins, load them
+4. **Stream**: Begin periodic state push (5s default)
+5. **Listen**: Execute commands from hub, route to plugin action handlers
+6. **Reconnect**: Auto-reconnect with 5s delay on disconnect
 
 ---
 
@@ -378,7 +398,64 @@ This is how the hub knows *which machine* Discord voice is active on (since the 
 
 Plugins are the primary extension mechanism. All integrations — including first-party ones like Home Assistant and Spotify — are implemented as plugins. There is no "built-in" integration code in the core.
 
-### Plugin Interface
+### Plugin Types
+
+**Hub-only plugins** — talk to cloud/network APIs directly from the Pi (HA, Spotify, Slack). Only a `hub.ts` is needed.
+
+**Hub+Agent plugins** — need local OS access on the target machine (os-control, BetterTouchTool, OBS). Include both `hub.ts` (deck/button side) and `agent.ts` (local execution side). The hub is always the coordinator; agents are workers.
+
+### Plugin Package Format
+
+```
+plugins/my-plugin/
+├── manifest.yaml     # Identity and targeting metadata
+├── hub.ts            # Hub-side: registers actions, state providers, presets
+└── agent.ts          # Agent-side: optional, runs on Mac/Windows via plugin loader
+```
+
+**manifest.yaml** — metadata only:
+```yaml
+id: bettertouchtool
+name: "BetterTouchTool"
+version: "0.1.0"
+platforms: [darwin]        # omit for all platforms
+hub: hub.ts
+agent: agent.ts            # omit for hub-only plugins
+```
+
+Config schemas and action param schemas live in `hub.ts` as Zod schemas — not in the manifest.
+
+**Agent plugin entry point** — a default-exported `init` function:
+```typescript
+import type { OmniDeck } from "@omnideck/agent-sdk";
+
+export default function init(omnideck: OmniDeck) {
+  // Plugin config from hub YAML (readonly, pushed by hub)
+  const port = omnideck.config.port ?? 12345;
+
+  // Managed polling timer
+  omnideck.setInterval(async () => {
+    const data = await fetch(`http://localhost:${port}/status`).then(r => r.json());
+    omnideck.setState("status", data);   // fire-and-forget push to hub
+  }, 2000);
+
+  // Handle hub-triggered actions (from button presses)
+  omnideck.onAction("run_trigger", async (params) => {
+    await fetch(`http://localhost:${port}/trigger/${params.name}`, { method: "POST" });
+    return { success: true };
+  });
+
+  // Hot-reload config without restarting
+  omnideck.onReloadConfig((newConfig) => { /* reconnect, adjust timers, etc. */ });
+
+  // Cleanup on unload
+  omnideck.onDestroy(() => { /* close connections */ });
+}
+```
+
+Agent plugins are **pre-bundled by the hub** (esbuild) before distribution. Agents never run `npm install` — they receive a single resolved `.js` file and dynamic-import it.
+
+### Hub Plugin Interface
 
 ```typescript
 interface Plugin {
@@ -1246,7 +1323,8 @@ omnideck/
 │   └── multi-pc/                   # Multi-computer setup
 │
 ├── scripts/                        # Build and deployment scripts
-│   ├── build-agent.sh              # Cross-compile Go agent
+│   ├── build-agent.sh              # Compile Bun agent for all platforms
+│   ├── build-plugins.sh            # Bundle plugin agent.ts files
 │   ├── pi-setup.sh                 # Pi initial setup
 │   └── install.sh                  # Install hub on Pi
 │
@@ -1255,10 +1333,25 @@ omnideck/
 │   └── udev/
 │       └── 50-stream-deck.rules    # udev rules for Stream Deck
 │
-└── shared/                         # Shared protocol definitions
-    └── proto/
-        ├── messages.proto          # Protobuf definitions for WS protocol
-        └── buf.gen.yaml            # buf codegen config
+├── plugins/                        # Standalone plugin packages
+│   ├── os-control/                 # Reference migration (hub + agent sides)
+│   │   ├── manifest.yaml
+│   │   ├── hub.ts
+│   │   └── agent.ts
+│   └── bettertouchtool/            # Example third-party plugin (darwin)
+│       ├── manifest.yaml
+│       ├── hub.ts
+│       └── agent.ts
+│
+└── packages/                       # Shared TypeScript packages (pnpm workspace)
+    ├── agent-sdk/                  # @omnideck/agent-sdk — OmniDeck interface types
+    │   └── src/
+    │       ├── types.ts
+    │       └── index.ts
+    └── plugin-schema/              # @omnideck/plugin-schema — Zod manifest schemas
+        └── src/
+            ├── manifest.ts
+            └── index.ts
 ```
 
 ---
@@ -1270,26 +1363,23 @@ omnideck/
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Node.js | 22+ (LTS) | Hub runtime |
-| pnpm | 9+ | Package management |
-| Go | 1.23+ | Agent compilation |
-| buf | latest | Protobuf codegen from `shared/proto/` |
-| Docker | optional | For cross-compiling agent binaries |
+| pnpm | 9+ | Hub package management (workspace) |
+| Bun | latest | Agent runtime + compilation |
 
-### TypeScript Configuration
+### Hub TypeScript Configuration
 
 - **ESM-only**: `"type": "module"` in `package.json`. No CommonJS.
-- **tsconfig target**: `ES2023`
-- **Module**: `Node16` / `NodeNext`
-- **Strict mode**: enabled
-- **Dev runner**: `tsx watch src/index.ts` — runs TypeScript directly, file-watching built in
-- **Production build**: `tsup src/index.ts --format esm` — bundles to single JS file, run with `node dist/index.js`
+- **tsconfig target**: `ES2023`, **Module**: `Node16`, **Strict mode**: enabled
+- **Dev runner**: `tsx watch src/index.ts`
+- **Production build**: `tsup src/index.ts --format esm`
 
-### npm Dependencies
+### Hub npm Dependencies
 
 | Package | Purpose |
 |---------|---------|
 | `@elgato-stream-deck/node` | Stream Deck USB HID communication |
 | `sharp` | Image compositing for button rendering (libvips, prebuilt ARM64 binaries) |
+| `esbuild` | Bundles agent plugin code for distribution |
 | `ws` | WebSocket server (agent connections) and client (HA API) |
 | `yaml` (v2) | YAML 1.2 parsing with custom `!secret` tag support |
 | `zod` | Schema validation for plugin configs and YAML structure |
@@ -1297,34 +1387,22 @@ omnideck/
 | `pino` | Structured JSON logging |
 | `bonjour-service` | mDNS browse (discover agents) and advertise (let agents find hub) |
 
-### Go Dependencies
+### Agent Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `nhooyr.io/websocket` | WebSocket client (modern, context-based API; gorilla is archived) |
-| `github.com/hashicorp/mdns` | mDNS service advertisement |
-| `github.com/BurntSushi/toml` | Agent config file parsing |
-| `github.com/getlantern/systray` | Cross-platform system tray (Mac menu bar + Windows tray) |
-| `log/slog` (stdlib) | Structured logging, no external dependency |
-| `golang.org/x/sys/windows` | Win32 API access for Windows agent |
+The agent has no npm dependencies beyond workspace packages. All OS integration uses:
+- **Bun built-ins**: `Bun.spawn` for process execution, `fetch` for HTTP, `WebSocket` global
+- **`@omnideck/agent-sdk`**: TypeScript types for the plugin OmniDeck interface
+- **`@omnideck/plugin-schema`**: Zod schemas for manifest validation
 
-Platform-specific agent code uses no external deps for OS integration:
-- **Mac**: `osascript` via `os/exec`, CGO for CoreAudio/Accessibility when needed
-- **Windows**: `golang.org/x/sys/windows` for Win32, `os/exec` for PowerShell
+Platform-specific logic uses shell commands:
+- **Mac**: `osascript` for AppleScript, `ioreg` for idle time, `pmset` for sleep
+- **Windows**: PowerShell via `exec()`
 
-### Shared Protocol (Protobuf)
+### Protocol
 
-Protocol Buffer definitions live in `shared/proto/`. They define all WebSocket message types exchanged between hub and agent. Messages are serialized as **JSON on the wire** (not binary protobuf) — protobuf is used purely for type generation and cross-language compatibility.
+All hub ↔ agent communication uses WebSocket with JSON messages. Types are hand-maintained in `hub/src/server/protocol.ts` and mirrored in `agent/src/ws/protocol.ts`. Both sides are TypeScript so no codegen tooling is needed.
 
-**Codegen workflow**:
-- `buf generate` produces TypeScript types (for hub) and Go structs (for agent)
-- TypeScript output: `hub/src/generated/protocol.ts`
-- Go output: `agent/internal/protocol/protocol.go`
-- Run `buf generate` as part of both `pnpm build` and `go generate`
-
-**Why protobuf over hand-maintained types**: The hub (TypeScript) and agent (Go) must always agree on message shapes. Protobuf guarantees this at build time. Adding a field to a message updates both sides automatically.
-
-**Why JSON on the wire**: Human-debuggable with `wscat`, browser dev tools, or `jq`. The message payloads are small (typically <1KB). Binary encoding saves nothing meaningful here.
+**Why JSON on the wire**: Human-debuggable with `wscat` or `jq`. Payloads are small (<1KB). The `shared/proto/` directory contains historical Protobuf definitions from the original Go agent and is no longer used.
 
 ### State Store
 
