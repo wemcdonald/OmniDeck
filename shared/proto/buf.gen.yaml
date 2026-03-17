@@ -1,0 +1,10 @@
+version: v2
+plugins:
+  - local: protoc-gen-es
+    out: ../../hub/src/generated
+    opt:
+      - target=ts
+  - local: protoc-gen-go
+    out: ../../agent/internal/protocol
+    opt:
+      - paths=source_relative

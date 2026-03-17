@@ -1,0 +1,59 @@
+// shared/proto/messages.proto
+syntax = "proto3";
+
+package omnideck;
+
+option go_package = "github.com/willcl-ark/omnideck/agent/internal/protocol";
+
+// Envelope wrapping all messages
+message Message {
+  uint32 v = 1;        // protocol version (always 1)
+  string type = 2;     // message type discriminator
+  string id = 3;       // request/response correlation ID
+  string ts = 4;       // ISO 8601 timestamp
+  bytes data = 5;      // JSON-encoded payload
+}
+
+// Hub -> Agent: Execute a command
+message CommandRequest {
+  string command = 1;
+  map<string, string> params = 2;
+}
+
+// Agent -> Hub: Command response
+message CommandResponse {
+  bool success = 1;
+  string result = 2;
+  string error = 3;
+}
+
+// Hub -> Agent: Request state snapshot
+message StateRequest {}
+
+// Agent -> Hub: State update
+message AgentState {
+  string hostname = 1;
+  string platform = 2;
+  string active_window_title = 3;
+  string active_window_app = 4;
+  uint64 idle_time_ms = 5;
+  double volume = 6;
+  double mic_volume = 7;
+  bool is_muted = 8;
+  bool mic_muted = 9;
+  string agent_version = 10;
+}
+
+// Agent -> Hub: Pairing request
+message PairRequest {
+  string hostname = 1;
+  string platform = 2;
+  string agent_version = 3;
+  string pairing_code = 4;
+}
+
+// Hub -> Agent: Pairing acknowledgment
+message PairAck {
+  string hub_id = 1;
+  string device_name = 2;
+}
