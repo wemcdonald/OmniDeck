@@ -1,0 +1,224 @@
+# OmniDeck - Multi-PC Home Page
+# Demonstrates: presets, state providers, conditional rendering,
+# computer switching controls, media shortcuts, HA entity buttons,
+# Discord/Slack status badges, and page navigation.
+
+page: home
+name: "Home"
+
+buttons:
+  # ── Row 0: Computer focus controls ─────────────────────────────────────────
+
+  - pos: [0, 0]
+    label: "MacBook"
+    top_label: "Focus"
+    icon: mdi:laptop-mac
+    preset: os-control.focus_device
+    params:
+      device_id: macbook
+    # Highlight when MacBook is the focused machine
+    state:
+      provider: orchestrator.focus
+      when_true:
+        background: "#3b82f6"
+        label: "MacBook"
+        top_label: "Active"
+      when_false:
+        background: "#1e293b"
+    condition:
+      state: orchestrator.focus
+      device: macbook
+
+  - pos: [1, 0]
+    label: "Win PC"
+    top_label: "Focus"
+    icon: mdi:desktop-classic
+    preset: os-control.focus_device
+    params:
+      device_id: windows-pc
+    state:
+      provider: orchestrator.focus
+      when_true:
+        background: "#8b5cf6"
+        top_label: "Active"
+      when_false:
+        background: "#1e293b"
+    condition:
+      state: orchestrator.focus
+      device: windows-pc
+
+  - pos: [2, 0]
+    label: "Switch Input"
+    icon: mdi:monitor-multiple
+    background: "#0f172a"
+    action: orchestrator.cec_switch
+    params:
+      device: focused            # switch CEC input to whichever machine is focused
+
+  - pos: [3, 0]
+    label: "Mic"
+    icon: mdi:microphone
+    preset: orchestrator.mic_switch
+    # Renders on/off state from the HA USB switch entity
+    state:
+      provider: home-assistant.entity_state
+      entity_id: switch.usb_mic_switch
+      when_true:
+        background: "#ef4444"
+        label: "Mic ON"
+        icon: mdi:microphone
+      when_false:
+        background: "#1e293b"
+        label: "Mic OFF"
+        icon: mdi:microphone-off
+
+  - pos: [4, 0]
+    label: "Media"
+    icon: mdi:music
+    background: "#064e3b"
+    action: omnideck-core.change_page
+    params:
+      page: media
+
+  # ── Row 1: Home Assistant ───────────────────────────────────────────────────
+
+  - pos: [0, 1]
+    preset: home-assistant.light_toggle
+    params:
+      entity_id: light.office_desk
+
+  - pos: [1, 1]
+    preset: home-assistant.light_toggle
+    params:
+      entity_id: light.office_ceiling
+
+  - pos: [2, 1]
+    preset: home-assistant.switch_toggle
+    params:
+      entity_id: switch.office_fan
+
+  - pos: [3, 1]
+    preset: home-assistant.scene_activate
+    params:
+      entity_id: scene.focus_mode
+    label: "Focus Mode"
+    icon: mdi:brain
+    background: "#7c3aed"
+
+  - pos: [4, 1]
+    preset: home-assistant.scene_activate
+    params:
+      entity_id: scene.relax
+    label: "Relax"
+    icon: mdi:weather-sunset
+    background: "#b45309"
+
+  # ── Row 2: Communication ────────────────────────────────────────────────────
+
+  - pos: [0, 2]
+    label: "Discord"
+    icon: mdi:discord
+    background: "#5865f2"
+    # Badge shows unread DM count
+    state:
+      provider: discord.unread_badge
+    action: os-control.focus_app
+    params:
+      app: discord
+      device_id: macbook
+
+  - pos: [1, 2]
+    label: "Mute"
+    icon: mdi:microphone-off
+    preset: discord.toggle_mute
+    state:
+      provider: discord.mute_state
+      when_true:
+        background: "#ef4444"
+        label: "Muted"
+        icon: mdi:microphone-off
+      when_false:
+        background: "#1e293b"
+        label: "Unmuted"
+        icon: mdi:microphone
+
+  - pos: [2, 2]
+    label: "Deafen"
+    icon: mdi:headphones-off
+    preset: discord.toggle_deafen
+    state:
+      provider: discord.deafen_state
+      when_true:
+        background: "#ef4444"
+        label: "Deafened"
+      when_false:
+        background: "#1e293b"
+        label: "Undeafened"
+
+  - pos: [3, 2]
+    label: "Slack"
+    icon: mdi:slack
+    background: "#4a154b"
+    # Badge shows unread Slack mention count
+    state:
+      provider: slack.unread_badge
+    action: os-control.focus_app
+    params:
+      app: slack
+      device_id: macbook
+
+  - pos: [4, 2]
+    label: "DND"
+    icon: mdi:bell-off
+    preset: slack.toggle_dnd
+    state:
+      provider: slack.dnd_state
+      when_true:
+        background: "#dc2626"
+        label: "DND ON"
+      when_false:
+        background: "#1e293b"
+        label: "DND OFF"
+
+  # ── Row 3: OS Control shortcuts ─────────────────────────────────────────────
+
+  - pos: [0, 3]
+    label: "Lock Mac"
+    icon: mdi:lock
+    background: "#374151"
+    action: os-control.lock_screen
+    params:
+      device_id: macbook
+
+  - pos: [1, 3]
+    label: "Lock PC"
+    icon: mdi:lock
+    background: "#374151"
+    action: os-control.lock_screen
+    params:
+      device_id: windows-pc
+
+  - pos: [2, 3]
+    label: "Sleep Mac"
+    icon: mdi:power-sleep
+    background: "#111827"
+    action: os-control.sleep
+    params:
+      device_id: macbook
+
+  - pos: [3, 3]
+    label: "Screenshot"
+    icon: mdi:camera
+    background: "#1d4ed8"
+    action: os-control.send_keystroke
+    params:
+      device_id: macbook
+      keys: ["cmd", "shift", "4"]   # macOS area screenshot
+
+  - pos: [4, 3]
+    label: "Settings"
+    icon: mdi:cog
+    background: "#374151"
+    action: omnideck-core.change_page
+    params:
+      page: settings

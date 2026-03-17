@@ -1,0 +1,81 @@
+# OmniDeck - Multi-PC Configuration
+# Full-featured setup with two computers, all first-party plugins,
+# and orchestrator intelligence (focus tracking, media routing, Discord mic switching).
+#
+# Copy secrets.yaml.example → secrets.yaml and fill in real values.
+# secrets.yaml should be gitignored — never commit real tokens.
+
+deck:
+  brightness: 80
+  idle_dim_after: 5m
+  idle_dim_brightness: 20
+  wake_on_touch: true
+  default_page: home
+
+# ─── Devices ──────────────────────────────────────────────────────────────────
+# Each device runs the OmniDeck agent (omnideck-agent binary).
+# Agents are discovered via mDNS (_omnideck._tcp) or a static address.
+
+devices:
+  - id: macbook
+    name: "Will's MacBook"
+    platform: darwin
+    # address: 192.168.1.50:9210   # uncomment to use static IP instead of mDNS
+
+  - id: windows-pc
+    name: "Will's PC"
+    platform: windows
+    # address: 192.168.1.51:9210
+
+# ─── Plugins ──────────────────────────────────────────────────────────────────
+
+plugins:
+  home-assistant:
+    url: !secret ha_url
+    token: !secret ha_token
+
+  spotify:
+    client_id: !secret spotify_client_id
+    client_secret: !secret spotify_client_secret
+    refresh_token: !secret spotify_refresh_token
+
+  discord:
+    bot_token: !secret discord_bot_token
+    guild_id: !secret discord_guild_id
+    voice_channel_ids:
+      - !secret discord_voice_channel_id
+
+  slack:
+    user_token: !secret slack_user_token
+    poll_interval: 15s
+
+  os-control:
+    default_target: auto   # "auto" = target the currently focused machine
+
+# ─── Orchestrator ─────────────────────────────────────────────────────────────
+# The orchestrator provides intelligence across devices:
+#   - focus tracking: which machine the user is actively using
+#   - media routing: Spotify commands go to the active player
+#   - Discord mic switching: physical USB switch via Home Assistant
+#   - HDMI CEC: switch monitor input when focus changes
+
+orchestrator:
+  focus:
+    strategy: idle_time          # "idle_time" | "manual" | "active_window"
+    idle_threshold: 30s          # machine is "unfocused" after 30s idle
+    switch_page_on_focus: true   # auto-switch deck to device-specific page
+
+  media:
+    route_to: active_player      # "active_player" | "focused" | "manual"
+
+  discord:
+    mic_switch:
+      enabled: true
+      ha_entity: switch.usb_mic_switch   # HA entity controlling the USB switch
+      mac_position: "a"                   # USB switch port label for Mac
+      windows_position: "b"              # USB switch port label for Windows PC
+
+  cec:
+    enabled: true                # requires cec-utils installed on Pi and HDMI connection
+    mac_input: HDMI1
+    windows_input: HDMI2

@@ -1,0 +1,7 @@
+# OmniDeck - Minimal Configuration
+# Bare minimum to get started with a single machine.
+# No plugins, no devices — just the deck and a page.
+
+deck:
+  brightness: 80
+  default_page: home

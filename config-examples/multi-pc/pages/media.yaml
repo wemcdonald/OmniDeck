@@ -1,0 +1,212 @@
+# OmniDeck - Multi-PC Media Page
+# Demonstrates: Spotify presets, now-playing state display,
+# volume control, HA media player buttons, and device-targeted playback.
+
+page: media
+name: "Media"
+
+buttons:
+  # ── Row 0: Playback controls ────────────────────────────────────────────────
+
+  - pos: [0, 0]
+    label: "Back"
+    icon: mdi:arrow-left
+    background: "#1e293b"
+    action: omnideck-core.change_page
+    params:
+      page: home
+
+  - pos: [1, 0]
+    label: "Prev"
+    icon: mdi:skip-previous
+    background: "#1e293b"
+    action: spotify.previous_track
+
+  - pos: [2, 0]
+    label: "Play"
+    icon: mdi:play-pause
+    # Dynamically shows play or pause icon based on Spotify state
+    preset: spotify.play_pause_button
+    state:
+      provider: spotify.playback_state
+      when_true:
+        icon: mdi:pause
+        label: "Pause"
+        background: "#1db954"
+      when_false:
+        icon: mdi:play
+        label: "Play"
+        background: "#1e293b"
+
+  - pos: [3, 0]
+    label: "Next"
+    icon: mdi:skip-next
+    background: "#1e293b"
+    action: spotify.next_track
+
+  - pos: [4, 0]
+    label: "Shuffle"
+    icon: mdi:shuffle
+    preset: spotify.toggle_shuffle
+    state:
+      provider: spotify.shuffle_state
+      when_true:
+        background: "#1db954"
+        label: "Shuffle"
+      when_false:
+        background: "#1e293b"
+        label: "Shuffle"
+
+  # ── Row 1: Now Playing + Volume ─────────────────────────────────────────────
+
+  - pos: [0, 1]
+    # Shows current track artwork, title, and artist via state provider
+    preset: spotify.now_playing_display
+    state:
+      provider: spotify.current_track
+    # Tap to open Spotify on the focused machine
+    action: os-control.focus_app
+    params:
+      app: spotify
+      device_id: focused
+
+  - pos: [1, 1]
+    label: "Vol -"
+    icon: mdi:volume-minus
+    background: "#374151"
+    action: spotify.set_volume
+    params:
+      delta: -10
+
+  - pos: [2, 1]
+    label: "Vol"
+    icon: mdi:volume-high
+    background: "#374151"
+    # Shows current volume level as top_label via state
+    state:
+      provider: spotify.volume_level
+      template: "{{value}}%"
+      top_label_from_state: true
+
+  - pos: [3, 1]
+    label: "Vol +"
+    icon: mdi:volume-plus
+    background: "#374151"
+    action: spotify.set_volume
+    params:
+      delta: +10
+
+  - pos: [4, 1]
+    label: "Mute"
+    icon: mdi:volume-off
+    preset: spotify.toggle_mute
+    state:
+      provider: spotify.mute_state
+      when_true:
+        background: "#ef4444"
+        label: "Muted"
+      when_false:
+        background: "#374151"
+        label: "Mute"
+
+  # ── Row 2: Playlist / Context shortcuts ─────────────────────────────────────
+
+  - pos: [0, 2]
+    label: "Liked"
+    icon: mdi:heart
+    background: "#be185d"
+    action: spotify.play_context
+    params:
+      uri: "spotify:collection:tracks"   # Liked Songs
+
+  - pos: [1, 2]
+    label: "Focus"
+    icon: mdi:brain
+    background: "#7c3aed"
+    action: spotify.play_context
+    params:
+      uri: "spotify:playlist:37i9dQZF1DWZeKCadgRdKQ"   # Deep Focus
+
+  - pos: [2, 2]
+    label: "Chill"
+    icon: mdi:weather-partly-cloudy
+    background: "#0369a1"
+    action: spotify.play_context
+    params:
+      uri: "spotify:playlist:37i9dQZF1DX4WYpdgoIcn6"   # Chill Hits
+
+  - pos: [3, 2]
+    label: "Transfer →Mac"
+    icon: mdi:laptop-mac
+    background: "#1e3a5f"
+    action: spotify.transfer_playback
+    params:
+      device_id: macbook
+
+  - pos: [4, 2]
+    label: "Transfer →PC"
+    icon: mdi:desktop-classic
+    background: "#2d1b69"
+    action: spotify.transfer_playback
+    params:
+      device_id: windows-pc
+
+  # ── Row 3: HA Media Players (TV / speakers) ─────────────────────────────────
+
+  - pos: [0, 3]
+    label: "TV"
+    icon: mdi:television
+    preset: home-assistant.media_play_pause
+    params:
+      entity_id: media_player.living_room_tv
+    state:
+      provider: home-assistant.entity_state
+      entity_id: media_player.living_room_tv
+      when_true:
+        background: "#065f46"
+        label: "TV ON"
+      when_false:
+        background: "#1e293b"
+        label: "TV OFF"
+
+  - pos: [1, 3]
+    label: "TV Vol-"
+    icon: mdi:volume-minus
+    background: "#1e293b"
+    action: home-assistant.call_service
+    params:
+      service: media_player.volume_down
+      entity_id: media_player.living_room_tv
+
+  - pos: [2, 3]
+    label: "TV Vol+"
+    icon: mdi:volume-plus
+    background: "#1e293b"
+    action: home-assistant.call_service
+    params:
+      service: media_player.volume_up
+      entity_id: media_player.living_room_tv
+
+  - pos: [3, 3]
+    label: "Speakers"
+    icon: mdi:speaker
+    preset: home-assistant.switch_toggle
+    params:
+      entity_id: switch.desk_speakers
+    state:
+      provider: home-assistant.entity_state
+      entity_id: switch.desk_speakers
+      when_true:
+        background: "#065f46"
+        label: "Spkrs ON"
+      when_false:
+        background: "#1e293b"
+        label: "Spkrs OFF"
+
+  - pos: [4, 3]
+    label: "Home"
+    icon: mdi:home
+    background: "#1e293b"
+    action: omnideck-core.change_page
+    params:
+      page: home

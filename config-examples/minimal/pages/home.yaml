@@ -1,0 +1,43 @@
+# OmniDeck - Minimal Home Page
+# Simple home page with a few static buttons.
+# Demonstrates: basic button layout, navigation, and static labels.
+
+page: home
+name: "Home"
+
+buttons:
+  - pos: [0, 0]
+    label: "Page 2"
+    background: "#3b82f6"
+    action: omnideck-core.change_page
+    params:
+      page: page2
+
+  - pos: [1, 0]
+    label: "Hello"
+    background: "#10b981"
+    # No action — purely decorative / label button
+
+  - pos: [2, 0]
+    label: "Bright+"
+    icon: mdi:brightness-high
+    background: "#f59e0b"
+    action: omnideck-core.set_brightness
+    params:
+      delta: +10
+
+  - pos: [3, 0]
+    label: "Bright-"
+    icon: mdi:brightness-low
+    background: "#78716c"
+    action: omnideck-core.set_brightness
+    params:
+      delta: -10
+
+  - pos: [4, 0]
+    label: "Sleep"
+    icon: mdi:power-sleep
+    background: "#1e293b"
+    action: omnideck-core.set_brightness
+    params:
+      value: 0
