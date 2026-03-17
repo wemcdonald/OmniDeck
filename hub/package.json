@@ -8,7 +8,8 @@
     "build": "tsup src/index.ts --format esm",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "build:web": "cd web && pnpm install && pnpm build"
   },
   "engines": {
     "node": ">=22"
