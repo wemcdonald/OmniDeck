@@ -24,8 +24,14 @@ interface PendingCommand {
   timer: ReturnType<typeof setTimeout>;
 }
 
+interface PluginRegistryLike {
+  getDistributionList(platform: string): Array<{ id: string; version: string; sha256: string; platforms: string[]; hasAgent: boolean }>;
+  getAgentBundle(id: string): { code: string; sha256: string } | undefined;
+}
+
 interface AgentServerOptions {
   port: number;
+  registry?: PluginRegistryLike;
 }
 
 export class AgentServer {
@@ -33,9 +39,11 @@ export class AgentServer {
   private agents = new Map<string, ConnectedAgent>();
   private pendingCommands = new Map<string, PendingCommand>();
   private port: number;
+  private registry: PluginRegistryLike | undefined;
 
   constructor(opts: AgentServerOptions) {
     this.port = opts.port;
+    this.registry = opts.registry;
   }
 
   async start(): Promise<number> {
@@ -134,6 +142,26 @@ export class AgentServer {
           platform: state.platform,
           state,
         });
+        if (this.registry) {
+          const plugins = this.registry.getDistributionList(state.platform);
+          ws.send(JSON.stringify(createMessage("plugin_manifest", { plugins })));
+        }
+        break;
+      }
+      case "plugin_download_request": {
+        const { id } = msg.data as { id: string };
+        if (this.registry) {
+          const bundle = this.registry.getAgentBundle(id);
+          if (bundle) {
+            ws.send(JSON.stringify(createMessage("plugin_download_response", { id, code: bundle.code, sha256: bundle.sha256 }, msg.id)));
+          } else {
+            log.warn({ id }, "Plugin bundle not found");
+          }
+        }
+        break;
+      }
+      case "plugin_status": {
+        log.info({ data: msg.data }, "Plugin status received");
         break;
       }
       case "command_response": {
