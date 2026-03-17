@@ -22,8 +22,8 @@ describe("loadConfig", () => {
       `deck:\n  brightness: 80\n  default_page: home\n`
     );
     const config = await loadConfig(tmpDir);
-    expect(config.deck.brightness).toBe(80);
-    expect(config.deck.default_page).toBe("home");
+    expect(config.deck!.brightness).toBe(80);
+    expect(config.deck!.default_page).toBe("home");
   });
 
   it("resolves !secret tags from secrets.yaml", async () => {
@@ -37,7 +37,7 @@ describe("loadConfig", () => {
       `ha_token: "my-secret-token"\n`
     );
     const config = await loadConfig(tmpDir, join(tmpDir, "..", "secrets.yaml"));
-    expect(config.plugins["home-assistant"].token).toBe("my-secret-token");
+    expect((config.plugins!["home-assistant"] as Record<string, unknown>).token).toBe("my-secret-token");
   });
 
   it("throws if !secret references missing key", async () => {
@@ -61,7 +61,7 @@ describe("loadConfig", () => {
     const config = await loadConfig(tmpDir);
     expect(config.pages).toHaveLength(1);
     expect(config.pages[0].page).toBe("home");
-    expect(config.pages[0].buttons[0].label).toBe("Test");
+    expect((config.pages[0].buttons as Array<Record<string, unknown>>)[0].label).toBe("Test");
   });
 
   it("merges multiple YAML files in config root", async () => {
@@ -71,7 +71,7 @@ describe("loadConfig", () => {
       `devices:\n  - id: macbook\n    platform: darwin\n`
     );
     const config = await loadConfig(tmpDir);
-    expect(config.deck.brightness).toBe(80);
-    expect(config.devices[0].id).toBe("macbook");
+    expect(config.deck!.brightness).toBe(80);
+    expect(config.devices![0].id).toBe("macbook");
   });
 });
