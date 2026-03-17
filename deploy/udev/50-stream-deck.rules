@@ -1,0 +1,2 @@
+# Elgato Stream Deck - allow access without root
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", TAG+="uaccess"

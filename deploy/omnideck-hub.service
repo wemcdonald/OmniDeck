@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniDeck Hub
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/omnideck
+ExecStart=/usr/bin/node /opt/omnideck/hub/dist/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=OMNIDECK_CONFIG_DIR=/home/pi/.omnideck/config
+Environment=OMNIDECK_SECRETS_PATH=/home/pi/.omnideck/secrets.yaml
+
+[Install]
+WantedBy=multi-user.target
