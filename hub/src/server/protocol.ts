@@ -52,3 +52,42 @@ export function parseMessage(raw: string): WsMessage {
   if (msg.v !== 1) throw new Error(`Unsupported protocol version: ${msg.v}`);
   return msg;
 }
+
+/** Hub → Agent: announce available plugins after agent hello */
+export interface PluginManifestData {
+  plugins: Array<{
+    id: string;
+    version: string;
+    sha256: string;
+    platforms: string[];
+    hasAgent: boolean;
+  }>;
+}
+
+/** Agent → Hub: request plugin code download */
+export interface PluginDownloadRequestData {
+  id: string;
+}
+
+/** Hub → Agent: plugin code bundle */
+export interface PluginDownloadResponseData {
+  id: string;
+  code: string;
+  sha256: string;
+}
+
+/** Agent → Hub: report plugin load status */
+export interface PluginStatusData {
+  plugins: Array<{
+    id: string;
+    version: string;
+    status: "active" | "failed";
+    error?: string;
+  }>;
+}
+
+/** Hub → Agent: push updated plugin config */
+export interface PluginConfigUpdateData {
+  id: string;
+  config: Record<string, unknown>;
+}
