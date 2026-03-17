@@ -20,6 +20,8 @@ export interface CommandResponseData {
 export interface AgentStateData {
   hostname: string;
   platform: string;
+  active_window_title?: string;
+  active_window_app?: string;
   agent_version: string;
   idle_time_ms?: number;
   volume?: number;
