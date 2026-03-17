@@ -1,0 +1,6 @@
+id: bettertouchtool
+name: "BetterTouchTool"
+version: "0.1.0"
+platforms: [darwin]
+hub: hub.ts
+agent: agent.ts
