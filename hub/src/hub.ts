@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import type { DeckManager } from "./deck/types.js";
 import type { PageConfig, ButtonConfig } from "./config/validator.js";
 import { ButtonRenderer } from "./renderer/renderer.js";
@@ -8,6 +11,8 @@ import { corePlugin } from "./plugins/builtin/core/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const log = createLogger("hub");
 
@@ -48,10 +53,12 @@ export class Hub {
 
     // Start web server
     setLogBroadcaster(this.broadcaster);
+    const webDistDir = resolve(__dirname, "../../dist/web");
     this.webServer = new WebServer({
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,
       broadcaster: this.broadcaster,
+      staticDir: existsSync(webDistDir) ? webDistDir : undefined,
     });
     await this.webServer.start();
 

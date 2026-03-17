@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, extname } from "node:path";
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -54,6 +57,45 @@ export class WebServer {
           },
         }),
       );
+    }
+
+    // Serve static SPA files (production) using a custom fs-based middleware
+    // that accepts an absolute staticDir path
+    if (this.opts.staticDir) {
+      const staticDir = this.opts.staticDir;
+      const mimeTypes: Record<string, string> = {
+        ".html": "text/html",
+        ".js": "application/javascript",
+        ".mjs": "application/javascript",
+        ".css": "text/css",
+        ".json": "application/json",
+        ".png": "image/png",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+      };
+      this.app.use("/*", async (c, next) => {
+        // Do not intercept API routes
+        if (c.req.path.startsWith("/api/") || c.req.path === "/ws") {
+          return next();
+        }
+        const filePath = join(staticDir, c.req.path);
+        if (existsSync(filePath)) {
+          const ext = extname(filePath);
+          const mime = mimeTypes[ext] ?? "application/octet-stream";
+          const body = await readFile(filePath);
+          return c.body(body as unknown as string, 200, { "Content-Type": mime });
+        }
+        // SPA fallback — serve index.html
+        const indexPath = join(staticDir, "index.html");
+        if (existsSync(indexPath)) {
+          const body = await readFile(indexPath, "utf-8");
+          return c.html(body);
+        }
+        return next();
+      });
     }
 
     // 404 for unknown /api/* routes

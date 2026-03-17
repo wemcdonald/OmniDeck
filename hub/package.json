@@ -5,11 +5,13 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:web": "cd web && pnpm dev",
     "build": "tsup src/index.ts --format esm",
+    "build:web": "cd web && pnpm install && pnpm build",
+    "build:all": "pnpm build:web && pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit",
-    "build:web": "cd web && pnpm install && pnpm build"
+    "lint": "tsc --noEmit"
   },
   "engines": {
     "node": ">=22"
