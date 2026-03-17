@@ -5,13 +5,16 @@ import type { ButtonState } from "./renderer/types.js";
 import { StateStore } from "./state/store.js";
 import { PluginHost } from "./plugins/host.js";
 import { corePlugin } from "./plugins/builtin/core/index.js";
-import { createLogger } from "./logger.js";
+import { createLogger, setLogBroadcaster } from "./logger.js";
+import { WebServer } from "./web/server.js";
+import { Broadcaster } from "./web/broadcast.js";
 
 const log = createLogger("hub");
 
 interface HubOptions {
   deck: DeckManager;
   configDir: string | undefined;
+  webPort?: number;
 }
 
 export class Hub {
@@ -21,8 +24,12 @@ export class Hub {
   private pluginHost: PluginHost;
   private pages = new Map<string, PageConfig>();
   private currentPageId = "";
+  private webServer: WebServer | null = null;
+  private broadcaster = new Broadcaster();
+  private opts: HubOptions;
 
   constructor(opts: HubOptions) {
+    this.opts = opts;
     this.deck = opts.deck;
     this.renderer = new ButtonRenderer({ width: 96, height: 96 });
     this.store = new StateStore();
@@ -38,6 +45,15 @@ export class Hub {
 
     // Init plugins
     await this.pluginHost.initAll({});
+
+    // Start web server
+    setLogBroadcaster(this.broadcaster);
+    this.webServer = new WebServer({
+      port: this.opts.webPort ?? 0,
+      configDir: this.opts.configDir,
+      broadcaster: this.broadcaster,
+    });
+    await this.webServer.start();
 
     // Connect deck
     await this.deck.connect();
@@ -68,6 +84,13 @@ export class Hub {
         log.error({ err, key }, "Key press handler error"),
       );
     });
+  }
+
+  async stop(): Promise<void> {
+    if (this.webServer) {
+      await this.webServer.stop();
+      this.webServer = null;
+    }
   }
 
   getCurrentPage(): string {

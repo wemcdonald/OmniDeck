@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hub } from "../hub.js";
 import { MockDeck } from "../deck/mock.js";
 
@@ -9,6 +9,10 @@ describe("Hub", () => {
   beforeEach(async () => {
     deck = new MockDeck({ keyCount: 15, columns: 5 });
     hub = new Hub({ deck, configDir: undefined });
+  });
+
+  afterEach(async () => {
+    await hub.stop();
   });
 
   it("initializes with a deck and page state", async () => {

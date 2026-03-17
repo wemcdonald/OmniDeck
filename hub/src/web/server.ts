@@ -1,17 +1,30 @@
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
+import { WebSocketServer, type WebSocket } from "ws";
 import { createLogger } from "../logger.js";
+import { createConfigRoutes } from "./routes/config.js";
+import { createStatusRoutes } from "./routes/status.js";
+import type { Broadcaster } from "./broadcast.js";
+import type { AgentServer } from "../server/server.js";
+import type { PluginHost } from "../plugins/host.js";
+import type { DeckManager } from "../deck/types.js";
 
 const log = createLogger("web");
 
-interface WebServerOptions {
+export interface WebServerOptions {
   port: number;
+  configDir?: string;
+  agentServer?: AgentServer;
+  pluginHost?: PluginHost;
+  deck?: DeckManager;
+  broadcaster?: Broadcaster;
   staticDir?: string;
 }
 
 export class WebServer {
   private app: Hono;
   private server: ServerType | null = null;
+  private wss: WebSocketServer | null = null;
   private opts: WebServerOptions;
 
   constructor(opts: WebServerOptions) {
@@ -21,7 +34,27 @@ export class WebServer {
   }
 
   private setupRoutes(): void {
+    const { configDir, agentServer, deck, broadcaster } = this.opts;
+
     this.app.get("/api/health", (c) => c.json({ status: "ok" }));
+
+    if (configDir) {
+      this.app.route("/api/config", createConfigRoutes(configDir));
+    }
+
+    if (agentServer || deck) {
+      this.app.route(
+        "/api",
+        createStatusRoutes({
+          getAgents: () => agentServer?.getConnectedAgents() ?? [],
+          getPluginStatuses: () => [],
+          getDeckPreview: () => ({}),
+          pressKey: async (key) => {
+            log.info({ key }, "Browser simulated key press");
+          },
+        }),
+      );
+    }
 
     // 404 for unknown /api/* routes
     this.app.notFound((c) => {
@@ -30,6 +63,32 @@ export class WebServer {
       }
       return c.json({ error: "Not found" }, 404);
     });
+
+    // Wire up WebSocket server if broadcaster provided
+    if (broadcaster) {
+      this.wss = new WebSocketServer({ noServer: true });
+      this.wss.on("connection", (ws: WebSocket) => {
+        broadcaster.add(ws as unknown as Parameters<Broadcaster["add"]>[0]);
+        log.info("Browser WebSocket connected");
+
+        ws.on("message", (raw) => {
+          try {
+            const msg = JSON.parse(String(raw)) as { type: string; data?: unknown };
+            if (msg.type === "deck:press") {
+              const data = msg.data as { key: number };
+              log.info({ key: data.key }, "Browser simulated key press");
+            }
+          } catch {
+            // ignore malformed messages
+          }
+        });
+
+        ws.on("close", () => {
+          broadcaster.remove(ws as unknown as Parameters<Broadcaster["remove"]>[0]);
+          log.info("Browser WebSocket disconnected");
+        });
+      });
+    }
   }
 
   async start(): Promise<number> {
@@ -37,14 +96,39 @@ export class WebServer {
       this.server = serve(
         { fetch: this.app.fetch, port: this.opts.port },
         (info) => {
+          // Attach WebSocket upgrade handler to the raw Node HTTP server
+          if (this.wss) {
+            const rawServer = this.server as unknown as {
+              on(event: string, listener: (...args: unknown[]) => void): void;
+            };
+            rawServer.on("upgrade", (req: unknown, socket: unknown, head: unknown) => {
+              const reqHttp = req as { url?: string };
+              if (reqHttp.url === "/ws") {
+                this.wss!.handleUpgrade(
+                  req as Parameters<WebSocketServer["handleUpgrade"]>[0],
+                  socket as Parameters<WebSocketServer["handleUpgrade"]>[1],
+                  head as Parameters<WebSocketServer["handleUpgrade"]>[2],
+                  (ws) => {
+                    this.wss!.emit("connection", ws, req);
+                  },
+                );
+              } else {
+                (socket as { destroy(): void }).destroy();
+              }
+            });
+          }
           log.info({ port: info.port }, "Web server started");
           resolve(info.port);
-        }
+        },
       );
     });
   }
 
   async stop(): Promise<void> {
+    if (this.wss) {
+      await new Promise<void>((resolve) => this.wss!.close(() => resolve()));
+      this.wss = null;
+    }
     if (this.server) {
       await new Promise<void>((resolve) => this.server!.close(() => resolve()));
       this.server = null;

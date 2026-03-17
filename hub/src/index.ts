@@ -22,7 +22,10 @@ async function main() {
   log.info({ pages: config.pages.length, devices: config.devices.length }, "Config loaded");
 
   const deck = new PhysicalDeck();
-  const hub = new Hub({ deck, configDir });
+  const webPort = process.env["OMNIDECK_WEB_PORT"]
+    ? parseInt(process.env["OMNIDECK_WEB_PORT"], 10)
+    : 9211;
+  const hub = new Hub({ deck, configDir, webPort });
   await hub.start(config.pages);
 
   log.info("OmniDeck Hub running");
