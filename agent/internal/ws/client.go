@@ -57,7 +57,7 @@ func (c *Client) SendState(ctx context.Context) error {
 	stateCopy := *c.state
 	c.mu.Unlock()
 
-	data, err := NewMessage("agent_state", stateCopy, "")
+	data, err := NewMessage("state_update", stateCopy, "")
 	if err != nil {
 		return err
 	}
