@@ -17,6 +17,9 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
+      esbuild:
+        specifier: ^0.27.4
+        version: 0.27.4
       pino:
         specifier: ^10.3.1
         version: 10.3.1
