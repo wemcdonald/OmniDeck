@@ -260,8 +260,11 @@ export class Hub {
     const state: ButtonState = {
       background: button.background,
       icon: button.icon,
+      iconColor: button.icon_color,
       label: button.label,
+      labelColor: button.label_color,
       topLabel: button.top_label,
+      topLabelColor: button.top_label_color,
       opacity: button.opacity,
     };
 

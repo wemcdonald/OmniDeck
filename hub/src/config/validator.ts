@@ -43,8 +43,11 @@ const StyleSchema = z
 export const ButtonConfigSchema = z.object({
   pos: z.tuple([z.number(), z.number()]),
   label: z.string().optional(),
+  label_color: z.string().optional(),
   top_label: z.string().optional(),
+  top_label_color: z.string().optional(),
   icon: z.string().optional(),
+  icon_color: z.string().optional(),
   image: z.string().optional(),
   background: z.string().optional(),
   opacity: z.number().min(0).max(1).optional(),

@@ -13,8 +13,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export interface ButtonConfig {
   pos: [number, number];
   label?: string;
+  label_color?: string;
   top_label?: string;
+  top_label_color?: string;
   icon?: string;
+  icon_color?: string;
   background?: string;
   opacity?: number;
   action?: string;

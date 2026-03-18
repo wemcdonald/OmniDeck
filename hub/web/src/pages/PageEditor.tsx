@@ -85,7 +85,7 @@ export default function PageEditor() {
 
       {/* Right: Config panel */}
       {selectedPos && (
-        <div className="w-72 shrink-0 border-l pl-4">
+        <div className="w-80 min-w-80 shrink-0 border-l pl-4 overflow-y-auto">
           <ButtonConfigPanel
             pos={selectedPos}
             button={getSelectedButton()}

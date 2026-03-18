@@ -49,14 +49,15 @@ function createSvgText(
   text: string,
   width: number,
   height: number,
-  position: "top" | "bottom"
+  position: "top" | "bottom",
+  color = "#ffffff"
 ): Buffer {
   const y = position === "bottom" ? height - 8 : 16;
   const fontSize = Math.max(10, Math.min(14, Math.floor(width / (text.length * 0.7))));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
     <text x="${width / 2}" y="${y}"
       font-family="sans-serif" font-size="${fontSize}" font-weight="bold"
-      fill="white" text-anchor="middle">
+      fill="${escapeXml(color)}" text-anchor="middle">
       ${escapeXml(text)}
     </text>
   </svg>`;
@@ -149,8 +150,10 @@ export class ButtonRenderer {
         const [vx1 = 0, vy1 = 0, vw = 24, vh = 24] = renderData.viewBox ?? [0, 0, 24, 24];
         const iconSize = Math.round(width * 0.7);
         const padding = Math.round((width - iconSize) / 2);
+        const fillColor = state.iconColor ?? "#ffffff";
+        const coloredBody = renderData.body.replace(/fill="currentColor"/g, `fill="${escapeXml(fillColor)}"`);
         const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx1} ${vy1} ${vw} ${vh}" width="${iconSize}" height="${iconSize}">
-          <g fill="white">${renderData.body}</g>
+          <g fill="${escapeXml(fillColor)}">${coloredBody}</g>
         </svg>`;
         const svgBuf = await sharp(Buffer.from(svgStr))
           .resize(iconSize, iconSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -171,12 +174,12 @@ export class ButtonRenderer {
 
     // Layer 3: Label text (bottom)
     if (state.label) {
-      overlays.push({ input: createSvgText(state.label, width, height, "bottom") });
+      overlays.push({ input: createSvgText(state.label, width, height, "bottom", state.labelColor) });
     }
 
     // Layer 4: Top label text
     if (state.topLabel) {
-      overlays.push({ input: createSvgText(state.topLabel, width, height, "top") });
+      overlays.push({ input: createSvgText(state.topLabel, width, height, "top", state.topLabelColor) });
     }
 
     // Layer 5: Badge

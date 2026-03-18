@@ -29,8 +29,11 @@ export default function ButtonConfigPanel({
 
   // Local state for custom tab fields
   const [label, setLabel] = useState("");
+  const [labelColor, setLabelColor] = useState("#ffffff");
   const [topLabel, setTopLabel] = useState("");
+  const [topLabelColor, setTopLabelColor] = useState("#ffffff");
   const [icon, setIcon] = useState("");
+  const [iconColor, setIconColor] = useState("#ffffff");
   const [action, setAction] = useState("");
   const [preset, setPreset] = useState("");
   const [presetLabel, setPresetLabel] = useState("");
@@ -41,8 +44,11 @@ export default function ButtonConfigPanel({
     setYamlText(stringifyYaml(current));
     setYamlError(null);
     setLabel(current.label ?? "");
+    setLabelColor(current.label_color ?? "#ffffff");
     setTopLabel(current.top_label ?? "");
+    setTopLabelColor(current.top_label_color ?? "#ffffff");
     setIcon(current.icon ?? "");
+    setIconColor(current.icon_color ?? "#ffffff");
     setAction(current.action ?? "");
     setPreset(current.preset ?? "");
     setPresetLabel(current.label ?? "");
@@ -79,12 +85,12 @@ export default function ButtonConfigPanel({
 
   function handleCustomSave() {
     const updated: ButtonConfig = { ...current, pos };
-    if (label) updated.label = label;
-    else delete updated.label;
-    if (topLabel) updated.top_label = topLabel;
-    else delete updated.top_label;
-    if (icon) updated.icon = icon;
-    else delete updated.icon;
+    if (label) { updated.label = label; updated.label_color = labelColor; }
+    else { delete updated.label; delete updated.label_color; }
+    if (topLabel) { updated.top_label = topLabel; updated.top_label_color = topLabelColor; }
+    else { delete updated.top_label; delete updated.top_label_color; }
+    if (icon) { updated.icon = icon; updated.icon_color = iconColor; }
+    else { delete updated.icon; delete updated.icon_color; }
     if (action) updated.action = action;
     else delete updated.action;
     onSave(updated);
@@ -159,25 +165,23 @@ export default function ButtonConfigPanel({
           <>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Label
-              </label>
-              <input
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                placeholder="Button label"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Top Label
               </label>
-              <input
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                placeholder="Small text above icon"
-                value={topLabel}
-                onChange={(e) => setTopLabel(e.target.value)}
-              />
+              <div className="flex gap-1">
+                <input
+                  className="flex-1 rounded border px-2 py-1 text-sm bg-background"
+                  placeholder="Small text above icon"
+                  value={topLabel}
+                  onChange={(e) => setTopLabel(e.target.value)}
+                />
+                <input
+                  type="color"
+                  value={topLabelColor}
+                  onChange={(e) => setTopLabelColor(e.target.value)}
+                  className="w-9 h-9 shrink-0 rounded border cursor-pointer p-0.5"
+                  title="Top label color"
+                />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">
@@ -192,6 +196,35 @@ export default function ButtonConfigPanel({
                 />
                 <EmojiPicker value={icon} onSelect={(e) => setIcon(e)} />
                 <MaterialSymbolsPicker value={icon} onSelect={(i) => setIcon(i)} />
+                {icon.startsWith("ms:") && (
+                  <input
+                    type="color"
+                    value={iconColor}
+                    onChange={(e) => setIconColor(e.target.value)}
+                    className="w-9 h-9 shrink-0 rounded border cursor-pointer p-0.5"
+                    title="Icon color"
+                  />
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Label
+              </label>
+              <div className="flex gap-1">
+                <input
+                  className="flex-1 rounded border px-2 py-1 text-sm bg-background"
+                  placeholder="Button label"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+                <input
+                  type="color"
+                  value={labelColor}
+                  onChange={(e) => setLabelColor(e.target.value)}
+                  className="w-9 h-9 shrink-0 rounded border cursor-pointer p-0.5"
+                  title="Label color"
+                />
               </div>
             </div>
             <div>
