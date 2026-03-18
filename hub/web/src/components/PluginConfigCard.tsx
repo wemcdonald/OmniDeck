@@ -45,52 +45,58 @@ export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCa
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {Object.entries(draft).map(([key, value]) => (
-          <div key={key}>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">
-              {key}
-            </label>
-            {typeof value === "boolean" ? (
-              <input
-                type="checkbox"
-                checked={value}
-                onChange={(e) => setField(key, e.target.checked)}
-                className="h-4 w-4 rounded border"
-              />
-            ) : typeof value === "number" ? (
-              <input
-                type="number"
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                value={value}
-                onChange={(e) => setField(key, parseFloat(e.target.value))}
-              />
-            ) : (
-              <input
-                type={isSecretKey(key) ? "password" : "text"}
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                value={String(value ?? "")}
-                onChange={(e) => setField(key, e.target.value)}
-              />
-            )}
-          </div>
-        ))}
+        {Object.entries(draft).length === 0 ? (
+          <p className="text-xs text-muted-foreground">No configuration options</p>
+        ) : (
+          <>
+            {Object.entries(draft).map(([key, value]) => (
+              <div key={key}>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  {key}
+                </label>
+                {typeof value === "boolean" ? (
+                  <input
+                    type="checkbox"
+                    checked={value}
+                    onChange={(e) => setField(key, e.target.checked)}
+                    className="h-4 w-4 rounded border"
+                  />
+                ) : typeof value === "number" ? (
+                  <input
+                    type="number"
+                    className="w-full rounded border px-2 py-1 text-sm bg-background"
+                    value={value}
+                    onChange={(e) => setField(key, parseFloat(e.target.value))}
+                  />
+                ) : (
+                  <input
+                    type={isSecretKey(key) ? "password" : "text"}
+                    className="w-full rounded border px-2 py-1 text-sm bg-background"
+                    value={String(value ?? "")}
+                    onChange={(e) => setField(key, e.target.value)}
+                  />
+                )}
+              </div>
+            ))}
 
-        <div className="flex items-center gap-2 pt-2">
-          <button
-            onClick={save}
-            disabled={saving}
-            className="rounded bg-primary text-primary-foreground px-3 py-1 text-sm font-medium disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-          <button
-            onClick={() => setShowYaml((v) => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            {showYaml ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            View YAML
-          </button>
-        </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={save}
+                disabled={saving}
+                className="rounded bg-primary text-primary-foreground px-3 py-1 text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={() => setShowYaml((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {showYaml ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                View YAML
+              </button>
+            </div>
+          </>
+        )}
 
         {showYaml && (
           <pre className="text-xs bg-muted rounded p-2 overflow-x-auto">

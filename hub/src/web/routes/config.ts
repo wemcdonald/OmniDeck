@@ -65,24 +65,37 @@ export function createConfigRoutes(configDir: string): Hono {
 
   // --- Plugins ---
 
+  // Read plugins from all root YAML files (merged)
+  function loadPlugins(): Record<string, unknown> {
+    if (!existsSync(configDir)) return {};
+    const files = readdirSync(configDir).filter(
+      (f) => (extname(f) === ".yaml" || extname(f) === ".yml") && f !== "secrets.yaml"
+    );
+    let plugins: Record<string, unknown> = {};
+    for (const file of files.sort()) {
+      const raw = readFileSync(join(configDir, file), "utf-8");
+      const parsed = parseYaml(raw) as Record<string, unknown> | null;
+      if (parsed?.plugins) {
+        plugins = { ...plugins, ...(parsed.plugins as Record<string, unknown>) };
+      }
+    }
+    return plugins;
+  }
+
   router.get("/plugins", (c) => {
-    const mainPath = join(configDir, "main.yaml");
-    if (!existsSync(mainPath)) return c.json({});
-    const raw = readFileSync(mainPath, "utf-8");
-    const config = parseYaml(raw) as Record<string, unknown>;
-    return c.json((config.plugins as Record<string, unknown>) ?? {});
+    return c.json(loadPlugins());
   });
 
   router.put("/plugins/:id", async (c) => {
     const pluginId = c.req.param("id");
     const newPluginConfig = await c.req.json();
-    const mainPath = join(configDir, "main.yaml");
-    const raw = existsSync(mainPath) ? readFileSync(mainPath, "utf-8") : "";
+    const configPath = join(configDir, "config.yaml");
+    const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
     const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
     const plugins = (config.plugins ?? {}) as Record<string, unknown>;
     plugins[pluginId] = newPluginConfig;
     config.plugins = plugins;
-    writeFileSync(mainPath, stringifyYaml(config));
+    writeFileSync(configPath, stringifyYaml(config));
     return c.json({ ok: true });
   });
 

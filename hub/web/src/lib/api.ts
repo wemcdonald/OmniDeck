@@ -36,6 +36,19 @@ export interface PageConfig {
   buttons: ButtonConfig[];
 }
 
+export interface PresetInfo {
+  qualifiedId: string;
+  pluginId: string;
+  name: string;
+  defaults: {
+    action?: string;
+    icon?: string;
+    label?: string;
+    background?: string;
+    stateProvider?: string;
+  };
+}
+
 export interface AgentState {
   hostname: string;
   platform: string;
@@ -89,6 +102,7 @@ export const api = {
         "/api/status/plugins"
       ),
     deckPreview: () => request<Record<number, string>>("/api/deck/preview"),
+    presets: () => request<PresetInfo[]>("/api/status/presets"),
   },
   deck: {
     press: (key: number) =>

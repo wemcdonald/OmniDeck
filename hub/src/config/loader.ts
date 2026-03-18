@@ -75,7 +75,8 @@ deck:
   wake_on_touch: true
   default_page: main
 
-pages: []
+plugins:
+  sound: {}
 `;
 
 const DEFAULT_PAGE = `\

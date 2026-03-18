@@ -26,6 +26,7 @@ export interface WebServerOptions {
   getDeckPreview?: () => Promise<Record<number, string>>;
   pressKey?: (key: number) => Promise<void>;
   getPluginStatuses?: () => Array<{ id: string; name: string; version: string; status: string }>;
+  getPresets?: () => Array<{ qualifiedId: string; pluginId: string; name: string; defaults: Record<string, unknown> }>;
 }
 
 export class WebServer {
@@ -41,7 +42,7 @@ export class WebServer {
   }
 
   private setupRoutes(): void {
-    const { configDir, agentServer, deck, broadcaster, getPagePreview, getDeckPreview, pressKey, getPluginStatuses } = this.opts;
+    const { configDir, agentServer, deck, broadcaster, getPagePreview, getDeckPreview, pressKey, getPluginStatuses, getPresets } = this.opts;
 
     this.app.get("/api/health", (c) => c.json({ status: "ok" }));
 
@@ -60,6 +61,10 @@ export class WebServer {
 
     if (configDir) {
       this.app.route("/api/config", createConfigRoutes(configDir));
+    }
+
+    if (getPresets) {
+      this.app.get("/api/status/presets", (c) => c.json(getPresets()));
     }
 
     this.app.route(

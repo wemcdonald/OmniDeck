@@ -18,13 +18,15 @@ export interface SystemState {
   idleTimeMs: number;
   volume: number;
   isMuted: boolean;
+  micVolume: number;
+  micMuted: boolean;
 }
 
 export async function pollSystemState(): Promise<SystemState> {
   const platform = detectPlatform();
 
   if (platform === "darwin") {
-    const [activeApp, idleTime, volume, muted] = await Promise.all([
+    const [activeApp, idleTime, volume, muted, micVolume] = await Promise.all([
       execCommand("osascript", [
         "-e",
         'tell application "System Events" to get name of first application process whose frontmost is true',
@@ -32,11 +34,14 @@ export async function pollSystemState(): Promise<SystemState> {
       execCommand("ioreg", ["-c", "IOHIDSystem"]),
       execCommand("osascript", ["-e", "output volume of (get volume settings)"]),
       execCommand("osascript", ["-e", "output muted of (get volume settings)"]),
+      execCommand("osascript", ["-e", "input volume of (get volume settings)"]),
     ]);
 
     let idleMs = 0;
     const idleMatch = idleTime.stdout.match(/HIDIdleTime.*?=\s*(\d+)/);
     if (idleMatch) idleMs = parseInt(idleMatch[1], 10) / 1_000_000;
+
+    const micVol = parseFloat(micVolume.stdout.trim()) || 0;
 
     return {
       activeWindowTitle: "",
@@ -44,6 +49,8 @@ export async function pollSystemState(): Promise<SystemState> {
       idleTimeMs: idleMs,
       volume: parseFloat(volume.stdout.trim()) || 0,
       isMuted: muted.stdout.trim() === "true",
+      micVolume: micVol,
+      micMuted: micVol === 0,
     };
   }
 
@@ -54,5 +61,7 @@ export async function pollSystemState(): Promise<SystemState> {
     idleTimeMs: 0,
     volume: 0,
     isMuted: false,
+    micVolume: 0,
+    micMuted: false,
   };
 }

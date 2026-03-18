@@ -71,6 +71,8 @@ export class Agent {
             idle_time_ms: state.idleTimeMs,
             volume: state.volume,
             is_muted: state.isMuted,
+            mic_volume: state.micVolume,
+            mic_muted: state.micMuted,
           }),
         );
       })();

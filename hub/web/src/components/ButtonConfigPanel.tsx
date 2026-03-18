@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import type { ButtonConfig } from "../lib/api.ts";
+import type { ButtonConfig, PresetInfo } from "../lib/api.ts";
 import { Button } from "@/components/ui/button";
 import ReactCodeMirror from "@uiw/react-codemirror";
 import { yaml as yamlExtension } from "@codemirror/lang-yaml";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import EmojiPicker from "./EmojiPicker.tsx";
 import MaterialSymbolsPicker from "./MaterialSymbolsPicker.tsx";
+import PresetPicker from "./PresetPicker.tsx";
 
 interface ButtonConfigPanelProps {
   pos: [number, number];
@@ -62,6 +63,11 @@ export default function ButtonConfigPanel({
     } catch (e) {
       setYamlError(String(e));
     }
+  }
+
+  function handlePresetSelect(qualifiedId: string, info: PresetInfo) {
+    setPreset(qualifiedId);
+    if (info.defaults.label) setPresetLabel(info.defaults.label);
   }
 
   function handlePresetSave() {
@@ -122,31 +128,30 @@ export default function ButtonConfigPanel({
       <div className="flex-1 overflow-auto space-y-3">
         {tab === "preset" && (
           <>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Preset
-              </label>
-              <input
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                placeholder="e.g. home-assistant.light_toggle"
-                value={preset}
-                onChange={(e) => setPreset(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Label (optional override)
-              </label>
-              <input
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                placeholder="Button label"
-                value={presetLabel}
-                onChange={(e) => setPresetLabel(e.target.value)}
-              />
-            </div>
-            <Button size="sm" className="w-full" onClick={handlePresetSave}>
-              Save
-            </Button>
+            <PresetPicker selected={preset} onSelect={handlePresetSelect} />
+            {preset && (
+              <>
+                <div className="border-t pt-2">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Selected: <span className="font-medium text-foreground">{preset}</span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Label (optional override)
+                  </label>
+                  <input
+                    className="w-full rounded border px-2 py-1 text-sm bg-background"
+                    placeholder="Button label"
+                    value={presetLabel}
+                    onChange={(e) => setPresetLabel(e.target.value)}
+                  />
+                </div>
+                <Button size="sm" className="w-full" onClick={handlePresetSave}>
+                  Save
+                </Button>
+              </>
+            )}
           </>
         )}
 

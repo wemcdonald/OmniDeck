@@ -94,6 +94,15 @@ export class PluginHost {
     await action.execute(params, fullContext);
   }
 
+  getAllPresets(): Array<{ qualifiedId: string; pluginId: string; name: string; defaults: ButtonPreset["defaults"] }> {
+    return Array.from(this.presets.entries()).map(([key, preset]) => ({
+      qualifiedId: key,
+      pluginId: key.split(".")[0],
+      name: preset.name,
+      defaults: preset.defaults,
+    }));
+  }
+
   getStatuses(): Array<{ id: string; name: string; version: string; status: string }> {
     return Array.from(this.plugins.values()).map((p) => ({
       id: p.id,

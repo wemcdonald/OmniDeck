@@ -11,6 +11,7 @@ import type { ButtonState } from "./renderer/types.js";
 import { StateStore } from "./state/store.js";
 import { PluginHost } from "./plugins/host.js";
 import { corePlugin } from "./plugins/builtin/core/index.js";
+import { soundPlugin } from "./plugins/builtin/sound/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
@@ -47,6 +48,7 @@ export class Hub {
     this.store = new StateStore();
     this.pluginHost = new PluginHost(this.store);
     this.pluginHost.register(corePlugin);
+    this.pluginHost.register(soundPlugin);
   }
 
   async start(pageConfigs: PageConfig[]): Promise<void> {
@@ -70,6 +72,7 @@ export class Hub {
       getDeckPreview: () => this.getDeckPreview(),
       pressKey: (key) => this.pressKey(key),
       getPluginStatuses: () => this.pluginHost.getStatuses(),
+      getPresets: () => this.pluginHost.getAllPresets(),
     });
     await this.webServer.start();
 
