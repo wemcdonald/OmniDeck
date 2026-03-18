@@ -136,7 +136,7 @@ export class WebServer {
   async start(): Promise<number> {
     return new Promise((resolve) => {
       this.server = serve(
-        { fetch: this.app.fetch, port: this.opts.port },
+        { fetch: this.app.fetch, port: this.opts.port, hostname: "0.0.0.0" },
         (info) => {
           // Attach WebSocket upgrade handler to the raw Node HTTP server
           if (this.wss) {
