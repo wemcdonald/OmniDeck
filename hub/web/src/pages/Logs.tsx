@@ -3,6 +3,7 @@ import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Button } from "@/components/ui/button";
 
 interface LogLine {
+  seq?: number;
   ts: string;
   level: string;
   name: string;
@@ -36,7 +37,9 @@ export default function Logs() {
     const unsub = subscribe("log:line", (msg) => {
       if (pausedRef.current) return;
       setLines((prev) => {
-        const next = [...prev, msg.data as LogLine];
+        const incoming = msg.data as LogLine;
+        if (incoming.seq !== undefined && prev.some((l) => l.seq === incoming.seq)) return prev;
+        const next = [...prev, incoming];
         return next.length > MAX_LINES ? next.slice(-MAX_LINES) : next;
       });
     });

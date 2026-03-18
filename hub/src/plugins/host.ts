@@ -94,6 +94,15 @@ export class PluginHost {
     await action.execute(params, fullContext);
   }
 
+  getStatuses(): Array<{ id: string; name: string; version: string; status: string }> {
+    return Array.from(this.plugins.values()).map((p) => ({
+      id: p.id,
+      name: p.name,
+      version: p.version,
+      status: "running",
+    }));
+  }
+
   /** Resolve a state provider to a ButtonStateResult */
   resolveState(qualifiedId: string, params: unknown) {
     const provider = this.stateProviders.get(qualifiedId);

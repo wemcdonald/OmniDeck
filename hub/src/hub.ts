@@ -67,6 +67,9 @@ export class Hub {
       broadcaster: this.broadcaster,
       staticDir: existsSync(webDistDir) ? webDistDir : undefined,
       getPagePreview: (pageId) => this.getPagePreview(pageId),
+      getDeckPreview: () => this.getDeckPreview(),
+      pressKey: (key) => this.pressKey(key),
+      getPluginStatuses: () => this.pluginHost.getStatuses(),
     });
     await this.webServer.start();
 
@@ -167,6 +170,38 @@ export class Hub {
     return result;
   }
 
+  async getDeckPreview(): Promise<Record<number, string>> {
+    const page = this.pages.get(this.currentPageId);
+    if (!page) return {};
+
+    const { width, height } = this.deck.keySize;
+    const columns = page.columns ?? this.deck.keyColumns;
+    const result: Record<number, string> = {};
+
+    const blackRaw = await this.renderer.render({});
+    const blackJpeg = await sharp(blackRaw, { raw: { width, height, channels: 3 } }).jpeg().toBuffer();
+    const blackB64 = blackJpeg.toString("base64");
+    for (let i = 0; i < this.deck.keyCount; i++) {
+      result[i] = blackB64;
+    }
+
+    for (const button of page.buttons) {
+      const [col, row] = button.pos;
+      const keyIndex = row * columns + col;
+      if (keyIndex >= this.deck.keyCount) continue;
+      const state = this.resolveButtonState(button);
+      const raw = await this.renderer.render(state);
+      const jpeg = await sharp(raw, { raw: { width, height, channels: 3 } }).jpeg().toBuffer();
+      result[keyIndex] = jpeg.toString("base64");
+    }
+
+    return result;
+  }
+
+  async pressKey(keyIndex: number): Promise<void> {
+    await this.handleKeyPress(keyIndex);
+  }
+
   private async handleKeyPress(keyIndex: number): Promise<void> {
     const page = this.pages.get(this.currentPageId);
     if (!page) return;
@@ -211,6 +246,11 @@ export class Hub {
       const image = await this.renderer.render(state);
       await this.deck.setKeyImage(keyIndex, image);
     }
+
+    // Broadcast updated preview to web clients
+    this.getDeckPreview()
+      .then((images) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, images } }))
+      .catch((err) => log.warn({ err }, "Failed to broadcast deck preview"));
   }
 
   private resolveButtonState(button: ButtonConfig): ButtonState {

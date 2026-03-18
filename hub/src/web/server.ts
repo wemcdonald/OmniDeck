@@ -4,7 +4,7 @@ import { join, extname } from "node:path";
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocketServer, type WebSocket } from "ws";
-import { createLogger } from "../logger.js";
+import { createLogger, replayLogs } from "../logger.js";
 import { createConfigRoutes } from "./routes/config.js";
 import { createStatusRoutes } from "./routes/status.js";
 import type { Broadcaster } from "./broadcast.js";
@@ -23,6 +23,9 @@ export interface WebServerOptions {
   broadcaster?: Broadcaster;
   staticDir?: string;
   getPagePreview?: (pageId: string) => Promise<Record<string, string>>;
+  getDeckPreview?: () => Promise<Record<number, string>>;
+  pressKey?: (key: number) => Promise<void>;
+  getPluginStatuses?: () => Array<{ id: string; name: string; version: string; status: string }>;
 }
 
 export class WebServer {
@@ -38,7 +41,7 @@ export class WebServer {
   }
 
   private setupRoutes(): void {
-    const { configDir, agentServer, deck, broadcaster, getPagePreview } = this.opts;
+    const { configDir, agentServer, deck, broadcaster, getPagePreview, getDeckPreview, pressKey, getPluginStatuses } = this.opts;
 
     this.app.get("/api/health", (c) => c.json({ status: "ok" }));
 
@@ -59,19 +62,18 @@ export class WebServer {
       this.app.route("/api/config", createConfigRoutes(configDir));
     }
 
-    if (agentServer || deck) {
-      this.app.route(
-        "/api",
-        createStatusRoutes({
-          getAgents: () => agentServer?.getConnectedAgents() ?? [],
-          getPluginStatuses: () => [],
-          getDeckPreview: () => ({}),
-          pressKey: async (key) => {
-            log.info({ key }, "Browser simulated key press");
-          },
-        }),
-      );
-    }
+    this.app.route(
+      "/api",
+      createStatusRoutes({
+        getAgents: () => agentServer?.getConnectedAgents() ?? [],
+        getPluginStatuses: () => getPluginStatuses?.() ?? [],
+        getDeckPreview: () => getDeckPreview?.() ?? Promise.resolve({}),
+        pressKey: async (key) => {
+          if (pressKey) await pressKey(key);
+          else log.info({ key }, "Browser simulated key press (no deck)");
+        },
+      }),
+    );
 
     // Serve static SPA files (production) using a custom fs-based middleware
     // that accepts an absolute staticDir path
@@ -126,6 +128,13 @@ export class WebServer {
       this.wss.on("connection", (ws: WebSocket) => {
         broadcaster.add(ws as unknown as Parameters<Broadcaster["add"]>[0]);
         log.info("Browser WebSocket connected");
+
+        // Replay buffered log lines to the new client
+        replayLogs((line) => {
+          if (ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: "log:line", data: line }));
+          }
+        });
 
         ws.on("message", (raw) => {
           try {

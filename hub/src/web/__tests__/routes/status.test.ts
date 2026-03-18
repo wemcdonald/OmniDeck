@@ -8,7 +8,7 @@ describe("Status routes", () => {
     app.route("/api", createStatusRoutes({
       getAgents: overrides.getAgents ?? (() => []),
       getPluginStatuses: overrides.getPluginStatuses ?? (() => []),
-      getDeckPreview: overrides.getDeckPreview ?? (() => ({})),
+      getDeckPreview: overrides.getDeckPreview ?? (() => Promise.resolve({})),
       pressKey: overrides.pressKey ?? (async () => {}),
     }));
     return app;
@@ -36,7 +36,7 @@ describe("Status routes", () => {
 
   it("GET /api/deck/preview returns preview map", async () => {
     const app = makeApp({
-      getDeckPreview: () => ({ 0: "data:image/png;base64,abc", 1: "data:image/png;base64,def" }),
+      getDeckPreview: () => Promise.resolve({ 0: "abc", 1: "def" }),
     });
     const res = await app.request("/api/deck/preview");
     expect(res.status).toBe(200);
