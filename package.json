@@ -5,5 +5,12 @@
     "hub",
     "packages/*",
     "agent"
-  ]
+  ],
+  "scripts": {
+    "dev": "pnpm --filter omnideck-hub dev",
+    "dev:web": "pnpm --filter omnideck-hub dev:web",
+    "build": "pnpm --filter omnideck-hub build:all",
+    "test": "pnpm --filter omnideck-hub test",
+    "lint": "pnpm --filter omnideck-hub lint"
+  }
 }
