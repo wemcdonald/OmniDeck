@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import ReactCodeMirror from "@uiw/react-codemirror";
 import { yaml as yamlExtension } from "@codemirror/lang-yaml";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
+import EmojiPicker from "./EmojiPicker.tsx";
+import MaterialSymbolsPicker from "./MaterialSymbolsPicker.tsx";
 
 interface ButtonConfigPanelProps {
   pos: [number, number];
@@ -174,14 +176,18 @@ export default function ButtonConfigPanel({
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Icon (emoji or text)
+                Icon
               </label>
-              <input
-                className="w-full rounded border px-2 py-1 text-sm bg-background"
-                placeholder="e.g. 💡"
-                value={icon}
-                onChange={(e) => setIcon(e.target.value)}
-              />
+              <div className="flex gap-1">
+                <input
+                  className="flex-1 rounded border px-2 py-1 text-sm bg-background"
+                  placeholder="emoji or ms:icon_name"
+                  value={icon}
+                  onChange={(e) => setIcon(e.target.value)}
+                />
+                <EmojiPicker value={icon} onSelect={(e) => setIcon(e)} />
+                <MaterialSymbolsPicker value={icon} onSelect={(i) => setIcon(i)} />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">

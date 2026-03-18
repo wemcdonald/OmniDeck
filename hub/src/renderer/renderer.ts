@@ -2,7 +2,13 @@ import sharp from "sharp";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { getIconData, iconToSVG } from "@iconify/utils";
 import type { ButtonState } from "./types.js";
+
+const _require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const materialSymbolsData = _require("@iconify-json/material-symbols/icons.json") as Parameters<typeof getIconData>[0];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve assets dir relative to this file for both tsx (src/) and built (dist/) layouts
@@ -135,6 +141,23 @@ export class ButtonRenderer {
         .png()
         .toBuffer();
       overlays.push({ input: resizedIcon, gravity: "centre" });
+    } else if (typeof state.icon === "string" && state.icon.startsWith("ms:")) {
+      const iconName = state.icon.slice(3);
+      const iconData = getIconData(materialSymbolsData, iconName);
+      if (iconData) {
+        const renderData = iconToSVG(iconData);
+        const [vx1 = 0, vy1 = 0, vw = 24, vh = 24] = renderData.viewBox ?? [0, 0, 24, 24];
+        const iconSize = Math.round(width * 0.7);
+        const padding = Math.round((width - iconSize) / 2);
+        const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx1} ${vy1} ${vw} ${vh}" width="${iconSize}" height="${iconSize}">
+          <g fill="white">${renderData.body}</g>
+        </svg>`;
+        const svgBuf = await sharp(Buffer.from(svgStr))
+          .resize(iconSize, iconSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png()
+          .toBuffer();
+        overlays.push({ input: svgBuf, top: padding, left: padding });
+      }
     } else if (typeof state.icon === "string" && state.icon.length > 0) {
       const canvas = createCanvas(width, height);
       const ctx = canvas.getContext("2d");
