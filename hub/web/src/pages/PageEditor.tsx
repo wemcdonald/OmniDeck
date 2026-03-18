@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, type PageConfig, type ButtonConfig } from "../lib/api.ts";
-import { Button } from "@/components/ui/button";
 import ButtonGrid from "../components/ButtonGrid.tsx";
 import ButtonConfigPanel from "../components/ButtonConfigPanel.tsx";
 
@@ -9,11 +8,14 @@ export default function PageEditor() {
   const { id } = useParams<{ id: string }>();
   const [page, setPage] = useState<PageConfig | null>(null);
   const [selectedPos, setSelectedPos] = useState<[number, number] | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!id) return;
-    api.pages.get(id).then(setPage).catch(console.error);
+    api.pages.get(id)
+      .then((p) => { setPage(p); return api.pages.preview(id); })
+      .then(setPreviews)
+      .catch(console.error);
   }, [id]);
 
   function getSelectedButton(): ButtonConfig | undefined {
@@ -21,6 +23,18 @@ export default function PageEditor() {
     return page.buttons.find(
       (b) => b.pos[0] === selectedPos[0] && b.pos[1] === selectedPos[1]
     );
+  }
+
+  async function saveButtons(newButtons: ButtonConfig[]) {
+    if (!page || !id) return;
+    const newPage = { ...page, buttons: newButtons };
+    setPage(newPage);
+    try {
+      await api.pages.save(id, newPage);
+      api.pages.preview(id).then(setPreviews).catch(console.error);
+    } catch (e) {
+      alert(`Save failed: ${e}`);
+    }
   }
 
   function updateButton(updated: ButtonConfig) {
@@ -32,7 +46,7 @@ export default function PageEditor() {
       existing >= 0
         ? page.buttons.map((b, i) => (i === existing ? updated : b))
         : [...page.buttons, updated];
-    setPage({ ...page, buttons: newButtons });
+    saveButtons(newButtons);
   }
 
   function clearButton() {
@@ -40,20 +54,8 @@ export default function PageEditor() {
     const newButtons = page.buttons.filter(
       (b) => !(b.pos[0] === selectedPos[0] && b.pos[1] === selectedPos[1])
     );
-    setPage({ ...page, buttons: newButtons });
     setSelectedPos(null);
-  }
-
-  async function save() {
-    if (!page || !id) return;
-    setSaving(true);
-    try {
-      await api.pages.save(id, page);
-    } catch (e) {
-      alert(`Save failed: ${e}`);
-    } finally {
-      setSaving(false);
-    }
+    saveButtons(newButtons);
   }
 
   if (!page) return <p className="text-muted-foreground">Loading...</p>;
@@ -67,9 +69,6 @@ export default function PageEditor() {
       <div className="w-40 shrink-0">
         <h2 className="font-semibold mb-3">{page.name ?? page.page}</h2>
         <p className="text-xs text-muted-foreground">{page.buttons.length} buttons</p>
-        <Button size="sm" className="mt-4 w-full" onClick={save} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
       </div>
 
       {/* Center: Button grid */}
@@ -80,6 +79,7 @@ export default function PageEditor() {
           rows={rows}
           selectedPos={selectedPos}
           onSelect={setSelectedPos}
+          previews={previews}
         />
       </div>
 

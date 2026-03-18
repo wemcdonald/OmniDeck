@@ -143,7 +143,7 @@ export default function ButtonConfigPanel({
               />
             </div>
             <Button size="sm" className="w-full" onClick={handlePresetSave}>
-              Apply
+              Save
             </Button>
           </>
         )}
@@ -195,7 +195,7 @@ export default function ButtonConfigPanel({
               />
             </div>
             <Button size="sm" className="w-full" onClick={handleCustomSave}>
-              Apply
+              Save
             </Button>
           </>
         )}
@@ -214,7 +214,7 @@ export default function ButtonConfigPanel({
               <p className="text-xs text-destructive mt-1">{yamlError}</p>
             )}
             <Button size="sm" className="w-full" onClick={handleYamlSave}>
-              Apply YAML
+              Save
             </Button>
           </>
         )}

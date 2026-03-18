@@ -52,8 +52,13 @@ export function createConfigRoutes(configDir: string): Hono {
 
   router.delete("/pages/:id", (c) => {
     const id = c.req.param("id");
-    const pagePath = join(configDir, "pages", `${id}.yaml`);
+    const pagesDir = join(configDir, "pages");
+    const pagePath = join(pagesDir, `${id}.yaml`);
     if (!existsSync(pagePath)) return c.json({ error: "Page not found" }, 404);
+    const remaining = existsSync(pagesDir)
+      ? readdirSync(pagesDir).filter((f) => extname(f) === ".yaml" || extname(f) === ".yml").length
+      : 0;
+    if (remaining <= 1) return c.json({ error: "Cannot delete the last page" }, 400);
     unlinkSync(pagePath);
     return c.json({ ok: true });
   });

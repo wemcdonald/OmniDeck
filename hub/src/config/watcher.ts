@@ -1,5 +1,6 @@
 // hub/src/config/watcher.ts
 import chokidar, { FSWatcher } from "chokidar";
+import { extname } from "node:path";
 
 type ChangeCallback = (filePath: string) => void;
 
@@ -32,10 +33,11 @@ export class ConfigWatcher {
       this.fsWatcher = chokidar.watch(this.configDir, {
         persistent: true,
         ignoreInitial: false,
-        ignored: (filePath: string) =>
-          !filePath.endsWith(".yaml") &&
-          !filePath.endsWith(".yml") &&
-          filePath !== this.configDir,
+        ignored: (filePath: string) => {
+          const ext = extname(filePath);
+          if (!ext) return false; // don't ignore directories
+          return ext !== ".yaml" && ext !== ".yml";
+        },
       });
 
       const notify = (filePath: string): void => {

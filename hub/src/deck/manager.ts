@@ -118,7 +118,7 @@ export class PhysicalDeck implements DeckManager {
 
   async setKeyImage(key: number, buffer: Buffer): Promise<void> {
     if (!this.device) return;
-    await this.device.fillKeyBuffer(key, buffer);
+    await this.device.fillKeyBuffer(key, buffer, { format: "rgb" });
   }
 
   async setBrightness(percent: number): Promise<void> {

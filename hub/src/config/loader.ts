@@ -1,5 +1,5 @@
 // hub/src/config/loader.ts
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { parse, parseDocument, visit, isScalar } from "yaml";
 
@@ -69,10 +69,47 @@ function loadYamlFiles(
   return merged;
 }
 
+const DEFAULT_CONFIG = `\
+deck:
+  brightness: 100
+  wake_on_touch: true
+  default_page: main
+
+pages: []
+`;
+
+const DEFAULT_PAGE = `\
+page: main
+name: Main
+buttons: []
+`;
+
+function bootstrapConfigDir(configDir: string): void {
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+  const configFile = join(configDir, "config.yaml");
+  if (!existsSync(configFile)) {
+    writeFileSync(configFile, DEFAULT_CONFIG, "utf-8");
+  }
+  const pagesDir = join(configDir, "pages");
+  if (!existsSync(pagesDir)) {
+    mkdirSync(pagesDir, { recursive: true });
+  }
+  const hasPages = readdirSync(pagesDir).some(
+    (f) => extname(f) === ".yaml" || extname(f) === ".yml"
+  );
+  if (!hasPages) {
+    writeFileSync(join(pagesDir, "main.yaml"), DEFAULT_PAGE, "utf-8");
+  }
+}
+
 export async function loadConfig(
   configDir: string,
   secretsPath?: string
 ): Promise<RawConfig> {
+  bootstrapConfigDir(configDir);
+
   const secrets = secretsPath
     ? loadSecrets(secretsPath)
     : new Map<string, string>();

@@ -1,5 +1,20 @@
 import sharp from "sharp";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ButtonState } from "./types.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Resolve assets dir relative to this file for both tsx (src/) and built (dist/) layouts
+for (const rel of ["../../assets", "../assets"]) {
+  const candidate = join(__dirname, rel, "NotoColorEmoji.ttf");
+  try {
+    GlobalFonts.registerFromPath(candidate, "NotoColorEmoji");
+    break;
+  } catch {
+    // try next candidate
+  }
+}
 
 interface Size {
   width: number;
@@ -108,7 +123,7 @@ export class ButtonRenderer {
 
     const overlays: sharp.OverlayOptions[] = [];
 
-    // Layer 2: Icon (if Buffer)
+    // Layer 2: Icon (Buffer = image, string = emoji/text)
     if (Buffer.isBuffer(state.icon)) {
       const iconPadding = Math.round(width * 0.15);
       const iconSize = width - iconPadding * 2;
@@ -120,6 +135,15 @@ export class ButtonRenderer {
         .png()
         .toBuffer();
       overlays.push({ input: resizedIcon, gravity: "centre" });
+    } else if (typeof state.icon === "string" && state.icon.length > 0) {
+      const canvas = createCanvas(width, height);
+      const ctx = canvas.getContext("2d");
+      const fontSize = Math.round(width * 0.55);
+      ctx.font = `${fontSize}px NotoColorEmoji, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(state.icon, width / 2, height / 2);
+      overlays.push({ input: canvas.toBuffer("image/png"), gravity: "centre" });
     }
 
     // Layer 3: Label text (bottom)
@@ -160,6 +184,6 @@ export class ButtonRenderer {
       result = sharp(await result.jpeg().toBuffer()).composite([{ input: dimOverlay }]);
     }
 
-    return result.jpeg({ quality: 90 }).toBuffer();
+    return result.removeAlpha().toColorspace("srgb").raw().toBuffer();
   }
 }

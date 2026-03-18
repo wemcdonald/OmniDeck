@@ -60,6 +60,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify(page),
       }),
+    preview: (id: string) =>
+      request<Record<string, string>>(`/api/deck/preview/${id}`),
     delete: (id: string) =>
       request<{ ok: boolean }>(`/api/config/pages/${id}`, { method: "DELETE" }),
   },

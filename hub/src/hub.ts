@@ -1,8 +1,11 @@
-import { resolve } from "node:path";
+import { resolve, join, basename, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { parse as parseYaml } from "yaml";
+import sharp from "sharp";
 import type { DeckManager } from "./deck/types.js";
 import type { PageConfig, ButtonConfig } from "./config/validator.js";
+import { PageConfigSchema } from "./config/validator.js";
 import { ButtonRenderer } from "./renderer/renderer.js";
 import type { ButtonState } from "./renderer/types.js";
 import { StateStore } from "./state/store.js";
@@ -11,6 +14,7 @@ import { corePlugin } from "./plugins/builtin/core/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
+import { ConfigWatcher } from "./config/watcher.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -29,7 +33,9 @@ export class Hub {
   private pluginHost: PluginHost;
   private pages = new Map<string, PageConfig>();
   private currentPageId = "";
+  private previewRenderer: ButtonRenderer;
   private webServer: WebServer | null = null;
+  private configWatcher: ConfigWatcher | null = null;
   private broadcaster = new Broadcaster();
   private opts: HubOptions;
 
@@ -37,6 +43,7 @@ export class Hub {
     this.opts = opts;
     this.deck = opts.deck;
     this.renderer = new ButtonRenderer({ width: 96, height: 96 });
+    this.previewRenderer = new ButtonRenderer({ width: 72, height: 72 });
     this.store = new StateStore();
     this.pluginHost = new PluginHost(this.store);
     this.pluginHost.register(corePlugin);
@@ -59,8 +66,39 @@ export class Hub {
       configDir: this.opts.configDir,
       broadcaster: this.broadcaster,
       staticDir: existsSync(webDistDir) ? webDistDir : undefined,
+      getPagePreview: (pageId) => this.getPagePreview(pageId),
     });
     await this.webServer.start();
+
+    // Watch config directory for page changes
+    if (this.opts.configDir) {
+      this.configWatcher = new ConfigWatcher(this.opts.configDir);
+      this.configWatcher.onChange((filePath) => {
+        const pagesDir = join(this.opts.configDir!, "pages");
+        if (!filePath.startsWith(pagesDir)) return;
+        const ext = extname(filePath);
+        if (ext !== ".yaml" && ext !== ".yml") return;
+        const pageId = basename(filePath, ext);
+        if (existsSync(filePath)) {
+          try {
+            const raw = parseYaml(readFileSync(filePath, "utf-8"));
+            const page = PageConfigSchema.parse(raw);
+            this.pages.set(pageId, page);
+          } catch (err) {
+            log.warn({ err, filePath }, "Failed to reload page config");
+            return;
+          }
+        } else {
+          this.pages.delete(pageId);
+        }
+        if (pageId === this.currentPageId) {
+          this.renderCurrentPage().catch((err) =>
+            log.error({ err }, "Re-render after config change failed"),
+          );
+        }
+      });
+      await this.configWatcher.start();
+    }
 
     // Connect deck
     await this.deck.connect();
@@ -94,6 +132,10 @@ export class Hub {
   }
 
   async stop(): Promise<void> {
+    if (this.configWatcher) {
+      await this.configWatcher.stop();
+      this.configWatcher = null;
+    }
     if (this.webServer) {
       await this.webServer.stop();
       this.webServer = null;
@@ -102,6 +144,27 @@ export class Hub {
 
   getCurrentPage(): string {
     return this.currentPageId;
+  }
+
+  async getPagePreview(pageId: string): Promise<Record<string, string>> {
+    const page = this.pages.get(pageId);
+    if (!page) return {};
+
+    const width = 72;
+    const height = 72;
+    const result: Record<string, string> = {};
+
+    for (const button of page.buttons) {
+      const [col, row] = button.pos;
+      const state = this.resolveButtonState(button);
+      const rawBuf = await this.previewRenderer.render(state);
+      const pngBuf = await sharp(rawBuf, { raw: { width, height, channels: 3 } })
+        .png()
+        .toBuffer();
+      result[`${col},${row}`] = `data:image/png;base64,${pngBuf.toString("base64")}`;
+    }
+
+    return result;
   }
 
   private async handleKeyPress(keyIndex: number): Promise<void> {
@@ -153,6 +216,7 @@ export class Hub {
   private resolveButtonState(button: ButtonConfig): ButtonState {
     const state: ButtonState = {
       background: button.background,
+      icon: button.icon,
       label: button.label,
       topLabel: button.top_label,
       opacity: button.opacity,

@@ -7,6 +7,7 @@ interface ButtonGridProps {
   rows: number;
   selectedPos: [number, number] | null;
   onSelect(pos: [number, number]): void;
+  previews?: Record<string, string>;
 }
 
 export default function ButtonGrid({
@@ -15,6 +16,7 @@ export default function ButtonGrid({
   rows,
   selectedPos,
   onSelect,
+  previews = {},
 }: ButtonGridProps) {
   const buttonMap = new Map<string, ButtonConfig>();
   for (const btn of buttons) {
@@ -45,23 +47,37 @@ export default function ButtonGrid({
                 : "border-dashed border-border hover:border-primary/50 bg-background"
             }`}
           >
-            {btn ? (
-              <>
-                {btn.top_label && (
-                  <span className="text-[9px] text-muted-foreground truncate w-full text-center leading-tight">
-                    {btn.top_label}
-                  </span>
-                )}
-                {btn.icon && (
-                  <span className="text-lg leading-none">{btn.icon}</span>
-                )}
-                <span className="truncate w-full text-center leading-tight font-medium">
-                  {btn.label ?? btn.preset ?? `${col},${row}`}
-                </span>
-              </>
-            ) : (
-              <Plus className="w-4 h-4 text-muted-foreground/40" />
-            )}
+            {(() => {
+              const previewUrl = previews[`${col},${row}`];
+              if (previewUrl) {
+                return (
+                  <img
+                    src={previewUrl}
+                    alt={btn?.label ?? `${col},${row}`}
+                    className="w-full h-full object-cover rounded"
+                    draggable={false}
+                  />
+                );
+              }
+              if (btn) {
+                return (
+                  <>
+                    {btn.top_label && (
+                      <span className="text-[9px] text-muted-foreground truncate w-full text-center leading-tight">
+                        {btn.top_label}
+                      </span>
+                    )}
+                    {btn.icon && (
+                      <span className="text-lg leading-none">{btn.icon}</span>
+                    )}
+                    <span className="truncate w-full text-center leading-tight font-medium">
+                      {btn.label ?? btn.preset ?? `${col},${row}`}
+                    </span>
+                  </>
+                );
+              }
+              return <Plus className="w-4 h-4 text-muted-foreground/40" />;
+            })()}
           </button>
         );
       })}

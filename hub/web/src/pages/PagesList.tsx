@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, type PageConfig } from "../lib/api.ts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,16 +7,23 @@ import { Plus } from "lucide-react";
 
 export default function PagesList() {
   const [pages, setPages] = useState<PageConfig[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     api.pages.list().then(setPages).catch(console.error);
   }, []);
 
+  async function handleAddPage() {
+    const id = `page-${Date.now()}`;
+    await api.pages.create({ page: id, name: "New Page", buttons: [] });
+    navigate(`/pages/${id}`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Pages</h2>
-        <Button size="sm">
+        <Button size="sm" onClick={handleAddPage}>
           <Plus className="w-4 h-4 mr-1" />
           New Page
         </Button>

@@ -22,6 +22,7 @@ export interface WebServerOptions {
   deck?: DeckManager;
   broadcaster?: Broadcaster;
   staticDir?: string;
+  getPagePreview?: (pageId: string) => Promise<Record<string, string>>;
 }
 
 export class WebServer {
@@ -37,9 +38,22 @@ export class WebServer {
   }
 
   private setupRoutes(): void {
-    const { configDir, agentServer, deck, broadcaster } = this.opts;
+    const { configDir, agentServer, deck, broadcaster, getPagePreview } = this.opts;
 
     this.app.get("/api/health", (c) => c.json({ status: "ok" }));
+
+    if (getPagePreview) {
+      this.app.get("/api/deck/preview/:pageId", async (c) => {
+        const pageId = c.req.param("pageId");
+        try {
+          const previews = await getPagePreview(pageId);
+          return c.json(previews);
+        } catch (err) {
+          log.error({ err, pageId }, "Preview render failed");
+          return c.json({ error: "Render failed" }, 500);
+        }
+      });
+    }
 
     if (configDir) {
       this.app.route("/api/config", createConfigRoutes(configDir));
