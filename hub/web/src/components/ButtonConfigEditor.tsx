@@ -301,6 +301,7 @@ export default function ButtonConfigEditor({
                       field={f}
                       value={params[f.key]}
                       onChange={(v) => updateParam(f.key, v)}
+                      catalog={catalog}
                     />
                   ))}
                 </div>
@@ -456,6 +457,7 @@ export default function ButtonConfigEditor({
                       field={f}
                       value={longPressParams[f.key]}
                       onChange={(v) => setLongPressParams((prev) => ({ ...prev, [f.key]: v }))}
+                      catalog={catalog}
                     />
                   ))}
                 </div>

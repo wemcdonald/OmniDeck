@@ -102,6 +102,7 @@ export class PluginHost {
       triggerAction: async (pId, aId, p) => {
         await this.executeAction(`${pId}.${aId}`, p, context);
       },
+      resolveState: (qid, params) => this.resolveState(qid, params),
     };
 
     try {

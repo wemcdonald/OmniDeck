@@ -45,6 +45,7 @@ export interface ActionContext {
   targetAgent?: string;
   focusedAgent?: string;
   triggerAction(pluginId: string, actionId: string, params: unknown): Promise<void>;
+  resolveState?(qualifiedId: string, params: unknown): StateProviderResult | undefined;
 }
 
 // ── State Providers ─────────────────────────────────────────────────────────

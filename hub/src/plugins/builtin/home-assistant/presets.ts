@@ -14,6 +14,8 @@ export const haPresets: ButtonPreset[] = [
       icon: "ms:lightbulb",
       label: "{{brightness_percent}}",
     },
+    longPressAction: "turn_on",
+    longPressDefaults: { brightness: 255 },
   },
 
   // -- Generic toggle: infers icon/color from entity domain --
@@ -115,6 +117,7 @@ export const haPresets: ButtonPreset[] = [
     defaults: {
       icon: "ms:lock",
     },
+    longPressAction: "unlock",
   },
 
   // -- Fan: toggle with speed percentage --
@@ -161,6 +164,8 @@ export const haPresets: ButtonPreset[] = [
       icon: "ms:lightbulb",
       label: "{{brightness_percent}}",
     },
+    longPressAction: "turn_on",
+    longPressDefaults: { brightness: 255 },
   },
   {
     id: "switch_toggle",

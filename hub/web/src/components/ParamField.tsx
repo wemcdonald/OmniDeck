@@ -1,15 +1,19 @@
-import type { CatalogField } from "../lib/api";
+import type { CatalogField, PluginCatalog } from "../lib/api";
 import EntityPicker from "./EntityPicker";
 import EmojiPicker from "./EmojiPicker";
 import MaterialSymbolsPicker from "./MaterialSymbolsPicker";
+import ActionListEditor from "./ActionListEditor";
+import ConditionEditor from "./ConditionEditor";
 
 interface ParamFieldProps {
   field: CatalogField;
   value: unknown;
   onChange(value: unknown): void;
+  catalog?: PluginCatalog;
+  depth?: number;
 }
 
-export default function ParamField({ field: f, value, onChange }: ParamFieldProps) {
+export default function ParamField({ field: f, value, onChange, catalog, depth }: ParamFieldProps) {
   const strVal = value != null ? String(value) : "";
 
   return (
@@ -52,6 +56,29 @@ export default function ParamField({ field: f, value, onChange }: ParamFieldProp
           value={strVal || "#000000"}
           onChange={(e) => onChange(e.target.value)}
           className="w-full h-9 rounded border cursor-pointer p-0.5"
+        />
+      )}
+
+      {/* Action list */}
+      {f.fieldType === "action_list" && catalog && (
+        <ActionListEditor
+          value={Array.isArray(value) ? (value as Array<{ action: string; params?: Record<string, unknown> }>) : []}
+          onChange={(v) => onChange(v)}
+          catalog={catalog}
+          depth={depth}
+        />
+      )}
+
+      {/* Condition */}
+      {f.fieldType === "condition" && catalog && (
+        <ConditionEditor
+          value={
+            value != null && typeof value === "object" && !Array.isArray(value)
+              ? (value as { provider: string; variable: string; operator: string; value: string })
+              : { provider: "", variable: "", operator: "==", value: "" }
+          }
+          onChange={(v) => onChange(v)}
+          catalog={catalog}
         />
       )}
 

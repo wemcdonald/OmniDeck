@@ -21,6 +21,23 @@ export default function PageEditor() {
       .catch(console.error);
   }, [id]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if user is typing in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "Escape") {
+        setSelectedPos(null);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedPos) {
+        clearButton();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   function getSelectedButton(): ButtonConfig | undefined {
     if (!selectedPos || !page) return undefined;
     return page.buttons.find(
@@ -70,14 +87,12 @@ export default function PageEditor() {
     } else if (data.type === "action") {
       btn.action = data.qualifiedId;
     }
-    // For stateProvider drops, just select the cell — the user can assign
-    // the provider in the config editor.
     updateButton(btn);
   }
 
   /** Handle click-to-assign from PluginBrowser (touch-friendly). */
   function handleBrowserItemClick(data: BrowserDropData) {
-    if (!selectedPos) return; // No button selected — ignore
+    if (!selectedPos) return;
     handleDrop(selectedPos, data);
   }
 
@@ -87,17 +102,20 @@ export default function PageEditor() {
   const rows = 3;
 
   return (
-    <div className="grid h-full" style={{
-      gridTemplateColumns: "1fr 280px",
-      gridTemplateRows: "1fr auto",
-    }}>
+    <div
+      className="h-full grid"
+      style={{
+        gridTemplateColumns: "minmax(0, 1fr) 280px",
+        gridTemplateRows: selectedPos ? "1fr minmax(200px, auto)" : "1fr",
+      }}
+    >
       {/* Top-left: Deck grid */}
-      <div className="p-4 flex flex-col gap-3 overflow-hidden">
+      <div className="p-4 flex flex-col gap-3 overflow-hidden min-h-0">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">{page.name ?? page.page}</h2>
           <span className="text-xs text-muted-foreground">{page.buttons.length} buttons</span>
         </div>
-        <div className="flex-1 flex items-start">
+        <div className="flex-1 flex items-start min-h-0">
           <div className="w-full max-w-lg">
             <ButtonGrid
               buttons={page.buttons}
@@ -113,8 +131,8 @@ export default function PageEditor() {
       </div>
 
       {/* Top-right: Plugin browser */}
-      <div className="border-l overflow-hidden flex flex-col">
-        <div className="px-3 py-2 border-b">
+      <div className="border-l overflow-hidden flex flex-col min-h-0">
+        <div className="px-3 py-2 border-b shrink-0">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Plugins
           </h3>
@@ -128,7 +146,10 @@ export default function PageEditor() {
 
       {/* Bottom: Config editor (spans both columns) */}
       {selectedPos && catalog && (
-        <div className="col-span-2 border-t overflow-y-auto" style={{ maxHeight: "350px" }}>
+        <div
+          className="col-span-2 border-t overflow-y-auto transition-all duration-200"
+          style={{ maxHeight: "350px" }}
+        >
           <div className="p-4">
             <ButtonConfigEditor
               pos={selectedPos}
