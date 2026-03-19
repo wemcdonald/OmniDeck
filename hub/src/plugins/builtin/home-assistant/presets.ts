@@ -151,44 +151,4 @@ export const haPresets: ButtonPreset[] = [
     },
   },
 
-  // -- Convenience aliases from old plugin (kept for compat) --
-  {
-    id: "light_toggle",
-    name: "Light Toggle",
-    description: "Toggle a light (legacy alias for 'light')",
-    category: "Lighting",
-    icon: "ms:lightbulb",
-    action: "toggle",
-    stateProvider: "light_state",
-    defaults: {
-      icon: "ms:lightbulb",
-      label: "{{brightness_percent}}",
-    },
-    longPressAction: "turn_on",
-    longPressDefaults: { brightness: 255 },
-  },
-  {
-    id: "switch_toggle",
-    name: "Switch Toggle",
-    description: "Toggle a switch (legacy alias for 'toggle')",
-    category: "General",
-    icon: "ms:power",
-    action: "toggle",
-    stateProvider: "entity_state",
-    defaults: {
-      icon: "ms:power",
-    },
-  },
-  {
-    id: "scene_activate",
-    name: "Scene Activate",
-    description: "Activate a scene (legacy alias for 'scene')",
-    category: "Automation",
-    icon: "ms:palette",
-    action: "run_scene",
-    defaults: {
-      icon: "ms:palette",
-      background: "#8b5cf6",
-    },
-  },
 ];

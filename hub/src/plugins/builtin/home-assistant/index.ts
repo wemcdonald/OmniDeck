@@ -79,8 +79,9 @@ export const homeAssistantPlugin: OmniDeckPlugin = {
     }
 
     // -- Cache entity registry for the web UI entity browser --
-    client.onConnection(async (connected) => {
-      if (!connected) return;
+    let registryTimer: ReturnType<typeof setInterval> | null = null;
+
+    async function refreshEntityRegistry() {
       try {
         const registry = await client.getEntityRegistry();
         ctx.state.set("home-assistant", "entity_registry", registry);
@@ -88,6 +89,14 @@ export const homeAssistantPlugin: OmniDeckPlugin = {
       } catch (err) {
         ctx.log.warn({ err }, "Failed to fetch entity registry");
       }
+    }
+
+    client.onConnection(async (connected) => {
+      if (registryTimer) { clearInterval(registryTimer); registryTimer = null; }
+      if (!connected) return;
+      await refreshEntityRegistry();
+      // Refresh every 60s to pick up entity changes in HA
+      registryTimer = setInterval(() => { refreshEntityRegistry(); }, 60_000);
     });
 
     // -- Connect (non-blocking, will reconnect on failure) --

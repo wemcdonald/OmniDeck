@@ -187,7 +187,6 @@ Presets wire up the right action + state provider + icon in one line.
 | `home-assistant.fan` | `toggle` | `fan_state` | `ms:mode-fan` |
 | `home-assistant.media_player` | `media_play_pause` | `media_player_state` | `ms:play-circle` |
 
-Legacy aliases are also available: `light_toggle`, `switch_toggle`, `scene_activate`.
 
 ## Publishing State to HA
 

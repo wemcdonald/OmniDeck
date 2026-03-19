@@ -156,19 +156,6 @@ describe("home-assistant plugin", () => {
     expect(host.getPreset("home-assistant", "media_player")).toBeDefined();
   });
 
-  // Legacy compat presets
-  it("registers light_toggle preset (compat)", () => {
-    expect(host.getPreset("home-assistant", "light_toggle")).toBeDefined();
-  });
-
-  it("registers switch_toggle preset (compat)", () => {
-    expect(host.getPreset("home-assistant", "switch_toggle")).toBeDefined();
-  });
-
-  it("registers scene_activate preset (compat)", () => {
-    expect(host.getPreset("home-assistant", "scene_activate")).toBeDefined();
-  });
-
   // -- State provider resolution --
 
   describe("entity_state provider", () => {
