@@ -150,13 +150,13 @@ export class Hub {
     this.store.set("omnideck-core", "current_page", firstPage);
     this.currentPageId = firstPage;
 
-    // Debounced re-render: coalesce rapid state changes into a single render
+    // Debounced incremental render: coalesce rapid state changes
     let renderTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleRender = () => {
-      if (renderTimer) return; // already scheduled
+      if (renderTimer) return;
       renderTimer = setTimeout(() => {
         renderTimer = null;
-        this.renderCurrentPage().catch((err) =>
+        this.renderDirtyButtons().catch((err) =>
           log.error({ err }, "State-driven re-render error"),
         );
       }, 100);
@@ -312,9 +312,24 @@ export class Hub {
     return undefined;
   }
 
+  /** Hash a ButtonState into a string for dirty-checking. */
+  private hashState(state: ButtonState): string {
+    // Fast JSON key — covers all visual properties
+    return JSON.stringify(state);
+  }
+
+  /** Cache of last-rendered state hash per key index. */
+  private stateCache = new Map<number, string>();
+
+  /**
+   * Full page render — clears all keys and renders from scratch.
+   * Used on page switch or config reload.
+   */
   private async renderCurrentPage(): Promise<void> {
     const page = this.pages.get(this.currentPageId);
     if (!page) return;
+
+    this.stateCache.clear();
 
     // Clear all keys first (black)
     const blackImage = await this.renderer.render({});
@@ -332,12 +347,49 @@ export class Hub {
       const state = this.resolveButtonState(button);
       const image = await this.renderer.render(state);
       await this.deck.setKeyImage(keyIndex, image);
+      this.stateCache.set(keyIndex, this.hashState(state));
     }
 
-    // Broadcast updated preview to web clients
+    // Broadcast full preview to web clients
     this.getDeckPreview()
       .then((images) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, images } }))
       .catch((err) => log.warn({ err }, "Failed to broadcast deck preview"));
+  }
+
+  /**
+   * Incremental render — only re-renders buttons whose resolved state changed.
+   * Used on entity/agent state updates.
+   */
+  private async renderDirtyButtons(): Promise<void> {
+    const page = this.pages.get(this.currentPageId);
+    if (!page) return;
+
+    const columns = page.columns ?? this.deck.keyColumns;
+    let anyChanged = false;
+
+    for (const button of page.buttons) {
+      const [col, row] = button.pos;
+      const keyIndex = row * columns + col;
+      if (keyIndex >= this.deck.keyCount) continue;
+
+      const state = this.resolveButtonState(button);
+      const hash = this.hashState(state);
+
+      if (this.stateCache.get(keyIndex) === hash) continue;
+
+      // State changed — re-render this button
+      this.stateCache.set(keyIndex, hash);
+      const image = await this.renderer.render(state);
+      await this.deck.setKeyImage(keyIndex, image);
+      anyChanged = true;
+    }
+
+    // Only broadcast to web if something actually changed
+    if (anyChanged) {
+      this.getDeckPreview()
+        .then((images) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, images } }))
+        .catch((err) => log.warn({ err }, "Failed to broadcast deck preview"));
+    }
   }
 
   /**

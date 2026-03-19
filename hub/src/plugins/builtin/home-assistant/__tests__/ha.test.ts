@@ -214,14 +214,14 @@ describe("home-assistant plugin", () => {
       expect(result.state.iconColor).toBe("#9ca3af");
     });
 
-    it("uses RGB color for background when available", () => {
+    it("uses RGB color for icon when available", () => {
       store.set("home-assistant", "entity:light.strip", {
         state: "on",
         attributes: { brightness: 255, rgb_color: [255, 0, 128] },
       });
       const provider = host.getStateProvider("home-assistant", "light_state")!;
       const result = provider.resolve({ entity_id: "light.strip" });
-      expect(result.state.background).toBe("#ff0080");
+      expect(result.state.iconColor).toBe("#ff0080");
     });
   });
 
