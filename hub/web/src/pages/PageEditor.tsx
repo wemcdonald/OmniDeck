@@ -106,7 +106,7 @@ export default function PageEditor() {
       className="h-full grid"
       style={{
         gridTemplateColumns: "minmax(0, 1fr) 280px",
-        gridTemplateRows: selectedPos ? "1fr minmax(200px, auto)" : "1fr",
+        gridTemplateRows: selectedPos ? "minmax(0, 1fr) auto" : "1fr",
       }}
     >
       {/* Top-left: Deck grid */}
@@ -148,7 +148,7 @@ export default function PageEditor() {
       {selectedPos && catalog && (
         <div
           className="col-span-2 border-t overflow-y-auto transition-all duration-200"
-          style={{ maxHeight: "350px" }}
+          style={{ maxHeight: "50vh", minHeight: "300px" }}
         >
           <div className="p-4">
             <ButtonConfigEditor
