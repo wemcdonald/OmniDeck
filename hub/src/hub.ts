@@ -99,6 +99,7 @@ export class Hub {
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,
       agentServer: this.agentServer,
+      pluginHost: this.pluginHost,
       broadcaster: this.broadcaster,
       staticDir: existsSync(webDistDir) ? webDistDir : undefined,
       getPagePreview: (pageId) => this.getPagePreview(pageId),
