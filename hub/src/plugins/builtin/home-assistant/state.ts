@@ -128,8 +128,8 @@ function resolveLightState(entity: EntityState): StateProviderResult {
 
   const state: ButtonStateResult = {
     icon: "ms:lightbulb",
-    background: isOn ? "#92400e" : DOMAIN_OFF_BG,
-    iconColor: isOn ? "#ffffff" : "#9ca3af",
+    background: DOMAIN_OFF_BG,
+    iconColor: isOn ? "#facc15" : "#9ca3af",
   };
 
   if (isOn && brightness !== undefined) {
@@ -145,7 +145,7 @@ function resolveLightState(entity: EntityState): StateProviderResult {
   if (isOn && entity.attributes.rgb_color) {
     const [r, g, b] = entity.attributes.rgb_color as [number, number, number];
     rgbHex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    state.background = rgbHex;
+    state.iconColor = rgbHex;
   }
 
   return {

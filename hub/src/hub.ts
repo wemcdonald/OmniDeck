@@ -150,20 +150,31 @@ export class Hub {
     this.store.set("omnideck-core", "current_page", firstPage);
     this.currentPageId = firstPage;
 
-    // Listen for page changes (register BEFORE initial render so state-driven
-    // page switches during render are not missed)
+    // Debounced re-render: coalesce rapid state changes into a single render
+    let renderTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRender = () => {
+      if (renderTimer) return; // already scheduled
+      renderTimer = setTimeout(() => {
+        renderTimer = null;
+        this.renderCurrentPage().catch((err) =>
+          log.error({ err }, "State-driven re-render error"),
+        );
+      }, 100);
+    };
+
+    // Listen for state changes
     this.store.onChange((pluginId, stateKey, value) => {
       if (pluginId === "omnideck-core" && stateKey === "current_page") {
         this.currentPageId = value as string;
         this.renderCurrentPage().catch((err) =>
           log.error({ err }, "Page render error"),
         );
+        return;
       }
 
       // Dispatch pending:<target>:<action> state changes as commands to agents
       if (stateKey.startsWith("pending:")) {
         const parts = stateKey.split(":");
-        // pending:<target>:<action>
         if (parts.length >= 3) {
           const target = parts[1];
           const action = parts.slice(2).join(":");
@@ -173,6 +184,12 @@ export class Hub {
             log.error({ err, target, action }, "Failed to dispatch command to agent"),
           );
         }
+        return;
+      }
+
+      // Entity/plugin state changed — debounced re-render of current page
+      if (stateKey.startsWith("entity:") || stateKey.startsWith("agent:")) {
+        scheduleRender();
       }
     });
 
