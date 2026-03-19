@@ -13,7 +13,7 @@ describe("Hub Integration", () => {
 
   it("full lifecycle: start → render → keypress → page nav → re-render", async () => {
     deck = new MockDeck({ keyCount: 15, columns: 5 });
-    hub = new Hub({ deck, configDir: undefined });
+    hub = new Hub({ deck, configDir: undefined, agentPort: 0 });
 
     // Start hub with two pages
     await hub.start([

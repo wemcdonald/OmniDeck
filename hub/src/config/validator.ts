@@ -90,7 +90,7 @@ const OrchestratorConfigSchema = z
 export const FullConfigSchema = z.object({
   deck: DeckConfigSchema,
   devices: z.array(DeviceConfigSchema).default([]),
-  plugins: z.record(z.record(z.unknown())).default({}),
+  plugins: z.preprocess((v) => v ?? {}, z.record(z.record(z.unknown())).default({})),
   orchestrator: OrchestratorConfigSchema,
   pages: z.array(PageConfigSchema).default([]),
 });

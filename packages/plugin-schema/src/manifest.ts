@@ -15,8 +15,8 @@ export const PluginManifestSchema = z.object({
   /** Which platforms the agent-side supports. Defaults to all. */
   platforms: z.array(PlatformSchema).default(["darwin", "windows", "linux"]),
 
-  /** Hub-side entry point (always present) */
-  hub: z.string(),
+  /** Hub-side entry point (omit for plugins with built-in hub logic) */
+  hub: z.string().optional(),
 
   /** Agent-side entry point (omit for hub-only plugins) */
   agent: z.string().optional(),

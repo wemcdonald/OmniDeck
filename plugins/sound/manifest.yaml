@@ -1,0 +1,4 @@
+id: sound
+name: "Sound"
+version: "1.0.0"
+agent: agent.ts

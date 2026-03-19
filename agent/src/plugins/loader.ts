@@ -82,6 +82,10 @@ export class PluginLoader {
     return this.plugins.get(pluginId);
   }
 
+  getLoadedPluginIds(): string[] {
+    return Array.from(this.plugins.keys());
+  }
+
   async unloadPlugin(pluginId: string): Promise<void> {
     const plugin = this.plugins.get(pluginId);
     if (plugin) {

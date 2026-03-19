@@ -8,7 +8,7 @@ describe("Hub", () => {
 
   beforeEach(async () => {
     deck = new MockDeck({ keyCount: 15, columns: 5 });
-    hub = new Hub({ deck, configDir: undefined });
+    hub = new Hub({ deck, configDir: undefined, agentPort: 0 });
   });
 
   afterEach(async () => {

@@ -3,7 +3,8 @@ import { PhysicalDeck } from "./deck/manager.js";
 import { loadConfig } from "./config/loader.js";
 import { validateConfig } from "./config/validator.js";
 import { createLogger } from "./logger.js";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 
 const log = createLogger("main");
@@ -25,7 +26,14 @@ async function main() {
   const webPort = process.env["OMNIDECK_WEB_PORT"]
     ? parseInt(process.env["OMNIDECK_WEB_PORT"], 10)
     : 9211;
-  const hub = new Hub({ deck, configDir, webPort });
+  const agentPort = process.env["OMNIDECK_AGENT_PORT"]
+    ? parseInt(process.env["OMNIDECK_AGENT_PORT"], 10)
+    : 9210;
+  const __dirname = fileURLToPath(new URL(".", import.meta.url));
+  const pluginsDir =
+    process.env["OMNIDECK_PLUGINS_DIR"] ??
+    resolve(__dirname, "../../plugins");
+  const hub = new Hub({ deck, configDir, pluginsDir, webPort, agentPort });
   await hub.start(config.pages);
 
   log.info("OmniDeck Hub running");
@@ -33,6 +41,7 @@ async function main() {
   // Graceful shutdown
   const shutdown = async () => {
     log.info("Shutting down...");
+    await hub.stop();
     await deck.disconnect();
     process.exit(0);
   };

@@ -54,6 +54,7 @@ export class AgentClient {
           const raw =
             typeof event.data === "string" ? event.data : String(event.data);
           const msg = parseMessage(raw);
+          log.debug(`← ${msg.type}`, { id: msg.id });
           const handler = this.handlers.get(msg.type);
           if (handler) {
             Promise.resolve(handler(msg)).catch((err: unknown) =>
@@ -84,6 +85,7 @@ export class AgentClient {
 
   send(msg: WsMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      log.debug(`→ ${msg.type}`, { id: msg.id });
       this.ws.send(JSON.stringify(msg));
     } else {
       log.warn("Cannot send — WebSocket not open", { type: msg.type });

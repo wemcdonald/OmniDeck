@@ -41,16 +41,22 @@ export class Agent {
     this.loader = new PluginLoader(cacheDir);
 
     // Register WS handlers
-    this.client.onMessage("plugin_manifest", (msg) =>
-      this.handlePluginManifest(msg),
-    );
-    this.client.onMessage("command", (msg) => this.handleCommand(msg));
-    this.client.onMessage("plugin_config_update", (msg) =>
-      this.handleConfigUpdate(msg),
-    );
-    this.client.onMessage("plugin_download_response", (msg) =>
-      this.handleDownloadResponse(msg),
-    );
+    this.client.onMessage("plugin_manifest", (msg) => {
+      log.debug("Received plugin_manifest", { plugins: (msg.data as { plugins: unknown[] }).plugins });
+      return this.handlePluginManifest(msg);
+    });
+    this.client.onMessage("command", (msg) => {
+      log.debug("Received command", msg.data as Record<string, unknown>);
+      return this.handleCommand(msg);
+    });
+    this.client.onMessage("plugin_config_update", (msg) => {
+      log.debug("Received plugin_config_update", msg.data as Record<string, unknown>);
+      return this.handleConfigUpdate(msg);
+    });
+    this.client.onMessage("plugin_download_response", (msg) => {
+      log.debug("Received plugin_download_response", { id: (msg.data as { id: string }).id });
+      return this.handleDownloadResponse(msg);
+    });
   }
 
   async start(): Promise<void> {
@@ -192,9 +198,11 @@ export class Agent {
 
     const pluginId = command.slice(0, dotIdx);
     const actionId = command.slice(dotIdx + 1);
+    log.debug(`Dispatching command ${pluginId}.${actionId}`, { params });
     const plugin = this.loader.getPlugin(pluginId);
 
     if (!plugin) {
+      log.debug(`Plugin not loaded: ${pluginId}`, { loaded: this.loader.getLoadedPluginIds() });
       this.client.sendResponse(
         "command_response",
         { success: false, error: `Plugin not loaded: ${pluginId}` },
@@ -205,6 +213,7 @@ export class Agent {
 
     const handler = plugin.actions.get(actionId);
     if (!handler) {
+      log.debug(`Action not found: ${actionId}`, { available: Array.from(plugin.actions.keys()) });
       this.client.sendResponse(
         "command_response",
         { success: false, error: `Action not found: ${actionId}` },
@@ -215,8 +224,10 @@ export class Agent {
 
     try {
       const result = await handler(params);
+      log.debug(`Command ${command} completed`, result as unknown as Record<string, unknown>);
       this.client.sendResponse("command_response", result, msg.id);
     } catch (err) {
+      log.debug(`Command ${command} failed`, { error: String(err) });
       this.client.sendResponse(
         "command_response",
         { success: false, error: String(err) },

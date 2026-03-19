@@ -11,6 +11,8 @@ import { createLogger } from "../logger.js";
 
 type OrchestratorCallback = (data: unknown) => void;
 
+const log = createLogger("plugin-host");
+
 export class PluginHost {
   private plugins = new Map<string, OmniDeckPlugin>();
   private actions = new Map<string, ActionDefinition>(); // "pluginId.actionId"
@@ -80,8 +82,13 @@ export class PluginHost {
     params: unknown,
     context: Partial<ActionContext> = {},
   ): Promise<void> {
+    log.info({ action: qualifiedId, params, context }, `Executing ${qualifiedId}`);
+
     const action = this.actions.get(qualifiedId);
-    if (!action) throw new Error(`Action not found: ${qualifiedId}`);
+    if (!action) {
+      log.warn({ action: qualifiedId, registered: Array.from(this.actions.keys()) }, "Action not found");
+      throw new Error(`Action not found: ${qualifiedId}`);
+    }
 
     const fullContext: ActionContext = {
       targetAgent: context.targetAgent,
@@ -91,7 +98,13 @@ export class PluginHost {
       },
     };
 
-    await action.execute(params, fullContext);
+    try {
+      await action.execute(params, fullContext);
+      log.info({ action: qualifiedId }, "Action executed successfully");
+    } catch (err) {
+      log.error({ action: qualifiedId, err }, "Action execution failed");
+      throw err;
+    }
   }
 
   getAllPresets(): Array<{ qualifiedId: string; pluginId: string; name: string; defaults: ButtonPreset["defaults"] }> {
