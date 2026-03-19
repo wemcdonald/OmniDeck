@@ -154,15 +154,17 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "volume_level",
       name: "Volume Level",
+      icon: "ms:volume-up",
+      providesIcon: true,
       paramsSchema: targetSchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
         const target = (p.target as string | undefined) ?? config.default_target;
         const agentState = getAgentState(target);
         const volume = (agentState?.volume as number) ?? 0;
-        let icon = "ms:volume_up";
-        if (volume === 0) icon = "ms:volume_off";
-        else if (volume <= 50) icon = "ms:volume_down";
+        let icon = "ms:volume-up";
+        if (volume === 0) icon = "ms:volume-off";
+        else if (volume <= 50) icon = "ms:volume-down";
         return {
           state: {
             label: `${Math.round(volume)}%`,
@@ -177,6 +179,8 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "mute_state",
       name: "Mute State",
+      icon: "ms:volume-up",
+      providesIcon: true,
       paramsSchema: targetSchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
@@ -184,14 +188,16 @@ export const soundPlugin: OmniDeckPlugin = {
         const agentState = getAgentState(target);
         const isMuted = (agentState?.is_muted as boolean) ?? false;
         return isMuted
-          ? { state: { icon: "ms:volume_off", background: "#ef4444" }, variables: {} }
-          : { state: { icon: "ms:volume_up" }, variables: {} };
+          ? { state: { icon: "ms:volume-off", background: "#ef4444" }, variables: {} }
+          : { state: { icon: "ms:volume-up" }, variables: {} };
       },
     });
 
     ctx.registerStateProvider({
       id: "mic_state",
       name: "Mic State",
+      icon: "ms:mic",
+      providesIcon: true,
       paramsSchema: targetSchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
@@ -199,7 +205,7 @@ export const soundPlugin: OmniDeckPlugin = {
         const agentState = getAgentState(target);
         const isMuted = (agentState?.mic_muted as boolean) ?? false;
         return isMuted
-          ? { state: { icon: "ms:mic_off", background: "#ef4444" }, variables: {} }
+          ? { state: { icon: "ms:mic-off", background: "#ef4444" }, variables: {} }
           : { state: { icon: "ms:mic" }, variables: {} };
       },
     });
