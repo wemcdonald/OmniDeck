@@ -186,7 +186,7 @@ describe("home-assistant plugin", () => {
       const provider = host.getStateProvider("home-assistant", "entity_state")!;
       const result = provider.resolve({ entity_id: "switch.desk_fan" });
       expect(result.state.label).toBe("off");
-      expect(result.state.opacity).toBe(0.7);
+      expect(result.state.iconColor).toBe("#9ca3af");
       expect(result.state.background).toBe("#374151");
     });
   });
@@ -211,7 +211,7 @@ describe("home-assistant plugin", () => {
       const provider = host.getStateProvider("home-assistant", "light_state")!;
       const result = provider.resolve({ entity_id: "light.desk" });
       expect(result.state.label).toBe("Off");
-      expect(result.state.opacity).toBe(0.6);
+      expect(result.state.iconColor).toBe("#9ca3af");
     });
 
     it("uses RGB color for background when available", () => {
@@ -302,7 +302,7 @@ describe("home-assistant plugin", () => {
       const provider = host.getStateProvider("home-assistant", "cover_state")!;
       const result = provider.resolve({ entity_id: "cover.garage" });
       expect(result.state.icon).toBe("ms:garage");
-      expect(result.state.opacity).toBe(0.7);
+      expect(result.state.iconColor).toBe("#9ca3af");
     });
   });
 

@@ -99,7 +99,7 @@ function resolveGenericEntity(entity: EntityState, domain: string): StateProvide
   };
 
   if (!isOn && domain !== "sensor" && domain !== "climate" && domain !== "media_player") {
-    state.opacity = 0.7;
+    state.iconColor = "#9ca3af";
   }
 
   // Friendly name override for label
@@ -129,7 +129,7 @@ function resolveLightState(entity: EntityState): StateProviderResult {
   const state: ButtonStateResult = {
     icon: "ms:lightbulb",
     background: isOn ? "#92400e" : DOMAIN_OFF_BG,
-    opacity: isOn ? 1 : 0.6,
+    iconColor: isOn ? "#ffffff" : "#9ca3af",
   };
 
   if (isOn && brightness !== undefined) {
@@ -217,7 +217,7 @@ function resolveMediaPlayerState(entity: EntityState): StateProviderResult {
       background: isPlaying ? "#065f46" : isPaused ? "#374151" : DOMAIN_OFF_BG,
       label: title || entity.state,
       topLabel: appName || undefined,
-      opacity: entity.state === "off" || entity.state === "unavailable" ? 0.5 : 1,
+      iconColor: entity.state === "off" || entity.state === "unavailable" ? "#9ca3af" : "#ffffff",
     },
     variables: {
       state: entity.state,
@@ -288,7 +288,7 @@ function resolveCoverState(entity: EntityState): StateProviderResult {
       background: isOpen ? "#1e3a5f" : DOMAIN_OFF_BG,
       label: position !== undefined ? `${position}%` : entity.state,
       progress: position !== undefined ? position / 100 : undefined,
-      opacity: isClosed ? 0.7 : 1,
+      iconColor: isClosed ? "#9ca3af" : "#ffffff",
     },
     variables: {
       state: entity.state,
@@ -323,7 +323,7 @@ function resolveFanState(entity: EntityState): StateProviderResult {
       background: isOn ? "#1e3a5f" : DOMAIN_OFF_BG,
       label: isOn && pct !== undefined ? `${pct}%` : isOn ? "On" : "Off",
       progress: isOn && pct !== undefined ? pct / 100 : undefined,
-      opacity: isOn ? 1 : 0.6,
+      iconColor: isOn ? "#ffffff" : "#9ca3af",
     },
     variables: {
       state: entity.state,
