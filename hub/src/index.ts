@@ -34,7 +34,7 @@ async function main() {
     process.env["OMNIDECK_PLUGINS_DIR"] ??
     resolve(__dirname, "../../plugins");
   const hub = new Hub({ deck, configDir, pluginsDir, webPort, agentPort });
-  await hub.start(config.pages);
+  await hub.start(config.pages, config.plugins);
 
   log.info("OmniDeck Hub running");
 

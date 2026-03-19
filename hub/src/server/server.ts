@@ -34,12 +34,17 @@ interface AgentServerOptions {
   registry?: PluginRegistryLike;
 }
 
+type AgentStateCallback = (hostname: string, state: AgentStateData) => void;
+type AgentConnectionCallback = (hostname: string, connected: boolean) => void;
+
 export class AgentServer {
   private wss: WebSocketServer | null = null;
   private agents = new Map<string, ConnectedAgent>();
   private pendingCommands = new Map<string, PendingCommand>();
   private port: number;
   private registry: PluginRegistryLike | undefined;
+  private stateCallbacks: AgentStateCallback[] = [];
+  private connectionCallbacks: AgentConnectionCallback[] = [];
 
   constructor(opts: AgentServerOptions) {
     this.port = opts.port;
@@ -77,6 +82,16 @@ export class AgentServer {
 
   getAgent(hostname: string): ConnectedAgent | undefined {
     return this.agents.get(hostname);
+  }
+
+  /** Register a callback for agent state updates (fired on each state_update message). */
+  onAgentStateUpdate(cb: AgentStateCallback): void {
+    this.stateCallbacks.push(cb);
+  }
+
+  /** Register a callback for agent connect/disconnect events. */
+  onAgentConnection(cb: AgentConnectionCallback): void {
+    this.connectionCallbacks.push(cb);
   }
 
   async sendCommand(
@@ -119,6 +134,7 @@ export class AgentServer {
       if (agentHostname) {
         this.agents.delete(agentHostname);
         log.info({ hostname: agentHostname }, "Agent disconnected");
+        for (const cb of this.connectionCallbacks) cb(agentHostname, false);
       }
     });
 
@@ -135,6 +151,7 @@ export class AgentServer {
     switch (msg.type) {
       case "state_update": {
         const state = msg.data as AgentStateData;
+        const isNew = !this.agents.has(state.hostname);
         setHostname(state.hostname);
         this.agents.set(state.hostname, {
           ws,
@@ -142,6 +159,10 @@ export class AgentServer {
           platform: state.platform,
           state,
         });
+        if (isNew) {
+          for (const cb of this.connectionCallbacks) cb(state.hostname, true);
+        }
+        for (const cb of this.stateCallbacks) cb(state.hostname, state);
         if (this.registry) {
           const plugins = this.registry.getDistributionList(state.platform);
           ws.send(JSON.stringify(createMessage("plugin_manifest", { plugins })));

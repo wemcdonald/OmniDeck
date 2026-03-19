@@ -7,10 +7,12 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { createLogger, replayLogs } from "../logger.js";
 import { createConfigRoutes } from "./routes/config.js";
 import { createStatusRoutes } from "./routes/status.js";
+import { createHaRoutes } from "./routes/ha.js";
 import type { Broadcaster } from "./broadcast.js";
 import type { AgentServer } from "../server/server.js";
 import type { PluginHost } from "../plugins/host.js";
 import type { DeckManager } from "../deck/types.js";
+import type { StateStore } from "../state/store.js";
 
 const log = createLogger("web");
 
@@ -27,6 +29,7 @@ export interface WebServerOptions {
   pressKey?: (key: number) => Promise<void>;
   getPluginStatuses?: () => Array<{ id: string; name: string; version: string; status: string }>;
   getPresets?: () => Array<{ qualifiedId: string; pluginId: string; name: string; defaults: Record<string, unknown> }>;
+  store?: StateStore;
 }
 
 export class WebServer {
@@ -42,7 +45,7 @@ export class WebServer {
   }
 
   private setupRoutes(): void {
-    const { configDir, agentServer, deck, broadcaster, getPagePreview, getDeckPreview, pressKey, getPluginStatuses, getPresets } = this.opts;
+    const { configDir, agentServer, deck, broadcaster, getPagePreview, getDeckPreview, pressKey, getPluginStatuses, getPresets, store } = this.opts;
 
     this.app.get("/api/health", (c) => c.json({ status: "ok" }));
 
@@ -61,6 +64,10 @@ export class WebServer {
 
     if (configDir) {
       this.app.route("/api/config", createConfigRoutes(configDir));
+    }
+
+    if (store) {
+      this.app.route("/api/ha", createHaRoutes(store));
     }
 
     if (getPresets) {

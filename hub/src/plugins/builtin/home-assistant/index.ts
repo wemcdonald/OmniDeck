@@ -1,110 +1,110 @@
 import type { OmniDeckPlugin, PluginContext } from "../../types.js";
+import { HaClient } from "./client.js";
 import { createHaActions } from "./actions.js";
-import { createEntityStateProvider } from "./state.js";
+import { createHaStateProviders } from "./state.js";
 import { haPresets } from "./presets.js";
-import WebSocket from "ws";
+import { HaStatePublisher } from "./publisher.js";
 
 interface HaConfig {
   url: string;
   token: string;
+  reconnect?: boolean;
+  /** State publishing config — pushes OmniDeck state TO Home Assistant */
+  publish?: Record<string, unknown>;
 }
+
+// Module-level references for cleanup in destroy()
+let activeClient: HaClient | null = null;
+let activePublisher: HaStatePublisher | null = null;
 
 export const homeAssistantPlugin: OmniDeckPlugin = {
   id: "home-assistant",
   name: "Home Assistant",
-  version: "1.0.0",
+  version: "2.0.0",
 
   async init(ctx: PluginContext) {
     const config = ctx.config as HaConfig;
-    let haWs: WebSocket | null = null;
-    let msgId = 1;
 
-    // HA service caller — no-ops when not connected
-    const callService = async (
-      domain: string,
-      service: string,
-      data: Record<string, unknown>,
-    ): Promise<void> => {
-      if (!haWs || haWs.readyState !== WebSocket.OPEN) {
-        ctx.log.warn("HA not connected, cannot call service");
-        return;
-      }
-      const id = msgId++;
-      haWs.send(
-        JSON.stringify({
-          id,
-          type: "call_service",
-          domain,
-          service,
-          service_data: data,
-        }),
-      );
-    };
+    // -- Create the HA WebSocket client --
+    const client = new HaClient({
+      url: config.url,
+      token: config.token,
+      log: ctx.log,
+      reconnect: config.reconnect ?? true,
+    });
+    activeClient = client;
 
-    // Register actions, state provider, presets (always — even if HA is unreachable)
-    for (const action of createHaActions(callService)) {
+    // -- Bridge: HA entity state changes → state store --
+    client.onStateChanged((entityId, newState) => {
+      ctx.state.set("home-assistant", `entity:${entityId}`, {
+        state: newState.state,
+        attributes: newState.attributes,
+      });
+    });
+
+    // -- Track HA connection status in the store --
+    client.onConnection((connected) => {
+      ctx.state.set("home-assistant", "connected", connected);
+      ctx.state.set("home-assistant", "ha_version", client.version);
+    });
+
+    // -- Register actions --
+    for (const action of createHaActions(client)) {
       ctx.registerAction(action);
     }
-    ctx.registerStateProvider(createEntityStateProvider(ctx.state));
+
+    // -- Register state providers --
+    for (const provider of createHaStateProviders(ctx.state)) {
+      ctx.registerStateProvider(provider);
+    }
+
+    // -- Register presets --
     for (const preset of haPresets) {
       ctx.registerPreset(preset);
     }
 
-    // Connect to HA WebSocket — non-blocking, gracefully handles failure
-    try {
-      haWs = new WebSocket(config.url);
-
-      haWs.on("open", () => {
-        ctx.log.info("Connected to Home Assistant");
-      });
-
-      haWs.on("message", (raw) => {
-        let msg: Record<string, unknown>;
-        try {
-          msg = JSON.parse(raw.toString()) as Record<string, unknown>;
-        } catch {
-          return;
-        }
-
-        if (msg.type === "auth_required") {
-          haWs!.send(JSON.stringify({ type: "auth", access_token: config.token }));
-        } else if (msg.type === "auth_ok") {
-          ctx.log.info("HA authenticated");
-          const subId = msgId++;
-          haWs!.send(
-            JSON.stringify({
-              id: subId,
-              type: "subscribe_events",
-              event_type: "state_changed",
-            }),
-          );
-        } else if (msg.type === "event") {
-          const event = msg.event as
-            | { event_type: string; data: { entity_id: string; new_state: unknown } }
-            | undefined;
-          if (event?.event_type === "state_changed" && event.data.new_state) {
-            const newState = event.data.new_state as {
-              state: string;
-              attributes: Record<string, unknown>;
-            };
-            ctx.state.set("home-assistant", `entity:${event.data.entity_id}`, {
-              state: newState.state,
-              attributes: newState.attributes,
-            });
-          }
+    // -- State publisher: OmniDeck orchestrator state → HA --
+    const publisher = new HaStatePublisher(config.publish, ctx.state, client, ctx.log);
+    activePublisher = publisher;
+    if (publisher.enabled) {
+      // Start publishing once connected to HA
+      client.onConnection((connected) => {
+        if (connected) {
+          publisher.start();
+        } else {
+          publisher.stop();
         }
       });
+    }
 
-      haWs.on("error", (err: Error) => {
-        ctx.log.warn(
-          { err: err.message },
-          "HA WebSocket error (will retry on next config reload)",
-        );
-      });
-    } catch {
-      ctx.log.warn("Could not connect to HA (will retry on config reload)");
+    // -- Cache entity registry for the web UI entity browser --
+    client.onConnection(async (connected) => {
+      if (!connected) return;
+      try {
+        const registry = await client.getEntityRegistry();
+        ctx.state.set("home-assistant", "entity_registry", registry);
+        ctx.log.info({ count: registry.length }, "Cached HA entity registry");
+      } catch (err) {
+        ctx.log.warn({ err }, "Failed to fetch entity registry");
+      }
+    });
+
+    // -- Connect (non-blocking, will reconnect on failure) --
+    if (config.url && config.token) {
+      client.connect();
+    } else {
+      ctx.log.warn("HA plugin: url or token not configured, skipping connection");
     }
   },
 
-  async destroy() {},
+  async destroy() {
+    if (activePublisher) {
+      activePublisher.stop();
+      activePublisher = null;
+    }
+    if (activeClient) {
+      activeClient.destroy();
+      activeClient = null;
+    }
+  },
 };

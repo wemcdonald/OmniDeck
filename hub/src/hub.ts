@@ -12,6 +12,7 @@ import { StateStore } from "./state/store.js";
 import { PluginHost } from "./plugins/host.js";
 import { corePlugin } from "./plugins/builtin/core/index.js";
 import { soundPlugin } from "./plugins/builtin/sound/index.js";
+import { homeAssistantPlugin } from "./plugins/builtin/home-assistant/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
@@ -54,16 +55,20 @@ export class Hub {
     this.pluginHost = new PluginHost(this.store);
     this.pluginHost.register(corePlugin);
     this.pluginHost.register(soundPlugin);
+    this.pluginHost.register(homeAssistantPlugin);
   }
 
-  async start(pageConfigs: PageConfig[]): Promise<void> {
+  async start(
+    pageConfigs: PageConfig[],
+    pluginConfigs: Record<string, Record<string, unknown>> = {},
+  ): Promise<void> {
     // Store pages
     for (const page of pageConfigs) {
       this.pages.set(page.page, page);
     }
 
-    // Init plugins
-    await this.pluginHost.initAll({});
+    // Init plugins with their configuration
+    await this.pluginHost.initAll(pluginConfigs);
 
     // Load external plugin registry
     let registry: PluginRegistry | undefined;
@@ -77,6 +82,15 @@ export class Hub {
     const agentPort = this.opts.agentPort ?? 9210;
     this.agentServer = new AgentServer({ port: agentPort, registry });
     await this.agentServer.start();
+
+    // Bridge agent state into the state store so plugins can read it
+    this.agentServer.onAgentStateUpdate((hostname, state) => {
+      this.store.set("os-control", `agent:${hostname}:state`, state);
+      this.store.set("os-control", `agent:${hostname}:online`, true);
+    });
+    this.agentServer.onAgentConnection((hostname, connected) => {
+      this.store.set("os-control", `agent:${hostname}:online`, connected);
+    });
 
     // Start web server
     setLogBroadcaster(this.broadcaster);
@@ -92,6 +106,7 @@ export class Hub {
       pressKey: (key) => this.pressKey(key),
       getPluginStatuses: () => this.pluginHost.getStatuses(),
       getPresets: () => this.pluginHost.getAllPresets(),
+      store: this.store,
     });
     await this.webServer.start();
 
@@ -251,13 +266,19 @@ export class Hub {
     }
 
     const button = this.findButtonByKeyIndex(page, keyIndex);
-    if (!button?.action) {
+    if (!button) {
+      log.info({ keyIndex, pageId: this.currentPageId }, "Key press with no button");
+      return;
+    }
+
+    const resolved = this.resolveButton(button);
+    if (!resolved.action) {
       log.info({ keyIndex, pageId: this.currentPageId }, "Key press with no action");
       return;
     }
 
-    log.info({ pos: button.pos, action: button.action, params: button.params }, `[${button.pos}] pressed → ${button.action}`);
-    await this.pluginHost.executeAction(button.action, button.params ?? {});
+    log.info({ pos: button.pos, action: resolved.action, params: resolved.actionParams }, `[${button.pos}] pressed → ${resolved.action}`);
+    await this.pluginHost.executeAction(resolved.action, resolved.actionParams);
   }
 
   private findButtonByKeyIndex(
@@ -301,27 +322,99 @@ export class Hub {
       .catch((err) => log.warn({ err }, "Failed to broadcast deck preview"));
   }
 
+  /**
+   * Resolve a button's preset (if any) into its effective action, params,
+   * state provider, and visual defaults. Explicit button-level values
+   * always override preset defaults.
+   */
+  private resolveButton(button: ButtonConfig): {
+    action: string | undefined;
+    actionParams: Record<string, unknown>;
+    stateProvider: string | undefined;
+    stateParams: Record<string, unknown>;
+    icon: string | undefined;
+    label: string | undefined;
+    background: string | undefined;
+  } {
+    // Start with explicit button-level values
+    let action = button.action;
+    let actionParams: Record<string, unknown> = button.params ?? {};
+    let stateProvider = button.state?.provider;
+    let stateParams: Record<string, unknown> = button.state?.params ?? {};
+    let icon = button.icon;
+    let label = button.label;
+    let background = button.background;
+
+    // If button uses a preset, resolve defaults and map params
+    if (button.preset) {
+      const [pluginId, presetId] = button.preset.includes(".")
+        ? button.preset.split(".", 2) as [string, string]
+        : ["", button.preset];
+      const preset = this.pluginHost.getPreset(pluginId, presetId);
+
+      if (preset) {
+        const mapped = preset.mapParams(button.params ?? {});
+
+        // Preset defaults — only fill in what the button doesn't explicitly set
+        if (!action && preset.defaults.action) {
+          action = `${pluginId}.${preset.defaults.action}`;
+        }
+        if (!icon && preset.defaults.icon) {
+          icon = preset.defaults.icon;
+        }
+        if (!label && preset.defaults.label) {
+          label = preset.defaults.label;
+        }
+        if (!background && preset.defaults.background) {
+          background = preset.defaults.background;
+        }
+        if (!stateProvider && preset.defaults.stateProvider) {
+          stateProvider = `${pluginId}.${preset.defaults.stateProvider}`;
+        }
+
+        // Mapped params override raw button params for action/state
+        if (mapped.actionParams) {
+          actionParams = mapped.actionParams;
+        }
+        if (mapped.stateParams) {
+          stateParams = mapped.stateParams;
+        }
+      } else {
+        log.warn({ preset: button.preset }, "Preset not found");
+      }
+    }
+
+    return { action, actionParams, stateProvider, stateParams, icon, label, background };
+  }
+
   private resolveButtonState(button: ButtonConfig): ButtonState {
+    const resolved = this.resolveButton(button);
+
     const state: ButtonState = {
-      background: button.background,
-      icon: button.icon,
+      background: resolved.background ?? button.background,
+      icon: resolved.icon ?? button.icon,
       iconColor: button.icon_color,
-      label: button.label,
+      label: resolved.label ?? button.label,
       labelColor: button.label_color,
       topLabel: button.top_label,
       topLabelColor: button.top_label_color,
       opacity: button.opacity,
     };
 
-    if (button.state?.provider) {
-      const resolved = this.pluginHost.resolveState(
-        button.state.provider,
-        button.state.params ?? {},
+    if (resolved.stateProvider) {
+      const stateResult = this.pluginHost.resolveState(
+        resolved.stateProvider,
+        resolved.stateParams,
       );
-      if (resolved) {
-        Object.assign(state, resolved);
+      if (stateResult) {
+        Object.assign(state, stateResult);
       }
     }
+
+    // Explicit button-level values always win over state provider results
+    if (button.label) state.label = button.label;
+    if (button.icon) state.icon = button.icon;
+    if (button.background) state.background = button.background;
 
     return state;
   }
