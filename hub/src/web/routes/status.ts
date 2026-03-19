@@ -3,6 +3,7 @@ import { Hono } from "hono";
 interface StatusRouteDeps {
   getAgents(): unknown[];
   getPluginStatuses(): unknown[];
+  getPluginCatalog?(): unknown;
   getDeckPreview(): Promise<Record<number, string>>;
   pressKey(key: number): Promise<void>;
 }
@@ -12,6 +13,10 @@ export function createStatusRoutes(deps: StatusRouteDeps): Hono {
 
   router.get("/status/agents", (c) => c.json(deps.getAgents()));
   router.get("/status/plugins", (c) => c.json(deps.getPluginStatuses()));
+  if (deps.getPluginCatalog) {
+    const getCatalog = deps.getPluginCatalog;
+    router.get("/status/plugin-catalog", (c) => c.json(getCatalog()));
+  }
   router.get("/deck/preview", async (c) => c.json(await deps.getDeckPreview()));
 
   router.post("/deck/press/:key", async (c) => {

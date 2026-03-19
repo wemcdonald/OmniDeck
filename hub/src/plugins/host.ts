@@ -3,9 +3,11 @@ import type {
   PluginContext,
   ActionDefinition,
   StateProviderDefinition,
+  StateProviderResult,
   ButtonPreset,
   ActionContext,
 } from "./types.js";
+import { extractFields, type PluginHealth, type CatalogField } from "@omnideck/plugin-schema";
 import type { StateStore } from "../state/store.js";
 import { createLogger } from "../logger.js";
 
@@ -19,6 +21,7 @@ export class PluginHost {
   private stateProviders = new Map<string, StateProviderDefinition>();
   private presets = new Map<string, ButtonPreset>();
   private orchestratorListeners = new Map<string, OrchestratorCallback[]>();
+  private pluginHealth = new Map<string, PluginHealth>();
   private store: StateStore;
 
   constructor(store: StateStore) {
@@ -49,6 +52,9 @@ export class PluginHost {
           const existing = this.orchestratorListeners.get(key) ?? [];
           existing.push(cb);
           this.orchestratorListeners.set(key, existing);
+        },
+        setHealth: (health) => {
+          this.pluginHealth.set(id, health);
         },
       };
       await plugin.init(context);
@@ -116,19 +122,165 @@ export class PluginHost {
     }));
   }
 
-  getStatuses(): Array<{ id: string; name: string; version: string; status: string }> {
+  getStatuses(): Array<{ id: string; name: string; version: string; icon?: string; status: string; health?: PluginHealth }> {
     return Array.from(this.plugins.values()).map((p) => ({
       id: p.id,
       name: p.name,
       version: p.version,
+      icon: p.icon,
       status: "running",
+      health: this.pluginHealth.get(p.id),
     }));
   }
 
-  /** Resolve a state provider to a ButtonStateResult */
-  resolveState(qualifiedId: string, params: unknown) {
+  /** Resolve a state provider. Returns the new { state, variables } format. */
+  resolveState(qualifiedId: string, params: unknown): StateProviderResult | undefined {
     const provider = this.stateProviders.get(qualifiedId);
     if (!provider) return undefined;
     return provider.resolve(params);
   }
+
+  /** Get all registered actions (for catalog API). */
+  getAllActions(): Array<{ qualifiedId: string; pluginId: string; action: ActionDefinition }> {
+    return Array.from(this.actions.entries()).map(([key, action]) => ({
+      qualifiedId: key,
+      pluginId: key.split(".")[0],
+      action,
+    }));
+  }
+
+  /** Get all registered state providers (for catalog API). */
+  getAllStateProviders(): Array<{ qualifiedId: string; pluginId: string; provider: StateProviderDefinition }> {
+    return Array.from(this.stateProviders.entries()).map(([key, provider]) => ({
+      qualifiedId: key,
+      pluginId: key.split(".")[0],
+      provider,
+    }));
+  }
+
+  /** Get health status for a specific plugin. */
+  getHealth(pluginId: string): PluginHealth | undefined {
+    return this.pluginHealth.get(pluginId);
+  }
+
+  /** Build the full plugin catalog for the frontend. */
+  getPluginCatalog(): PluginCatalog {
+    const pluginMap = new Map<string, PluginCatalogEntry>();
+
+    // Initialize entries from registered plugins
+    for (const plugin of this.plugins.values()) {
+      pluginMap.set(plugin.id, {
+        id: plugin.id,
+        name: plugin.name,
+        version: plugin.version,
+        icon: plugin.icon,
+        health: this.pluginHealth.get(plugin.id) ?? { status: "ok" },
+        presets: [],
+        actions: [],
+        stateProviders: [],
+      });
+    }
+
+    // Populate actions
+    for (const [key, action] of this.actions) {
+      const pluginId = key.split(".")[0];
+      const entry = pluginMap.get(pluginId);
+      if (!entry) continue;
+
+      entry.actions.push({
+        qualifiedId: key,
+        name: action.name,
+        description: action.description,
+        icon: action.icon,
+        fields: action.paramsSchema ? extractFields(action.paramsSchema) : [],
+      });
+    }
+
+    // Populate state providers
+    for (const [key, provider] of this.stateProviders) {
+      const pluginId = key.split(".")[0];
+      const entry = pluginMap.get(pluginId);
+      if (!entry) continue;
+
+      entry.stateProviders.push({
+        qualifiedId: key,
+        name: provider.name,
+        description: provider.description,
+        icon: provider.icon,
+        providesIcon: provider.providesIcon,
+        templateVariables: provider.templateVariables,
+        fields: provider.paramsSchema ? extractFields(provider.paramsSchema) : [],
+      });
+    }
+
+    // Populate presets
+    for (const [key, preset] of this.presets) {
+      const pluginId = key.split(".")[0];
+      const entry = pluginMap.get(pluginId);
+      if (!entry) continue;
+
+      entry.presets.push({
+        qualifiedId: key,
+        name: preset.name,
+        description: preset.description,
+        category: preset.category,
+        icon: preset.icon ?? preset.defaults.icon,
+        action: preset.action ? `${pluginId}.${preset.action}` : undefined,
+        stateProvider: preset.stateProvider ? `${pluginId}.${preset.stateProvider}` : undefined,
+        defaults: preset.defaults,
+        longPressAction: preset.longPressAction ? `${pluginId}.${preset.longPressAction}` : undefined,
+        longPressDefaults: preset.longPressDefaults,
+      });
+    }
+
+    return { plugins: Array.from(pluginMap.values()) };
+  }
+}
+
+// ── Catalog types (JSON-serializable for the API) ───────────────────────────
+
+export interface PluginCatalog {
+  plugins: PluginCatalogEntry[];
+}
+
+export interface PluginCatalogEntry {
+  id: string;
+  name: string;
+  version: string;
+  icon?: string;
+  health: PluginHealth;
+  presets: CatalogPreset[];
+  actions: CatalogAction[];
+  stateProviders: CatalogStateProvider[];
+}
+
+interface CatalogAction {
+  qualifiedId: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  fields: CatalogField[];
+}
+
+interface CatalogStateProvider {
+  qualifiedId: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  providesIcon?: boolean;
+  templateVariables?: Array<{ key: string; label: string; example?: string }>;
+  fields: CatalogField[];
+}
+
+interface CatalogPreset {
+  qualifiedId: string;
+  name: string;
+  description?: string;
+  category?: string;
+  icon?: string;
+  action?: string;
+  stateProvider?: string;
+  defaults: Record<string, unknown>;
+  longPressAction?: string;
+  longPressDefaults?: Record<string, unknown>;
 }

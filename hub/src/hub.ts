@@ -323,6 +323,13 @@ export class Hub {
   }
 
   /**
+   * Interpolate Mustache-style {{var}} templates in a string.
+   */
+  private interpolate(template: string, vars: Record<string, string>): string {
+    return template.replace(/\{\{(\w+)\}\}/g, (_match, key) => vars[key] ?? _match);
+  }
+
+  /**
    * Resolve a button's preset (if any) into its effective action, params,
    * state provider, and visual defaults. Explicit button-level values
    * always override preset defaults.
@@ -334,18 +341,20 @@ export class Hub {
     stateParams: Record<string, unknown>;
     icon: string | undefined;
     label: string | undefined;
+    topLabel: string | undefined;
     background: string | undefined;
   } {
     // Start with explicit button-level values
     let action = button.action;
-    let actionParams: Record<string, unknown> = button.params ?? {};
+    const userParams: Record<string, unknown> = button.params ?? {};
     let stateProvider = button.state?.provider;
     let stateParams: Record<string, unknown> = button.state?.params ?? {};
     let icon = button.icon;
     let label = button.label;
+    let topLabel = button.top_label;
     let background = button.background;
 
-    // If button uses a preset, resolve defaults and map params
+    // If button uses a preset, resolve defaults
     if (button.preset) {
       const [pluginId, presetId] = button.preset.includes(".")
         ? button.preset.split(".", 2) as [string, string]
@@ -353,38 +362,30 @@ export class Hub {
       const preset = this.pluginHost.getPreset(pluginId, presetId);
 
       if (preset) {
-        const mapped = preset.mapParams(button.params ?? {});
-
-        // Preset defaults — only fill in what the button doesn't explicitly set
-        if (!action && preset.defaults.action) {
-          action = `${pluginId}.${preset.defaults.action}`;
+        // Preset action/stateProvider — only fill in what the button doesn't set
+        if (!action && preset.action) {
+          action = `${pluginId}.${preset.action}`;
         }
-        if (!icon && preset.defaults.icon) {
-          icon = preset.defaults.icon;
-        }
-        if (!label && preset.defaults.label) {
-          label = preset.defaults.label;
-        }
-        if (!background && preset.defaults.background) {
-          background = preset.defaults.background;
-        }
-        if (!stateProvider && preset.defaults.stateProvider) {
-          stateProvider = `${pluginId}.${preset.defaults.stateProvider}`;
+        if (!stateProvider && preset.stateProvider) {
+          stateProvider = `${pluginId}.${preset.stateProvider}`;
         }
 
-        // Mapped params override raw button params for action/state
-        if (mapped.actionParams) {
-          actionParams = mapped.actionParams;
-        }
-        if (mapped.stateParams) {
-          stateParams = mapped.stateParams;
+        // Preset appearance defaults
+        if (!icon && preset.defaults.icon) icon = preset.defaults.icon;
+        if (!label && preset.defaults.label) label = preset.defaults.label;
+        if (!topLabel && preset.defaults.topLabel) topLabel = preset.defaults.topLabel;
+        if (!background && preset.defaults.background) background = preset.defaults.background;
+
+        // Forward all user params to both action and state provider
+        if (!button.state?.params) {
+          stateParams = userParams;
         }
       } else {
         log.warn({ preset: button.preset }, "Preset not found");
       }
     }
 
-    return { action, actionParams, stateProvider, stateParams, icon, label, background };
+    return { action, actionParams: userParams, stateProvider, stateParams, icon, label, topLabel, background };
   }
 
   private resolveButtonState(button: ButtonConfig): ButtonState {
@@ -396,25 +397,46 @@ export class Hub {
       iconColor: button.icon_color,
       label: resolved.label ?? button.label,
       labelColor: button.label_color,
-      topLabel: button.top_label,
+      topLabel: resolved.topLabel ?? button.top_label,
       topLabelColor: button.top_label_color,
       opacity: button.opacity,
     };
 
+    // Template variables from the state provider (for Mustache interpolation)
+    let templateVars: Record<string, string> = {};
+
     if (resolved.stateProvider) {
-      const stateResult = this.pluginHost.resolveState(
+      const providerResult = this.pluginHost.resolveState(
         resolved.stateProvider,
         resolved.stateParams,
       );
-      if (stateResult) {
-        Object.assign(state, stateResult);
+      if (providerResult) {
+        // New format: { state, variables }
+        if ("state" in providerResult && "variables" in providerResult) {
+          Object.assign(state, providerResult.state);
+          templateVars = providerResult.variables;
+        } else {
+          // Legacy fallback: provider returns ButtonStateResult directly
+          Object.assign(state, providerResult);
+        }
       }
     }
 
-    // Explicit button-level values always win over state provider results
-    if (button.label) state.label = button.label;
+    // Explicit button-level values always win over state provider results.
+    // Also interpolate Mustache templates in user-set labels.
     if (button.icon) state.icon = button.icon;
     if (button.background) state.background = button.background;
+    if (button.label) {
+      state.label = this.interpolate(button.label, templateVars);
+    } else if (state.label && state.label.includes("{{")) {
+      // Preset-provided label template — also interpolate
+      state.label = this.interpolate(state.label, templateVars);
+    }
+    if (button.top_label) {
+      state.topLabel = this.interpolate(button.top_label, templateVars);
+    } else if (state.topLabel && state.topLabel.includes("{{")) {
+      state.topLabel = this.interpolate(state.topLabel, templateVars);
+    }
 
     return state;
   }

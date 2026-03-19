@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../types.js";
 import { soundPresets } from "./presets.js";
 
@@ -6,10 +8,34 @@ interface SoundConfig {
   default_step?: number;
 }
 
+const targetSchema = z.object({
+  target: field(z.string().optional(), { label: "Target", fieldType: "agent" }),
+});
+
+const volumeStepSchema = z.object({
+  step: field(z.number().optional(), { label: "Step" }),
+  target: field(z.string().optional(), { label: "Target", fieldType: "agent" }),
+});
+
+const deviceSchema = z.object({
+  device: field(z.string(), { label: "Device" }),
+  target: field(z.string().optional(), { label: "Target", fieldType: "agent" }),
+});
+
+const simpleActionMeta: Record<string, { description: string; icon: string }> = {
+  mute: { description: "Mute audio", icon: "ms:volume-off" },
+  unmute: { description: "Unmute audio", icon: "ms:volume-off" },
+  toggle_mute: { description: "Toggle audio mute", icon: "ms:volume-up" },
+  mic_mute: { description: "Mute microphone", icon: "ms:mic-off" },
+  mic_unmute: { description: "Unmute microphone", icon: "ms:mic-off" },
+  toggle_mic_mute: { description: "Toggle microphone mute", icon: "ms:mic" },
+};
+
 export const soundPlugin: OmniDeckPlugin = {
   id: "sound",
   name: "Sound",
   version: "1.0.0",
+  icon: "ms:volume-up",
 
   async init(ctx: PluginContext) {
     const config = ctx.config as SoundConfig;
@@ -40,9 +66,13 @@ export const soundPlugin: OmniDeckPlugin = {
     ] as const;
 
     for (const actionId of simpleActions) {
+      const meta = simpleActionMeta[actionId];
       ctx.registerAction({
         id: actionId,
         name: actionId.replace(/_/g, " "),
+        description: meta.description,
+        icon: meta.icon,
+        paramsSchema: targetSchema,
         async execute(params, actionCtx) {
           const target = resolveTarget(params, actionCtx);
           ctx.state.set("sound", `pending:${target}:${actionId}`, {
@@ -56,9 +86,12 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerAction({
       id: "volume_up",
       name: "Volume Up",
+      description: "Increase volume",
+      icon: "ms:volume-up",
+      paramsSchema: volumeStepSchema,
       async execute(params, actionCtx) {
-        const p = params as Record<string, unknown>;
-        const step = (p.step as number) ?? defaultStep;
+        const p = volumeStepSchema.parse(params);
+        const step = p.step ?? defaultStep;
         const target = resolveTarget(params, actionCtx);
         ctx.state.set("sound", `pending:${target}:volume_up`, {
           params: { step },
@@ -70,9 +103,12 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerAction({
       id: "volume_down",
       name: "Volume Down",
+      description: "Decrease volume",
+      icon: "ms:volume-down",
+      paramsSchema: volumeStepSchema,
       async execute(params, actionCtx) {
-        const p = params as Record<string, unknown>;
-        const step = (p.step as number) ?? defaultStep;
+        const p = volumeStepSchema.parse(params);
+        const step = p.step ?? defaultStep;
         const target = resolveTarget(params, actionCtx);
         ctx.state.set("sound", `pending:${target}:volume_down`, {
           params: { step },
@@ -84,6 +120,9 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerAction({
       id: "change_output_device",
       name: "Change Output Device",
+      description: "Change audio output device",
+      icon: "ms:speaker",
+      paramsSchema: deviceSchema,
       async execute(params, actionCtx) {
         const p = params as Record<string, unknown>;
         const target = resolveTarget(params, actionCtx);
@@ -97,6 +136,9 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerAction({
       id: "change_input_device",
       name: "Change Input Device",
+      description: "Change audio input device",
+      icon: "ms:mic-external-on",
+      paramsSchema: deviceSchema,
       async execute(params, actionCtx) {
         const p = params as Record<string, unknown>;
         const target = resolveTarget(params, actionCtx);
@@ -111,6 +153,8 @@ export const soundPlugin: OmniDeckPlugin = {
 
     ctx.registerStateProvider({
       id: "volume_level",
+      name: "Volume Level",
+      paramsSchema: targetSchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
         const target = (p.target as string | undefined) ?? config.default_target;
@@ -120,36 +164,43 @@ export const soundPlugin: OmniDeckPlugin = {
         if (volume === 0) icon = "ms:volume_off";
         else if (volume <= 50) icon = "ms:volume_down";
         return {
-          label: `${Math.round(volume)}%`,
-          progress: volume / 100,
-          icon,
+          state: {
+            label: `${Math.round(volume)}%`,
+            progress: volume / 100,
+            icon,
+          },
+          variables: {},
         };
       },
     });
 
     ctx.registerStateProvider({
       id: "mute_state",
+      name: "Mute State",
+      paramsSchema: targetSchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
         const target = (p.target as string | undefined) ?? config.default_target;
         const agentState = getAgentState(target);
         const isMuted = (agentState?.is_muted as boolean) ?? false;
         return isMuted
-          ? { icon: "ms:volume_off", background: "#ef4444" }
-          : { icon: "ms:volume_up" };
+          ? { state: { icon: "ms:volume_off", background: "#ef4444" }, variables: {} }
+          : { state: { icon: "ms:volume_up" }, variables: {} };
       },
     });
 
     ctx.registerStateProvider({
       id: "mic_state",
+      name: "Mic State",
+      paramsSchema: targetSchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
         const target = (p.target as string | undefined) ?? config.default_target;
         const agentState = getAgentState(target);
         const isMuted = (agentState?.mic_muted as boolean) ?? false;
         return isMuted
-          ? { icon: "ms:mic_off", background: "#ef4444" }
-          : { icon: "ms:mic" };
+          ? { state: { icon: "ms:mic_off", background: "#ef4444" }, variables: {} }
+          : { state: { icon: "ms:mic" }, variables: {} };
       },
     });
 
@@ -158,6 +209,8 @@ export const soundPlugin: OmniDeckPlugin = {
     for (const preset of soundPresets) {
       ctx.registerPreset(preset);
     }
+
+    ctx.setHealth({ status: "ok" });
   },
 
   async destroy() {},

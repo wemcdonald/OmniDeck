@@ -70,7 +70,8 @@ describe("PluginHost", () => {
   it("stores registered state providers", async () => {
     const provider: StateProviderDefinition = {
       id: "entity_state",
-      resolve: () => ({ label: "on" }),
+      name: "Entity State",
+      resolve: () => ({ state: { label: "on" }, variables: {} }),
     };
     const plugin = createTestPlugin({
       init: vi.fn(async (ctx) => {
@@ -87,8 +88,8 @@ describe("PluginHost", () => {
     const preset: ButtonPreset = {
       id: "light_toggle",
       name: "Light Toggle",
-      defaults: { action: "toggle", icon: "lightbulb" },
-      mapParams: (p) => ({ actionParams: p, stateParams: p }),
+      action: "toggle",
+      defaults: { icon: "lightbulb" },
     };
     const plugin = createTestPlugin({
       init: vi.fn(async (ctx) => {

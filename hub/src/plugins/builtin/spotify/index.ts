@@ -45,6 +45,7 @@ export const spotifyPlugin: OmniDeckPlugin = {
   id: "spotify",
   name: "Spotify",
   version: "1.0.0",
+  icon: "ms:music-note",
 
   async init(ctx: PluginContext) {
     const config = ctx.config as SpotifyConfig;
@@ -193,6 +194,17 @@ export const spotifyPlugin: OmniDeckPlugin = {
     }
     for (const preset of spotifyPresets) {
       ctx.registerPreset(preset);
+    }
+
+    // Report health based on credentials
+    if (config.client_id && config.client_secret && config.refresh_token) {
+      ctx.setHealth({ status: "ok" });
+    } else {
+      ctx.setHealth({
+        status: "misconfigured",
+        message: "Missing Spotify credentials",
+        settingsUrl: "/settings/plugins/spotify",
+      });
     }
 
     // Start polling — non-blocking, swallows auth failures gracefully

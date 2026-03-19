@@ -88,15 +88,15 @@ describe("spotify plugin", () => {
     });
     const provider = host.getStateProvider("spotify", "now_playing")!;
     const result = provider.resolve({});
-    expect(result.label).toBe("Bohemian Rhapsody");
-    expect(result.topLabel).toBe("Queen");
-    expect(result.progress).toBeCloseTo(60000 / 354000, 3);
+    expect(result.state.label).toBe("Bohemian Rhapsody");
+    expect(result.state.topLabel).toBe("Queen");
+    expect(result.state.progress).toBeCloseTo(60000 / 354000, 3);
   });
 
   it("now_playing returns idle state when no track in store", () => {
     const provider = host.getStateProvider("spotify", "now_playing")!;
     const result = provider.resolve({});
-    expect(result.label).toBe("Not playing");
+    expect(result.state.label).toBe("Not playing");
   });
 
   it("playback_state returns paused icon when not playing", () => {
@@ -107,7 +107,7 @@ describe("spotify plugin", () => {
     });
     const provider = host.getStateProvider("spotify", "playback_state")!;
     const result = provider.resolve({});
-    expect(result.icon).toBe("play");
+    expect(result.state.icon).toBe("play");
   });
 
   it("playback_state returns pause icon when playing", () => {
@@ -118,7 +118,7 @@ describe("spotify plugin", () => {
     });
     const provider = host.getStateProvider("spotify", "playback_state")!;
     const result = provider.resolve({});
-    expect(result.icon).toBe("pause");
+    expect(result.state.icon).toBe("pause");
   });
 
   it("device_list returns active device label from store", () => {
@@ -128,6 +128,6 @@ describe("spotify plugin", () => {
     ]);
     const provider = host.getStateProvider("spotify", "device_list")!;
     const result = provider.resolve({});
-    expect(result.label).toBe("Living Room TV");
+    expect(result.state.label).toBe("Living Room TV");
   });
 });

@@ -41,7 +41,7 @@ describe("Status routes", () => {
     const res = await app.request("/api/deck/preview");
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, string>;
-    expect(body[0]).toBe("data:image/png;base64,abc");
+    expect(body[0]).toBe("abc");
   });
 
   it("POST /api/deck/press/:key calls pressKey and returns {ok:true}", async () => {

@@ -21,6 +21,7 @@ export const homeAssistantPlugin: OmniDeckPlugin = {
   id: "home-assistant",
   name: "Home Assistant",
   version: "2.0.0",
+  icon: "ms:home",
 
   async init(ctx: PluginContext) {
     const config = ctx.config as HaConfig;
@@ -91,8 +92,16 @@ export const homeAssistantPlugin: OmniDeckPlugin = {
 
     // -- Connect (non-blocking, will reconnect on failure) --
     if (config.url && config.token) {
+      ctx.setHealth({ status: "ok" });
       client.connect();
     } else {
+      const missing = [!config.url && "url", !config.token && "token"].filter(Boolean).join(", ");
+      ctx.setHealth({
+        status: "misconfigured",
+        message: `Missing: ${missing}`,
+        configKey: "plugins.home-assistant",
+        settingsUrl: "/settings/plugins/home-assistant",
+      });
       ctx.log.warn("HA plugin: url or token not configured, skipping connection");
     }
   },

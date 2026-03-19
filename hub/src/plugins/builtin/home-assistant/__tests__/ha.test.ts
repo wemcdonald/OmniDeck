@@ -175,8 +175,8 @@ describe("home-assistant plugin", () => {
     it("returns loading state when entity not in store", () => {
       const provider = host.getStateProvider("home-assistant", "entity_state")!;
       const result = provider.resolve({ entity_id: "light.nonexistent" });
-      expect(result.label).toBe("...");
-      expect(result.opacity).toBe(0.4);
+      expect(result.state.label).toBe("...");
+      expect(result.state.opacity).toBe(0.4);
     });
 
     it("returns state for a light entity", () => {
@@ -186,9 +186,9 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "entity_state")!;
       const result = provider.resolve({ entity_id: "light.office" });
-      expect(result.label).toBe("on");
-      expect(result.background).toBe("#92400e");
-      expect(result.topLabel).toBe("Office Light");
+      expect(result.state.label).toBe("on");
+      expect(result.state.background).toBe("#92400e");
+      expect(result.state.topLabel).toBe("Office Light");
     });
 
     it("returns dim state for off entity", () => {
@@ -198,9 +198,9 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "entity_state")!;
       const result = provider.resolve({ entity_id: "switch.desk_fan" });
-      expect(result.label).toBe("off");
-      expect(result.opacity).toBe(0.7);
-      expect(result.background).toBe("#374151");
+      expect(result.state.label).toBe("off");
+      expect(result.state.opacity).toBe(0.7);
+      expect(result.state.background).toBe("#374151");
     });
   });
 
@@ -212,8 +212,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "light_state")!;
       const result = provider.resolve({ entity_id: "light.desk" });
-      expect(result.label).toBe("50%");
-      expect(result.progress).toBeCloseTo(0.5, 1);
+      expect(result.state.label).toBe("50%");
+      expect(result.state.progress).toBeCloseTo(0.5, 1);
     });
 
     it("shows off state dimmed", () => {
@@ -223,8 +223,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "light_state")!;
       const result = provider.resolve({ entity_id: "light.desk" });
-      expect(result.label).toBe("Off");
-      expect(result.opacity).toBe(0.6);
+      expect(result.state.label).toBe("Off");
+      expect(result.state.opacity).toBe(0.6);
     });
 
     it("uses RGB color for background when available", () => {
@@ -234,7 +234,7 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "light_state")!;
       const result = provider.resolve({ entity_id: "light.strip" });
-      expect(result.background).toBe("#ff0080");
+      expect(result.state.background).toBe("#ff0080");
     });
   });
 
@@ -250,8 +250,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "climate_state")!;
       const result = provider.resolve({ entity_id: "climate.living_room" });
-      expect(result.label).toBe("21°C");
-      expect(result.topLabel).toBe("→ 23°C");
+      expect(result.state.label).toBe("21°C");
+      expect(result.state.topLabel).toBe("→ 23°C");
     });
 
     it("colors by hvac action", () => {
@@ -261,7 +261,7 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "climate_state")!;
       const result = provider.resolve({ entity_id: "climate.bedroom" });
-      expect(result.background).toBe("#0369a1");
+      expect(result.state.background).toBe("#0369a1");
     });
   });
 
@@ -276,8 +276,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "sensor_value")!;
       const result = provider.resolve({ entity_id: "sensor.outdoor_temp" });
-      expect(result.label).toBe("18.5 °C");
-      expect(result.icon).toBe("mdi:thermometer");
+      expect(result.state.label).toBe("18.5 °C");
+      expect(result.state.icon).toBe("ms:thermostat");
     });
 
     it("shows battery with progress bar", () => {
@@ -290,8 +290,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "sensor_value")!;
       const result = provider.resolve({ entity_id: "sensor.phone_battery" });
-      expect(result.progress).toBeCloseTo(0.15, 2);
-      expect(result.badgeColor).toBe("#ef4444");
+      expect(result.state.progress).toBeCloseTo(0.15, 2);
+      expect(result.state.badgeColor).toBe("#ef4444");
     });
   });
 
@@ -303,8 +303,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "cover_state")!;
       const result = provider.resolve({ entity_id: "cover.blinds" });
-      expect(result.label).toBe("75%");
-      expect(result.progress).toBeCloseTo(0.75, 2);
+      expect(result.state.label).toBe("75%");
+      expect(result.state.progress).toBeCloseTo(0.75, 2);
     });
 
     it("dims when closed", () => {
@@ -314,8 +314,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "cover_state")!;
       const result = provider.resolve({ entity_id: "cover.garage" });
-      expect(result.icon).toBe("mdi:garage");
-      expect(result.opacity).toBe(0.7);
+      expect(result.state.icon).toBe("ms:garage");
+      expect(result.state.opacity).toBe(0.7);
     });
   });
 
@@ -327,9 +327,9 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "lock_state")!;
       const result = provider.resolve({ entity_id: "lock.front_door" });
-      expect(result.icon).toBe("mdi:lock");
-      expect(result.background).toBe("#991b1b");
-      expect(result.label).toBe("Locked");
+      expect(result.state.icon).toBe("ms:lock");
+      expect(result.state.background).toBe("#991b1b");
+      expect(result.state.label).toBe("Locked");
     });
 
     it("shows unlocked state in green", () => {
@@ -339,8 +339,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "lock_state")!;
       const result = provider.resolve({ entity_id: "lock.front_door" });
-      expect(result.icon).toBe("mdi:lock-open");
-      expect(result.background).toBe("#065f46");
+      expect(result.state.icon).toBe("ms:lock-open");
+      expect(result.state.background).toBe("#065f46");
     });
   });
 
@@ -352,8 +352,8 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "fan_state")!;
       const result = provider.resolve({ entity_id: "fan.bedroom" });
-      expect(result.label).toBe("66%");
-      expect(result.progress).toBeCloseTo(0.66, 2);
+      expect(result.state.label).toBe("66%");
+      expect(result.state.progress).toBeCloseTo(0.66, 2);
     });
   });
 
@@ -368,48 +368,41 @@ describe("home-assistant plugin", () => {
       });
       const provider = host.getStateProvider("home-assistant", "media_player_state")!;
       const result = provider.resolve({ entity_id: "media_player.tv" });
-      expect(result.label).toBe("The Office S03E01");
-      expect(result.topLabel).toBe("Plex");
-      expect(result.icon).toBe("mdi:pause-circle");
+      expect(result.state.label).toBe("The Office S03E01");
+      expect(result.state.topLabel).toBe("Plex");
+      expect(result.state.icon).toBe("ms:pause-circle");
     });
   });
 
-  // -- Preset mapping --
+  // -- Preset structure --
 
-  describe("preset mapping", () => {
-    it("light preset maps entity_id to both action and state params", () => {
+  describe("preset structure", () => {
+    it("light preset references action and stateProvider", () => {
       const preset = host.getPreset("home-assistant", "light")!;
-      const mapped = preset.mapParams({ entity_id: "light.office" });
-      expect(mapped.actionParams).toEqual({ entity_id: "light.office" });
-      expect(mapped.stateParams).toEqual({ entity_id: "light.office" });
+      expect(preset.action).toBe("toggle");
+      expect(preset.stateProvider).toBe("light_state");
+      expect(preset.defaults).toBeDefined();
     });
 
-    it("scene preset maps scene_id to action params", () => {
+    it("scene preset references run_scene action with no stateProvider", () => {
       const preset = host.getPreset("home-assistant", "scene")!;
-      const mapped = preset.mapParams({ scene_id: "scene.movie_night" });
-      expect(mapped.actionParams).toEqual({ scene_id: "scene.movie_night" });
+      expect(preset.action).toBe("run_scene");
+      expect(preset.stateProvider).toBeUndefined();
+      expect(preset.defaults).toBeDefined();
     });
 
-    it("climate preset maps temperature and hvac_mode", () => {
+    it("climate preset references set_climate action and climate_state provider", () => {
       const preset = host.getPreset("home-assistant", "climate")!;
-      const mapped = preset.mapParams({
-        entity_id: "climate.living_room",
-        temperature: 22,
-        hvac_mode: "heat",
-      });
-      expect(mapped.actionParams).toEqual({
-        entity_id: "climate.living_room",
-        temperature: 22,
-        hvac_mode: "heat",
-      });
-      expect(mapped.stateParams).toEqual({ entity_id: "climate.living_room" });
+      expect(preset.action).toBe("set_climate");
+      expect(preset.stateProvider).toBe("climate_state");
+      expect(preset.defaults).toBeDefined();
     });
 
-    it("sensor preset has no action params (read-only)", () => {
+    it("sensor preset is read-only (no action, only stateProvider)", () => {
       const preset = host.getPreset("home-assistant", "sensor")!;
-      const mapped = preset.mapParams({ entity_id: "sensor.temp" });
-      expect(mapped.actionParams).toBeUndefined();
-      expect(mapped.stateParams).toEqual({ entity_id: "sensor.temp" });
+      expect(preset.action).toBeUndefined();
+      expect(preset.stateProvider).toBe("sensor_value");
+      expect(preset.defaults).toBeDefined();
     });
   });
 });

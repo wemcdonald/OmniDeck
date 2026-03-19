@@ -79,6 +79,7 @@ export class WebServer {
       createStatusRoutes({
         getAgents: () => agentServer?.getConnectedAgents() ?? [],
         getPluginStatuses: () => getPluginStatuses?.() ?? [],
+        getPluginCatalog: this.opts.pluginHost ? () => this.opts.pluginHost!.getPluginCatalog() : undefined,
         getDeckPreview: () => getDeckPreview?.() ?? Promise.resolve({}),
         pressKey: async (key) => {
           if (pressKey) await pressKey(key);

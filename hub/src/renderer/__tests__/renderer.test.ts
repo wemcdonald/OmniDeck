@@ -1,18 +1,16 @@
 import { describe, it, expect } from "vitest";
-import sharp from "sharp";
 import { ButtonRenderer } from "../renderer.js";
 
 describe("ButtonRenderer", () => {
   const size = { width: 96, height: 96 };
+  // Raw RGB buffer: 96 * 96 * 3 bytes (no alpha)
+  const expectedBytes = 96 * 96 * 3;
 
   it("renders a solid color background", async () => {
     const renderer = new ButtonRenderer(size);
     const buf = await renderer.render({ background: "#ff0000" });
     expect(buf).toBeInstanceOf(Buffer);
-    const meta = await sharp(buf).metadata();
-    expect(meta.width).toBe(96);
-    expect(meta.height).toBe(96);
-    expect(meta.format).toBe("jpeg");
+    expect(buf.length).toBe(expectedBytes);
   });
 
   it("renders a label on the button", async () => {
@@ -21,16 +19,15 @@ describe("ButtonRenderer", () => {
       background: "#000000",
       label: "Test",
     });
-    const meta = await sharp(buf).metadata();
-    expect(meta.width).toBe(96);
-    expect(meta.height).toBe(96);
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBe(expectedBytes);
   });
 
   it("renders with default black background when none specified", async () => {
     const renderer = new ButtonRenderer(size);
     const buf = await renderer.render({});
-    const meta = await sharp(buf).metadata();
-    expect(meta.format).toBe("jpeg");
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBe(expectedBytes);
   });
 
   it("applies opacity overlay", async () => {
@@ -39,8 +36,8 @@ describe("ButtonRenderer", () => {
       background: "#00ff00",
       opacity: 0.5,
     });
-    const meta = await sharp(buf).metadata();
-    expect(meta.width).toBe(96);
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBe(expectedBytes);
   });
 
   it("renders a progress bar", async () => {
@@ -49,8 +46,8 @@ describe("ButtonRenderer", () => {
       background: "#000000",
       progress: 0.5,
     });
-    const meta = await sharp(buf).metadata();
-    expect(meta.format).toBe("jpeg");
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBe(expectedBytes);
   });
 
   it("renders a badge", async () => {
@@ -60,7 +57,7 @@ describe("ButtonRenderer", () => {
       badge: 5,
       badgeColor: "#ff0000",
     });
-    const meta = await sharp(buf).metadata();
-    expect(meta.format).toBe("jpeg");
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBe(expectedBytes);
   });
 });

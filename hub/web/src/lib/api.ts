@@ -30,6 +30,8 @@ export interface ButtonConfig {
   };
   preset?: string;
   target?: string;
+  long_press_action?: string;
+  long_press_params?: Record<string, unknown>;
 }
 
 export interface PageConfig {
@@ -50,6 +52,58 @@ export interface PresetInfo {
     background?: string;
     stateProvider?: string;
   };
+}
+
+// ── Plugin Catalog types (matches GET /api/status/plugin-catalog) ────────
+
+export type { CatalogField } from "@omnideck/plugin-schema";
+export type { PluginHealth } from "@omnideck/plugin-schema";
+export type { TemplateVariable } from "@omnideck/plugin-schema";
+
+export interface PluginCatalog {
+  plugins: PluginCatalogEntry[];
+}
+
+export interface PluginCatalogEntry {
+  id: string;
+  name: string;
+  version: string;
+  icon?: string;
+  health: import("@omnideck/plugin-schema").PluginHealth;
+  presets: CatalogPreset[];
+  actions: CatalogAction[];
+  stateProviders: CatalogStateProvider[];
+}
+
+export interface CatalogAction {
+  qualifiedId: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  fields: import("@omnideck/plugin-schema").CatalogField[];
+}
+
+export interface CatalogStateProvider {
+  qualifiedId: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  providesIcon?: boolean;
+  templateVariables?: import("@omnideck/plugin-schema").TemplateVariable[];
+  fields: import("@omnideck/plugin-schema").CatalogField[];
+}
+
+export interface CatalogPreset {
+  qualifiedId: string;
+  name: string;
+  description?: string;
+  category?: string;
+  icon?: string;
+  action?: string;
+  stateProvider?: string;
+  defaults: Record<string, unknown>;
+  longPressAction?: string;
+  longPressDefaults?: Record<string, unknown>;
 }
 
 export interface AgentState {
@@ -106,6 +160,7 @@ export const api = {
       ),
     deckPreview: () => request<Record<number, string>>("/api/deck/preview"),
     presets: () => request<PresetInfo[]>("/api/status/presets"),
+    pluginCatalog: () => request<PluginCatalog>("/api/status/plugin-catalog"),
   },
   deck: {
     press: (key: number) =>

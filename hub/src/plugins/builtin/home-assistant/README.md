@@ -40,7 +40,7 @@ buttons:
     preset: home-assistant.scene
     params: { scene_id: scene.movie_night }
     label: Movie
-    icon: mdi:movie
+    icon: ms:movie
 
   # Thermostat with live temperature display
   - pos: [2, 0]
@@ -57,7 +57,7 @@ buttons:
     preset: home-assistant.toggle
     params: { entity_id: switch.desk_fan }
     label: Fan
-    icon: mdi:fan
+    icon: ms:mode-fan
 
   # Lock with state feedback
   - pos: [1, 1]
@@ -176,16 +176,16 @@ Presets wire up the right action + state provider + icon in one line.
 
 | Preset | Action | State Provider | Default Icon |
 |--------|--------|----------------|--------------|
-| `home-assistant.light` | `toggle` | `light_state` | `mdi:lightbulb` |
+| `home-assistant.light` | `toggle` | `light_state` | `ms:lightbulb` |
 | `home-assistant.toggle` | `toggle` | `entity_state` | (domain-inferred) |
-| `home-assistant.scene` | `run_scene` | — | `mdi:palette` |
-| `home-assistant.script` | `run_script` | — | `mdi:script-text` |
-| `home-assistant.climate` | `set_climate` | `climate_state` | `mdi:thermostat` |
-| `home-assistant.cover` | `set_cover` | `cover_state` | `mdi:blinds` |
-| `home-assistant.sensor` | — (read-only) | `sensor_value` | `mdi:chart-line` |
-| `home-assistant.lock` | `toggle_lock` | `lock_state` | `mdi:lock` |
-| `home-assistant.fan` | `toggle` | `fan_state` | `mdi:fan` |
-| `home-assistant.media_player` | `media_play_pause` | `media_player_state` | `mdi:play-circle` |
+| `home-assistant.scene` | `run_scene` | — | `ms:palette` |
+| `home-assistant.script` | `run_script` | — | `ms:description` |
+| `home-assistant.climate` | `set_climate` | `climate_state` | `ms:thermostat` |
+| `home-assistant.cover` | `set_cover` | `cover_state` | `ms:blinds` |
+| `home-assistant.sensor` | — (read-only) | `sensor_value` | `ms:show-chart` |
+| `home-assistant.lock` | `toggle_lock` | `lock_state` | `ms:lock` |
+| `home-assistant.fan` | `toggle` | `fan_state` | `ms:mode-fan` |
+| `home-assistant.media_player` | `media_play_pause` | `media_player_state` | `ms:play-circle` |
 
 Legacy aliases are also available: `light_toggle`, `switch_toggle`, `scene_activate`.
 

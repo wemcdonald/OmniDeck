@@ -1366,6 +1366,16 @@ omnideck/
 | pnpm | 9+ | Hub package management (workspace) |
 | Bun | latest | Agent runtime + compilation |
 
+### System Dependencies (Pi)
+
+The hub runs on a Raspberry Pi and requires these OS-level packages:
+
+| Package | Purpose |
+|---------|---------|
+| `fontconfig` | Font discovery for `sharp`/libvips text rendering. Without it: `Cannot load default config file` errors. |
+
+Install via: `sudo apt install fontconfig`
+
 ### Hub TypeScript Configuration
 
 - **ESM-only**: `"type": "module"` in `package.json`. No CommonJS.

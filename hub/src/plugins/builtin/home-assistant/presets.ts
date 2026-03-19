@@ -5,16 +5,14 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "light",
     name: "Light",
+    description: "Toggle a light with brightness feedback",
+    category: "Lighting",
+    icon: "ms:lightbulb",
+    action: "toggle",
+    stateProvider: "light_state",
     defaults: {
-      action: "toggle",
-      icon: "mdi:lightbulb",
-      stateProvider: "light_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:lightbulb",
+      label: "{{brightness_percent}}",
     },
   },
 
@@ -22,15 +20,13 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "toggle",
     name: "Toggle",
+    description: "Toggle any switchable entity on/off",
+    category: "General",
+    icon: "ms:power-settings-new",
+    action: "toggle",
+    stateProvider: "entity_state",
     defaults: {
-      action: "toggle",
-      stateProvider: "entity_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:power-settings-new",
     },
   },
 
@@ -38,15 +34,13 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "scene",
     name: "Scene",
+    description: "Activate a Home Assistant scene",
+    category: "Automation",
+    icon: "ms:palette",
+    action: "run_scene",
     defaults: {
-      action: "run_scene",
-      icon: "mdi:palette",
+      icon: "ms:palette",
       background: "#8b5cf6",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { scene_id: params.scene_id ?? params.entity_id },
-      };
     },
   },
 
@@ -54,18 +48,13 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "script",
     name: "Script",
+    description: "Run a Home Assistant script",
+    category: "Automation",
+    icon: "ms:description",
+    action: "run_script",
     defaults: {
-      action: "run_script",
-      icon: "mdi:script-text",
+      icon: "ms:description",
       background: "#1e3a5f",
-    },
-    mapParams(params) {
-      return {
-        actionParams: {
-          script_id: params.script_id ?? params.entity_id,
-          variables: params.variables,
-        },
-      };
     },
   },
 
@@ -73,20 +62,15 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "climate",
     name: "Climate",
+    description: "Control a thermostat with temperature display",
+    category: "Climate",
+    icon: "ms:thermostat",
+    action: "set_climate",
+    stateProvider: "climate_state",
     defaults: {
-      action: "set_climate",
-      icon: "mdi:thermostat",
-      stateProvider: "climate_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: {
-          entity_id: params.entity_id,
-          temperature: params.temperature,
-          hvac_mode: params.hvac_mode,
-        },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:thermostat",
+      label: "{{temperature}}",
+      topLabel: "{{hvac_action}}",
     },
   },
 
@@ -94,20 +78,14 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "cover",
     name: "Cover",
+    description: "Control blinds, shades, or garage doors",
+    category: "General",
+    icon: "ms:blinds",
+    action: "set_cover",
+    stateProvider: "cover_state",
     defaults: {
-      action: "set_cover",
-      icon: "mdi:blinds",
-      stateProvider: "cover_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: {
-          entity_id: params.entity_id,
-          position: params.position,
-          command: params.command,
-        },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:blinds",
+      label: "{{position}}",
     },
   },
 
@@ -115,14 +93,13 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "sensor",
     name: "Sensor",
+    description: "Display a sensor value (read-only)",
+    category: "Sensors",
+    icon: "ms:show-chart",
+    stateProvider: "sensor_value",
     defaults: {
-      icon: "mdi:chart-line",
-      stateProvider: "sensor_value",
-    },
-    mapParams(params) {
-      return {
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:show-chart",
+      label: "{{value}}",
     },
   },
 
@@ -130,16 +107,13 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "lock",
     name: "Lock",
+    description: "Toggle a lock with locked/unlocked status",
+    category: "Security",
+    icon: "ms:lock",
+    action: "toggle_lock",
+    stateProvider: "lock_state",
     defaults: {
-      action: "toggle_lock",
-      icon: "mdi:lock",
-      stateProvider: "lock_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:lock",
     },
   },
 
@@ -147,16 +121,14 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "fan",
     name: "Fan",
+    description: "Toggle a fan with speed feedback",
+    category: "Climate",
+    icon: "ms:mode-fan",
+    action: "toggle",
+    stateProvider: "fan_state",
     defaults: {
-      action: "toggle",
-      icon: "mdi:fan",
-      stateProvider: "fan_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:mode-fan",
+      label: "{{speed_percent}}",
     },
   },
 
@@ -164,16 +136,15 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "media_player",
     name: "Media Player",
+    description: "Play/pause with track info display",
+    category: "Media",
+    icon: "ms:play-circle",
+    action: "media_play_pause",
+    stateProvider: "media_player_state",
     defaults: {
-      action: "media_play_pause",
-      icon: "mdi:play-circle",
-      stateProvider: "media_player_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:play-circle",
+      label: "{{media_title}}",
+      topLabel: "{{media_artist}}",
     },
   },
 
@@ -181,45 +152,38 @@ export const haPresets: ButtonPreset[] = [
   {
     id: "light_toggle",
     name: "Light Toggle",
+    description: "Toggle a light (legacy alias for 'light')",
+    category: "Lighting",
+    icon: "ms:lightbulb",
+    action: "toggle",
+    stateProvider: "light_state",
     defaults: {
-      action: "toggle",
-      icon: "mdi:lightbulb",
-      stateProvider: "light_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:lightbulb",
+      label: "{{brightness_percent}}",
     },
   },
   {
     id: "switch_toggle",
     name: "Switch Toggle",
+    description: "Toggle a switch (legacy alias for 'toggle')",
+    category: "General",
+    icon: "ms:power",
+    action: "toggle",
+    stateProvider: "entity_state",
     defaults: {
-      action: "toggle",
-      icon: "mdi:power",
-      stateProvider: "entity_state",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { entity_id: params.entity_id },
-        stateParams: { entity_id: params.entity_id },
-      };
+      icon: "ms:power",
     },
   },
   {
     id: "scene_activate",
     name: "Scene Activate",
+    description: "Activate a scene (legacy alias for 'scene')",
+    category: "Automation",
+    icon: "ms:palette",
+    action: "run_scene",
     defaults: {
-      action: "run_scene",
-      icon: "mdi:palette",
+      icon: "ms:palette",
       background: "#8b5cf6",
-    },
-    mapParams(params) {
-      return {
-        actionParams: { scene_id: params.entity_id },
-      };
     },
   },
 ];

@@ -23,7 +23,9 @@ function parseYamlWithSecrets(
   content: string,
   secrets: Map<string, string>
 ): unknown {
-  const doc = parseDocument(content);
+  const doc = parseDocument(content, {
+    customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
+  });
 
   // Walk AST and resolve all !secret scalars in-place
   visit(doc, {
