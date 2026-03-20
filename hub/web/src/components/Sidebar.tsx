@@ -21,7 +21,8 @@ const navItems = [
 export default function Sidebar() {
   return (
     <aside className="w-48 border-r flex flex-col py-4 shrink-0">
-      <div className="px-4 mb-6">
+      <div className="px-4 mb-6 flex items-center gap-2">
+        <img src="/logo.svg" alt="OmniDeck" className="h-6 w-6" />
         <span className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
           OmniDeck
         </span>

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.svg" width="128" height="128" alt="OmniDeck">
+</p>
+
 # OmniDeck
 
 **One Stream Deck. Every computer. Every service. One Pi.**
