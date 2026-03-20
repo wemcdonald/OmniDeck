@@ -12,6 +12,21 @@ deck:
   wake_on_touch: true
   default_page: home
 
+# ─── Hub Identity ─────────────────────────────────────────────────────────────
+# The hub name is shown in mDNS discovery (useful if you have multiple hubs).
+
+hub:
+  name: "OmniDeck"
+
+# ─── Security ────────────────────────────────────────────────────────────────
+# Optional: password-protect the web UI and enable HTTPS.
+# Generate a hash: echo "mypassword" | npx tsx hub/scripts/hash-password.ts
+# Then add to secrets.yaml: hub_password_hash: "$2a$10$..."
+
+# auth:
+#   password_hash: !secret hub_password_hash
+#   tls_redirect: false          # set true after installing the CA cert on your devices
+
 # ─── Devices ──────────────────────────────────────────────────────────────────
 # Each device runs the OmniDeck agent (omnideck-agent binary).
 # Agents are discovered via mDNS (_omnideck._tcp) or a static address.

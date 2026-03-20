@@ -385,12 +385,16 @@ This is how the hub knows *which machine* Discord voice is active on (since the 
 
 ### Agent Lifecycle
 
-1. **Start**: Read `OMNIDECK_HUB_URL` env (default: `ws://omnideck.local:9200`)
-2. **Connect**: Open WebSocket to hub, send `state_update` hello
-3. **Plugin Init**: Receive `plugin_manifest`, download/cache missing plugins, load them
-4. **Stream**: Begin periodic state push (5s default)
-5. **Listen**: Execute commands from hub, route to plugin action handlers
-6. **Reconnect**: Auto-reconnect with 5s delay on disconnect
+1. **Start**: Check for stored credentials in `~/.omnideck-agent/credentials.json`
+2. **Discover**: If no stored hub address, browse for `_omnideck-hub._tcp` via mDNS (or use `OMNIDECK_HUB_URL` env var)
+3. **Pair** (first boot): Prompt for pairing code, connect via `wss://`, send `pair_request`, save returned credentials
+4. **Authenticate** (subsequent boots): Connect via `wss://` with pinned CA cert, send `authenticate` message with stored token
+5. **Hello**: After auth, send `state_update` as initial hello
+6. **Plugin Init**: Receive `plugin_manifest`, download/cache missing plugins, load them
+7. **Stream**: Begin periodic state push (5s default)
+8. **Listen**: Execute commands from hub, route to plugin action handlers
+9. **Reconnect**: Auto-reconnect with 5s delay on disconnect
+10. **Revocation**: If token is rejected, delete stored credentials and prompt for re-pairing
 
 ---
 
@@ -773,12 +777,26 @@ interface StateRequest {
   id: string;
 }
 
-// Acknowledge pairing
-interface PairAck {
-  type: "pair_ack";
+// Pairing response (after successful pair_request)
+interface PairResponse {
+  type: "pair_response";
   data: {
-    hub_id: string;
-    device_name: string;         // name assigned to this agent
+    success: boolean;
+    agent_id?: string;           // UUID assigned to agent
+    token?: string;              // long-lived auth token (sent once)
+    ca_cert?: string;            // CA certificate PEM for TLS pinning
+    ca_fingerprint?: string;     // SHA-256 of CA cert
+    hub_name?: string;
+    error?: string;
+  };
+}
+
+// Authentication response
+interface AuthenticateResponse {
+  type: "authenticate_response";
+  data: {
+    success: boolean;
+    error?: string;
   };
 }
 ```
@@ -803,14 +821,23 @@ interface StateUpdate {
   data: AgentState;              // full or partial state
 }
 
-// Pairing request
+// Pairing request (first-time connection)
 interface PairRequest {
   type: "pair_request";
   data: {
     hostname: string;
     platform: string;
     agent_version: string;
-    pairing_code: string;        // 6-digit code displayed by agent
+    pairing_code: string;        // code from hub web UI, e.g. "DECK-7F3A"
+  };
+}
+
+// Token authentication (subsequent connections)
+interface Authenticate {
+  type: "authenticate";
+  data: {
+    agent_id: string;
+    token: string;
   };
 }
 ```
@@ -842,10 +869,19 @@ YAML files in a config directory (default: `~/.omnideck/config/`). The hub reads
 │       ├── my-app.png
 │       └── my-logo.svg
 ├── secrets.yaml            # API tokens, passwords (gitignored)
-├── agent.toml              # Agent config (on Mac/Windows, not Pi)
+├── agents.yaml             # Paired agent registry (hub side)
+├── tls/                    # Auto-generated TLS certificates
+│   ├── ca.key              # CA private key (mode 0600)
+│   ├── ca.crt              # CA certificate (downloadable from web UI)
+│   ├── server.key          # Server private key (mode 0600)
+│   └── server.crt          # Server certificate (auto-renewed)
 └── data/                   # Runtime data (caches, DB)
     ├── icon-cache/
     └── state.db            # SQLite for persistent state
+
+# Agent side (on Mac/Windows):
+~/.omnideck-agent/
+└── credentials.json        # Stored pairing credentials (mode 0600)
 ```
 
 ### Main Config (`main.yaml`)
@@ -892,6 +928,13 @@ plugins:
 
   os-control:
     default_target: auto
+
+hub:
+  name: "My OmniDeck"             # mDNS display name (default: "OmniDeck")
+
+auth:
+  password_hash: !secret hub_password_hash  # bcrypt hash (optional)
+  tls_redirect: false             # redirect HTTP → HTTPS after CA cert install
 
 orchestrator:
   focus:
@@ -1204,28 +1247,68 @@ Uses `cec-client` (from `cec-utils` package) via child process. Triggered by foc
 
 ## Security Model
 
+### TLS Certificate Infrastructure
+
+On first startup, the hub generates a self-signed CA and server certificate, stored in `~/.omnideck/tls/`:
+
+- **CA certificate** (`ca.crt`, `ca.key`): 4096-bit RSA, 10-year validity, CN=`OmniDeck CA`
+- **Server certificate** (`server.crt`, `server.key`): 2048-bit RSA, signed by CA, 1-year validity, SANs include `localhost`, `omnideck.local`, and the machine hostname
+- Server certs are auto-renewed when within 30 days of expiry
+- CA fingerprint (SHA-256) is advertised via mDNS TXT records and exchanged during pairing
+
 ### Agent Pairing
 
-1. User starts agent on Mac/Windows for the first time
-2. Agent advertises via mDNS: `_omnideck._tcp`
-3. Hub discovers agent, shows it in a "new device" list on the deck (or config)
-4. Agent displays a 6-digit pairing code on screen
-5. User enters code on the deck (or in config)
-6. Hub and agent exchange shared secret + TLS certificates
-7. Credentials stored: hub in `data/`, agent in `~/.omnideck/agent.toml`
+1. User clicks "Pair New Agent" in the Hub web UI (Security page)
+2. Hub generates a short-lived pairing code (`DECK-XXXX`, 6 alphanumeric characters, expires in 5 minutes)
+3. User starts the agent on Mac/Windows — agent discovers the hub via mDNS (`_omnideck-hub._tcp`)
+4. Agent prompts for the pairing code on the command line
+5. Agent connects via `wss://` and sends a `pair_request` message with the code
+6. Hub validates and consumes the code, registers the agent, and responds with:
+   - A unique `agent_id` (UUID)
+   - A long-lived authentication token (32-byte random hex)
+   - The CA certificate PEM (for TLS pinning on future connections)
+   - The CA fingerprint and hub name
+7. Agent stores credentials in `~/.omnideck-agent/credentials.json` (mode 0600)
+8. On subsequent connections, the agent sends an `authenticate` message with its token
+9. Hub verifies the token hash against its registry (`~/.omnideck/agents.yaml`)
+
+**Agent revocation**: The hub web UI lists all paired agents with last-seen timestamps. Revoking an agent invalidates its token immediately — the agent is disconnected and must re-pair.
+
+**Future**: Native Mac/Windows apps can handle `omnideck://pair?hub=<address>&code=<code>` URIs for one-click pairing from the web UI.
 
 ### Transport Security
 
-- All hub ↔ agent WebSocket connections use TLS (self-signed certs, pinned during pairing)
-- Shared secret sent in WebSocket handshake header for authentication
-- Agent rejects connections from unknown hubs
+- **Agent ↔ Hub**: All WebSocket connections use TLS (`wss://` on port 9210). The agent pins the CA certificate received during pairing for future connections.
+- **Web UI (browser)**: HTTP on port 9211 by default. HTTPS available on port 9443 but opt-in — the user must install the hub's CA certificate on their device first, then set `auth.tls_redirect: true` in config to enable automatic HTTP → HTTPS redirection. This avoids browser self-signed certificate warnings.
+- The CA certificate is downloadable from the web UI at `/api/tls/ca.crt` (always accessible over HTTP).
+- `OMNIDECK_HUB_URL` env var on the agent still works as an override. `wss://` = TLS, `ws://` = plain (dev mode).
+
+### Web UI Password Protection
+
+Optional password protection for the web interface:
+
+1. Generate a bcrypt hash: `echo "mypassword" | npx tsx hub/scripts/hash-password.ts`
+2. Store in `secrets.yaml`: `hub_password_hash: "$2a$10$..."`
+3. Reference in config: `auth.password_hash: !secret hub_password_hash`
+4. Hub serves a login page — sessions use HTTP-only cookies (in-memory, cleared on hub restart)
+5. When no password is configured, the web UI is open (suitable for trusted LANs)
+
+### Hub Discovery (mDNS)
+
+The hub advertises as `_omnideck-hub._tcp` via Bonjour/mDNS with TXT records:
+- `name`: Hub display name (configurable via `hub.name`, default `"OmniDeck"`)
+- `fp`: CA certificate fingerprint (SHA-256, colon-separated hex)
+
+Agents browse for this service on startup. If multiple hubs are found, the agent uses the first discovered. The `OMNIDECK_HUB_URL` env var bypasses discovery.
 
 ### Secret Management
 
 - API tokens stored in `secrets.yaml`, separate from main config
 - `secrets.yaml` should be gitignored
 - Tokens are never logged or exposed via any API
-- Agent config files (`agent.toml`) have restricted file permissions (0600)
+- Agent credentials (`~/.omnideck-agent/credentials.json`) have restricted file permissions (0600)
+- TLS private keys (`~/.omnideck/tls/*.key`) have restricted file permissions (0600)
+- Pairing tokens are only sent once (during `pair_response`) — the hub stores only the SHA-256 hash
 
 ---
 
@@ -1264,9 +1347,11 @@ omnideck/
 │   │   │       ├── os-control/
 │   │   │       └── core/           # Page nav, brightness, etc.
 │   │   ├── server/                 # WebSocket server for agents
-│   │   │   ├── server.ts
-│   │   │   ├── auth.ts
-│   │   │   └── protocol.ts         # Message types, serialization
+│   │   │   ├── server.ts           # Agent WS server (wss://, auth gating)
+│   │   │   ├── protocol.ts         # Message types, serialization
+│   │   │   ├── tls.ts              # TLS cert generation and management
+│   │   │   ├── pairing.ts          # Pairing code generation, agent registry
+│   │   │   └── discovery.ts        # mDNS advertisement with TXT records
 │   │   ├── orchestrator/           # Intelligence layer
 │   │   │   ├── orchestrator.ts     # Main orchestrator
 │   │   │   ├── focus.ts            # Focus tracking
@@ -1396,13 +1481,16 @@ Install via: `sudo apt install fontconfig`
 | `chokidar` | Config file watching for hot-reload |
 | `pino` | Structured JSON logging |
 | `bonjour-service` | mDNS browse (discover agents) and advertise (let agents find hub) |
+| `@peculiar/x509` | X.509 certificate generation for self-signed TLS |
+| `bcryptjs` | Password hash verification for web UI authentication |
 
 ### Agent Dependencies
 
-The agent has no npm dependencies beyond workspace packages. All OS integration uses:
+The agent has minimal npm dependencies:
 - **Bun built-ins**: `Bun.spawn` for process execution, `fetch` for HTTP, `WebSocket` global
 - **`@omnideck/agent-sdk`**: TypeScript types for the plugin OmniDeck interface
 - **`@omnideck/plugin-schema`**: Zod schemas for manifest validation
+- **`bonjour-service`**: mDNS browsing to discover the hub on the local network
 
 Platform-specific logic uses shell commands:
 - **Mac**: `osascript` for AppleScript, `ioreg` for idle time, `pmset` for sleep
@@ -1495,27 +1583,23 @@ On config file change (detected by `chokidar`):
 
 ### Agent Configuration
 
-Agents read `~/.omnideck/agent.toml`:
+Agent credentials are stored automatically during pairing in `~/.omnideck-agent/credentials.json`:
 
-```toml
-[agent]
-device_id = "macbook"              # matches devices[].id in hub YAML
-hub_address = ""                   # auto-discovered via mDNS if empty
-hub_port = 9210
-
-[auth]
-shared_secret = "abc123..."        # set during pairing
-
-[state]
-poll_interval = "2s"               # fallback poll for non-event-driven state
-idle_check_interval = "1s"
-
-[discord]
-enabled = true                     # enable local Discord RPC monitoring
-
-[logging]
-level = "info"                     # debug | info | warn | error
+```json
+{
+  "agent_id": "a1b2c3d4-...",
+  "token": "hex-encoded-32-byte-token",
+  "hub_address": "wss://192.168.1.10:9210",
+  "hub_name": "OmniDeck",
+  "ca_cert": "-----BEGIN CERTIFICATE-----\n..."
+}
 ```
+
+This file is created during the pairing flow and should not be edited manually. To re-pair, delete it and restart the agent.
+
+**Environment variables**:
+- `OMNIDECK_HUB_URL`: Override hub address (skips mDNS discovery). Use `wss://` for TLS, `ws://` for dev mode.
+- `OMNIDECK_HOSTNAME`: Override the agent's hostname (used for identification).
 
 ### Icons
 
