@@ -1,3 +1,4 @@
+import { createServer as createHttpsServer } from "node:https";
 import { WebSocketServer, WebSocket } from "ws";
 import {
   createMessage,
@@ -5,7 +6,12 @@ import {
   type WsMessage,
   type AgentStateData,
   type CommandResponseData,
+  type PairRequestData,
+  type PairResponseData,
+  type AuthenticateData,
+  type AuthenticateResponseData,
 } from "./protocol.js";
+import type { PairingManager } from "./pairing.js";
 import { createLogger } from "../logger.js";
 import { randomUUID } from "node:crypto";
 
@@ -16,6 +22,7 @@ interface ConnectedAgent {
   hostname: string;
   platform: string;
   state: AgentStateData;
+  agentId?: string;
 }
 
 interface PendingCommand {
@@ -32,33 +39,71 @@ interface PluginRegistryLike {
 interface AgentServerOptions {
   port: number;
   registry?: PluginRegistryLike;
+  tls?: { cert: Buffer; key: Buffer };
+  pairing?: PairingManager;
+  /** CA cert PEM to send to agents during pairing */
+  caCert?: string;
+  caFingerprint?: string;
+  hubName?: string;
 }
 
 type AgentStateCallback = (hostname: string, state: AgentStateData) => void;
 type AgentConnectionCallback = (hostname: string, connected: boolean) => void;
 
+/** Per-connection auth state */
+interface ConnectionState {
+  authenticated: boolean;
+  agentId?: string;
+}
+
 export class AgentServer {
   private wss: WebSocketServer | null = null;
+  private httpsServer: ReturnType<typeof createHttpsServer> | null = null;
   private agents = new Map<string, ConnectedAgent>();
   private pendingCommands = new Map<string, PendingCommand>();
+  private connectionStates = new Map<WebSocket, ConnectionState>();
   private port: number;
   private registry: PluginRegistryLike | undefined;
+  private tls: AgentServerOptions["tls"];
+  private pairing: PairingManager | undefined;
+  private caCert: string | undefined;
+  private caFingerprint: string | undefined;
+  private hubName: string | undefined;
   private stateCallbacks: AgentStateCallback[] = [];
   private connectionCallbacks: AgentConnectionCallback[] = [];
 
   constructor(opts: AgentServerOptions) {
     this.port = opts.port;
     this.registry = opts.registry;
+    this.tls = opts.tls;
+    this.pairing = opts.pairing;
+    this.caCert = opts.caCert;
+    this.caFingerprint = opts.caFingerprint;
+    this.hubName = opts.hubName;
   }
 
   async start(): Promise<number> {
     return new Promise((resolve) => {
-      this.wss = new WebSocketServer({ port: this.port }, () => {
-        const addr = this.wss!.address();
-        const port = typeof addr === "object" && addr !== null ? addr.port : this.port;
-        log.info({ port }, "Agent WebSocket server started");
-        resolve(port);
-      });
+      if (this.tls) {
+        // TLS-backed WebSocket server
+        this.httpsServer = createHttpsServer({
+          cert: this.tls.cert,
+          key: this.tls.key,
+        });
+        this.wss = new WebSocketServer({ server: this.httpsServer });
+        this.httpsServer.listen(this.port, "0.0.0.0", () => {
+          log.info({ port: this.port, tls: true }, "Agent WebSocket server started (wss://)");
+          resolve(this.port);
+        });
+      } else {
+        // Plain WebSocket server (dev mode)
+        this.wss = new WebSocketServer({ port: this.port }, () => {
+          const addr = this.wss!.address();
+          const port = typeof addr === "object" && addr !== null ? addr.port : this.port;
+          log.info({ port, tls: false }, "Agent WebSocket server started (ws://)");
+          resolve(port);
+        });
+      }
 
       this.wss.on("connection", (ws) => {
         this.handleConnection(ws);
@@ -67,13 +112,15 @@ export class AgentServer {
   }
 
   async stop(): Promise<void> {
-    if (!this.wss) return;
     for (const agent of this.agents.values()) {
       agent.ws.close();
     }
-    return new Promise((resolve) => {
-      this.wss!.close(() => resolve());
-    });
+    if (this.wss) {
+      await new Promise<void>((resolve) => this.wss!.close(() => resolve()));
+    }
+    if (this.httpsServer) {
+      await new Promise<void>((resolve) => this.httpsServer!.close(() => resolve()));
+    }
   }
 
   getConnectedAgents(): AgentStateData[] {
@@ -119,10 +166,16 @@ export class AgentServer {
   private handleConnection(ws: WebSocket): void {
     let agentHostname: string | undefined;
 
+    // Start unauthenticated — if no pairing manager, auto-authenticate
+    const connState: ConnectionState = {
+      authenticated: !this.pairing,
+    };
+    this.connectionStates.set(ws, connState);
+
     ws.on("message", (data) => {
       try {
         const msg = parseMessage(data.toString());
-        this.handleMessage(ws, msg, (hostname) => {
+        this.handleMessage(ws, msg, connState, (hostname) => {
           agentHostname = hostname;
         });
       } catch (err) {
@@ -131,6 +184,7 @@ export class AgentServer {
     });
 
     ws.on("close", () => {
+      this.connectionStates.delete(ws);
       if (agentHostname) {
         this.agents.delete(agentHostname);
         log.info({ hostname: agentHostname }, "Agent disconnected");
@@ -146,8 +200,24 @@ export class AgentServer {
   private handleMessage(
     ws: WebSocket,
     msg: WsMessage,
+    connState: ConnectionState,
     setHostname: (h: string) => void,
   ): void {
+    // Auth gating: before authentication, only allow pair_request and authenticate
+    if (!connState.authenticated) {
+      if (msg.type === "pair_request") {
+        this.handlePairRequest(ws, msg, connState);
+        return;
+      }
+      if (msg.type === "authenticate") {
+        this.handleAuthenticate(ws, msg, connState);
+        return;
+      }
+      log.warn({ type: msg.type }, "Unauthenticated message rejected");
+      ws.close(4001, "Not authenticated");
+      return;
+    }
+
     switch (msg.type) {
       case "state_update": {
         const state = msg.data as AgentStateData;
@@ -158,9 +228,14 @@ export class AgentServer {
           hostname: state.hostname,
           platform: state.platform,
           state,
+          agentId: connState.agentId,
         });
         if (isNew) {
           for (const cb of this.connectionCallbacks) cb(state.hostname, true);
+          // Update last seen
+          if (connState.agentId && this.pairing) {
+            this.pairing.updateLastSeen(connState.agentId);
+          }
         }
         for (const cb of this.stateCallbacks) cb(state.hostname, state);
         if (this.registry) {
@@ -195,12 +270,88 @@ export class AgentServer {
         break;
       }
       case "pair_request": {
-        log.info({ data: msg.data }, "Pairing request received");
-        // TODO: implement pairing flow
+        // Already authenticated — ignore duplicate pair requests
+        log.warn("Pair request from already-authenticated agent, ignoring");
         break;
       }
       default:
         log.warn({ type: msg.type }, "Unknown message type");
     }
+  }
+
+  private handlePairRequest(
+    ws: WebSocket,
+    msg: WsMessage,
+    connState: ConnectionState,
+  ): void {
+    if (!this.pairing) {
+      // No pairing manager — auto-accept (shouldn't reach here but be safe)
+      connState.authenticated = true;
+      return;
+    }
+
+    const data = msg.data as PairRequestData;
+    log.info({ hostname: data.hostname, platform: data.platform }, "Pairing request received");
+
+    if (!this.pairing.validateAndConsumeCode(data.pairing_code)) {
+      const response: PairResponseData = {
+        success: false,
+        error: "Invalid or expired pairing code",
+      };
+      ws.send(JSON.stringify(createMessage("pair_response", response, msg.id)));
+      ws.close(4002, "Invalid pairing code");
+      return;
+    }
+
+    const { agentId, token } = this.pairing.registerAgent(
+      data.hostname,
+      data.platform,
+    );
+
+    connState.authenticated = true;
+    connState.agentId = agentId;
+
+    const response: PairResponseData = {
+      success: true,
+      agent_id: agentId,
+      token,
+      ca_cert: this.caCert,
+      ca_fingerprint: this.caFingerprint,
+      hub_name: this.hubName,
+    };
+    ws.send(JSON.stringify(createMessage("pair_response", response, msg.id)));
+    log.info({ agentId, hostname: data.hostname }, "Agent paired successfully");
+  }
+
+  private handleAuthenticate(
+    ws: WebSocket,
+    msg: WsMessage,
+    connState: ConnectionState,
+  ): void {
+    if (!this.pairing) {
+      connState.authenticated = true;
+      return;
+    }
+
+    const data = msg.data as AuthenticateData;
+    const agent = this.pairing.authenticateAgent(data.token);
+
+    if (!agent) {
+      const response: AuthenticateResponseData = {
+        success: false,
+        error: "Invalid token — agent may have been revoked",
+      };
+      ws.send(JSON.stringify(createMessage("authenticate_response", response, msg.id)));
+      ws.close(4003, "Authentication failed");
+      return;
+    }
+
+    connState.authenticated = true;
+    connState.agentId = agent.agent_id;
+    this.pairing.updateLastSeen(agent.agent_id);
+
+    const response: AuthenticateResponseData = { success: true };
+    ws.send(JSON.stringify(createMessage("authenticate_response", response, msg.id)));
+    log.info({ agentId: agent.agent_id, name: agent.name }, "Agent authenticated");
   }
 }

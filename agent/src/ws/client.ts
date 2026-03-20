@@ -10,6 +10,10 @@ export interface AgentClientOptions {
   hostname: string;
   platform: string;
   agentVersion: string;
+  /** PEM CA certificate for TLS verification (pinned during pairing) */
+  caCert?: string;
+  /** Auth credentials for token-based authentication */
+  auth?: { agentId: string; token: string };
 }
 
 type MessageHandler = (msg: WsMessage) => void | Promise<void>;
@@ -41,11 +45,43 @@ export class AgentClient {
   async connect(): Promise<void> {
     this.closing = false;
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.opts.hubUrl);
+      // Build WebSocket options for TLS
+      const wsOpts: Record<string, unknown> = {};
+      if (this.opts.hubUrl.startsWith("wss://")) {
+        if (this.opts.caCert) {
+          // Pin the CA cert for TLS verification
+          wsOpts.tls = { ca: this.opts.caCert, rejectUnauthorized: true };
+        } else {
+          // No CA cert yet (first boot before pairing) — accept self-signed
+          wsOpts.tls = { rejectUnauthorized: false };
+        }
+      }
+
+      // Bun's WebSocket supports a second options argument for TLS
+      // Node's WebSocket does not, but we handle both
+      try {
+        this.ws = Object.keys(wsOpts).length > 0
+          ? new WebSocket(this.opts.hubUrl, wsOpts as unknown as string[])
+          : new WebSocket(this.opts.hubUrl);
+      } catch {
+        // Fallback: if options not supported, connect without them
+        this.ws = new WebSocket(this.opts.hubUrl);
+      }
 
       this.ws.onopen = () => {
         log.info("Connected to hub", { url: this.opts.hubUrl });
-        this.send(this.createHelloMessage());
+
+        if (this.opts.auth) {
+          // Send authenticate message first
+          const authMsg = createMessage("authenticate", {
+            agent_id: this.opts.auth.agentId,
+            token: this.opts.auth.token,
+          });
+          this.send(authMsg);
+        } else {
+          // No auth — send hello directly (pairing flow or legacy)
+          this.send(this.createHelloMessage());
+        }
         resolve();
       };
 
@@ -55,6 +91,37 @@ export class AgentClient {
             typeof event.data === "string" ? event.data : String(event.data);
           const msg = parseMessage(raw);
           log.debug(`← ${msg.type}`, { id: msg.id });
+
+          // Handle authenticate_response: send hello after successful auth
+          if (msg.type === "authenticate_response") {
+            const data = msg.data as { success: boolean; error?: string };
+            if (data.success) {
+              log.info("Authentication successful");
+              this.send(this.createHelloMessage());
+            } else {
+              log.error("Authentication failed", { error: data.error });
+              // Trigger auth_failed handler if registered
+              const handler = this.handlers.get("auth_failed");
+              if (handler) {
+                Promise.resolve(handler(msg)).catch((err: unknown) =>
+                  log.error("Handler error", { type: "auth_failed", err: String(err) }),
+                );
+              }
+              return;
+            }
+          }
+
+          // Handle pair_response
+          if (msg.type === "pair_response") {
+            const handler = this.handlers.get("pair_response");
+            if (handler) {
+              Promise.resolve(handler(msg)).catch((err: unknown) =>
+                log.error("Handler error", { type: "pair_response", err: String(err) }),
+              );
+            }
+            return;
+          }
+
           const handler = this.handlers.get(msg.type);
           if (handler) {
             Promise.resolve(handler(msg)).catch((err: unknown) =>
@@ -94,6 +161,18 @@ export class AgentClient {
 
   sendResponse(type: string, data: unknown, id?: string): void {
     this.send(createMessage(type, data, id));
+  }
+
+  /** Send a pair_request message (used during first-time pairing). */
+  sendPairRequest(pairingCode: string): void {
+    this.send(
+      createMessage("pair_request", {
+        hostname: this.opts.hostname,
+        platform: this.opts.platform,
+        agent_version: this.opts.agentVersion,
+        pairing_code: pairingCode,
+      }),
+    );
   }
 
   close(): void {

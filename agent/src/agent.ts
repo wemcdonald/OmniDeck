@@ -12,11 +12,25 @@ import { homedir } from "node:os";
 
 const log = createLogger("agent");
 
+import type { PairResponseData } from "./ws/protocol.js";
+
 interface AgentOptions {
   hubUrl: string;
   hostname?: string;
   cacheDir?: string;
   stateInterval?: number;
+  /** Auth credentials for reconnecting with stored token */
+  auth?: { agentId: string; token: string };
+  /** CA cert PEM for TLS verification */
+  caCert?: string;
+  /** Pairing code for first-time pairing */
+  pairingCode?: string;
+  /** Called when pairing succeeds */
+  onPaired?: (response: PairResponseData) => void;
+  /** Called when pairing fails */
+  onPairFailed?: (error: string) => void;
+  /** Called when token auth fails (revoked) */
+  onAuthFailed?: () => void;
 }
 
 export class Agent {
@@ -36,6 +50,8 @@ export class Agent {
       hostname,
       platform: detectPlatform(),
       agentVersion: "0.2.0",
+      caCert: opts.caCert,
+      auth: opts.auth,
     });
 
     this.loader = new PluginLoader(cacheDir);
@@ -57,10 +73,34 @@ export class Agent {
       log.debug("Received plugin_download_response", { id: (msg.data as { id: string }).id });
       return this.handleDownloadResponse(msg);
     });
+
+    // Pairing response handler
+    if (opts.onPaired || opts.onPairFailed) {
+      this.client.onMessage("pair_response", (msg) => {
+        const data = msg.data as PairResponseData;
+        if (data.success) {
+          opts.onPaired?.(data);
+        } else {
+          opts.onPairFailed?.(data.error ?? "Unknown pairing error");
+        }
+      });
+    }
+
+    // Auth failure handler
+    if (opts.onAuthFailed) {
+      this.client.onMessage("auth_failed", () => {
+        opts.onAuthFailed!();
+      });
+    }
   }
 
   async start(): Promise<void> {
     await this.client.connect();
+
+    // If pairing, send the pair request (the hello/state_update will be sent after pair_response)
+    if (this.opts.pairingCode) {
+      this.client.sendPairRequest(this.opts.pairingCode);
+    }
 
     // Start periodic state streaming (default 5 s)
     const interval = this.opts.stateInterval ?? 5000;

@@ -37,6 +37,26 @@ export interface PairRequestData {
   pairing_code: string;
 }
 
+export interface PairResponseData {
+  success: boolean;
+  agent_id?: string;
+  token?: string;
+  ca_cert?: string;
+  ca_fingerprint?: string;
+  hub_name?: string;
+  error?: string;
+}
+
+export interface AuthenticateData {
+  agent_id: string;
+  token: string;
+}
+
+export interface AuthenticateResponseData {
+  success: boolean;
+  error?: string;
+}
+
 export function createMessage(type: string, data: unknown, id?: string): WsMessage {
   return {
     v: 1,

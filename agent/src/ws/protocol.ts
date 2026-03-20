@@ -15,3 +15,30 @@ export function parseMessage(raw: string): WsMessage {
   if (msg.v !== 1) throw new Error(`Unsupported protocol version: ${msg.v}`);
   return msg;
 }
+
+export interface PairRequestData {
+  hostname: string;
+  platform: string;
+  agent_version: string;
+  pairing_code: string;
+}
+
+export interface PairResponseData {
+  success: boolean;
+  agent_id?: string;
+  token?: string;
+  ca_cert?: string;
+  ca_fingerprint?: string;
+  hub_name?: string;
+  error?: string;
+}
+
+export interface AuthenticateData {
+  agent_id: string;
+  token: string;
+}
+
+export interface AuthenticateResponseData {
+  success: boolean;
+  error?: string;
+}

@@ -2,6 +2,7 @@ import { Hub } from "./hub.js";
 import { PhysicalDeck } from "./deck/manager.js";
 import { loadConfig } from "./config/loader.js";
 import { validateConfig } from "./config/validator.js";
+import { ensureTlsCerts } from "./server/tls.js";
 import { createLogger } from "./logger.js";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +23,10 @@ async function main() {
   const config = validateConfig(rawConfig);
   log.info({ pages: config.pages.length, devices: config.devices.length }, "Config loaded");
 
+  // Generate/load TLS certificates
+  const tlsDir = join(homedir(), ".omnideck", "tls");
+  const tls = await ensureTlsCerts(tlsDir);
+
   const deck = new PhysicalDeck();
   const webPort = process.env["OMNIDECK_WEB_PORT"]
     ? parseInt(process.env["OMNIDECK_WEB_PORT"], 10)
@@ -33,7 +38,26 @@ async function main() {
   const pluginsDir =
     process.env["OMNIDECK_PLUGINS_DIR"] ??
     resolve(__dirname, "../../plugins");
-  const hub = new Hub({ deck, configDir, pluginsDir, webPort, agentPort });
+  const agentsRegistryPath = join(homedir(), ".omnideck", "agents.yaml");
+
+  const hub = new Hub({
+    deck,
+    configDir,
+    pluginsDir,
+    webPort,
+    agentPort,
+    tls: {
+      cert: tls.serverCert,
+      key: tls.serverKey,
+      caCert: tls.caCert,
+      caFingerprint: tls.caFingerprint,
+    },
+    hubName: config.hub?.name ?? "OmniDeck",
+    agentsRegistryPath,
+    authPasswordHash: config.auth?.password_hash,
+    tlsRedirect: config.auth?.tls_redirect ?? false,
+    httpsPort: 9443,
+  });
   await hub.start(config.pages, config.plugins);
 
   log.info("OmniDeck Hub running");

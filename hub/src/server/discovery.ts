@@ -9,25 +9,36 @@ export interface DiscoveredAgent {
   port: number;
 }
 
+export interface HubDiscoveryOptions {
+  port: number;
+  name?: string;
+  fingerprint?: string;
+}
+
 export class HubDiscovery {
   private bonjour: Bonjour;
   private agents = new Map<string, DiscoveredAgent>();
   private onDiscoverCbs: Array<(agent: DiscoveredAgent) => void> = [];
-  private hubPort: number;
+  private opts: HubDiscoveryOptions;
 
-  constructor(hubPort: number) {
+  constructor(opts: HubDiscoveryOptions) {
     this.bonjour = new Bonjour();
-    this.hubPort = hubPort;
+    this.opts = opts;
   }
 
   /** Advertise the hub so agents can find it */
   advertise(): void {
+    const txt: Record<string, string> = {};
+    if (this.opts.name) txt.name = this.opts.name;
+    if (this.opts.fingerprint) txt.fp = this.opts.fingerprint;
+
     this.bonjour.publish({
-      name: "OmniDeck Hub",
+      name: this.opts.name ?? "OmniDeck Hub",
       type: "omnideck-hub",
-      port: this.hubPort,
+      port: this.opts.port,
+      txt,
     });
-    log.info({ port: this.hubPort }, "Hub advertised via mDNS");
+    log.info({ port: this.opts.port, name: this.opts.name }, "Hub advertised via mDNS");
   }
 
   /** Browse for agents advertising as _omnideck-agent._tcp */

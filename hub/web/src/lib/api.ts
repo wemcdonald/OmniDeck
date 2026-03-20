@@ -166,4 +166,27 @@ export const api = {
     press: (key: number) =>
       request<{ ok: boolean }>(`/api/deck/press/${key}`, { method: "POST" }),
   },
+  auth: {
+    status: () => request<{ auth_required: boolean; authenticated: boolean }>("/api/auth/status"),
+    login: (password: string) =>
+      request<{ ok: boolean }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      }),
+    logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  },
+  pairing: {
+    generateCode: () =>
+      request<{ code: string; expires_at: string }>("/api/pairing/code", { method: "POST" }),
+    listAgents: () =>
+      request<Array<{
+        agent_id: string;
+        name: string;
+        platform: string;
+        paired_at: string;
+        last_seen?: string;
+      }>>("/api/pairing/agents"),
+    revokeAgent: (id: string) =>
+      request<{ ok: boolean }>(`/api/pairing/agents/${id}`, { method: "DELETE" }),
+  },
 };

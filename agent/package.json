@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@omnideck/agent-sdk": "workspace:*",
-    "@omnideck/plugin-schema": "workspace:*"
+    "@omnideck/plugin-schema": "workspace:*",
+    "bonjour-service": "^1.3.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

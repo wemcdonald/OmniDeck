@@ -87,11 +87,26 @@ const OrchestratorConfigSchema = z
   })
   .optional();
 
+const HubConfigSchema = z
+  .object({
+    name: z.string().default("OmniDeck"),
+  })
+  .optional();
+
+const AuthConfigSchema = z
+  .object({
+    password_hash: z.string().optional(),
+    tls_redirect: z.boolean().default(false),
+  })
+  .optional();
+
 export const FullConfigSchema = z.object({
   deck: DeckConfigSchema,
   devices: z.array(DeviceConfigSchema).default([]),
   plugins: z.preprocess((v) => v ?? {}, z.record(z.record(z.unknown())).default({})),
   orchestrator: OrchestratorConfigSchema,
+  hub: HubConfigSchema,
+  auth: AuthConfigSchema,
   pages: z.array(PageConfigSchema).default([]),
 });
 

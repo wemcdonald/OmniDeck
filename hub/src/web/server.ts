@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createServer as createHttpsServer } from "node:https";
 import { join, extname } from "node:path";
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
@@ -8,8 +9,12 @@ import { createLogger, replayLogs } from "../logger.js";
 import { createConfigRoutes } from "./routes/config.js";
 import { createStatusRoutes } from "./routes/status.js";
 import { createHaRoutes } from "./routes/ha.js";
+import { createAuthRoutes } from "./routes/auth.js";
+import { createPairingRoutes } from "./routes/pairing.js";
+import { createAuthMiddleware } from "./middleware/auth.js";
 import type { Broadcaster } from "./broadcast.js";
 import type { AgentServer } from "../server/server.js";
+import type { PairingManager } from "../server/pairing.js";
 import type { PluginHost } from "../plugins/host.js";
 import type { DeckManager } from "../deck/types.js";
 import type { StateStore } from "../state/store.js";
@@ -30,12 +35,23 @@ export interface WebServerOptions {
   getPluginStatuses?: () => Array<{ id: string; name: string; version: string; status: string }>;
   getPresets?: () => Array<{ qualifiedId: string; pluginId: string; name: string; defaults: Record<string, unknown> }>;
   store?: StateStore;
+  // Security options
+  pairing?: PairingManager;
+  tls?: { cert: Buffer; key: Buffer };
+  httpsPort?: number;
+  authPasswordHash?: string;
+  tlsRedirect?: boolean;
+  caCertPath?: string;
+  caCert?: Buffer;
 }
 
 export class WebServer {
   private app: Hono;
   private server: ServerType | null = null;
+  private httpsServer: ReturnType<typeof createHttpsServer> | null = null;
+  private httpsServerType: ServerType | null = null;
   private wss: WebSocketServer | null = null;
+  private wssHttps: WebSocketServer | null = null;
   private opts: WebServerOptions;
 
   constructor(opts: WebServerOptions) {
@@ -46,6 +62,49 @@ export class WebServer {
 
   private setupRoutes(): void {
     const { configDir, agentServer, deck, broadcaster, getPagePreview, getDeckPreview, pressKey, getPluginStatuses, getPresets, store } = this.opts;
+
+    // TLS redirect middleware (only when explicitly enabled)
+    if (this.opts.tlsRedirect && this.opts.tls) {
+      this.app.use("/*", async (c, next) => {
+        // Always allow CA cert download over HTTP
+        if (c.req.path === "/api/tls/ca.crt") return next();
+
+        const proto = c.req.header("x-forwarded-proto") ?? "http";
+        if (proto !== "https" && !c.req.url.startsWith("https://")) {
+          const host = c.req.header("host")?.split(":")[0] ?? "localhost";
+          const httpsPort = this.opts.httpsPort ?? 9443;
+          const url = `https://${host}:${httpsPort}${c.req.path}`;
+          return c.redirect(url, 301);
+        }
+        return next();
+      });
+    }
+
+    // Auth middleware (only when password is configured)
+    if (this.opts.authPasswordHash) {
+      this.app.use(
+        "/*",
+        createAuthMiddleware({
+          passwordHash: this.opts.authPasswordHash,
+          isHttps: !!this.opts.tls,
+        }),
+      );
+    }
+
+    // Auth routes (always mounted — /api/auth/status tells the client whether auth is required)
+    this.app.route(
+      "/api",
+      createAuthRoutes({
+        passwordHash: this.opts.authPasswordHash,
+        isHttps: !!this.opts.tls,
+        caCert: this.opts.caCert,
+      }),
+    );
+
+    // Pairing routes
+    if (this.opts.pairing) {
+      this.app.route("/api/pairing", createPairingRoutes(this.opts.pairing));
+    }
 
     this.app.get("/api/health", (c) => c.json({ status: "ok" }));
 
@@ -138,67 +197,135 @@ export class WebServer {
     // Wire up WebSocket server if broadcaster provided
     if (broadcaster) {
       this.wss = new WebSocketServer({ noServer: true });
-      this.wss.on("connection", (ws: WebSocket) => {
-        broadcaster.add(ws as unknown as Parameters<Broadcaster["add"]>[0]);
-        log.info("Browser WebSocket connected");
+      this.setupWss(this.wss, broadcaster);
 
-        // Replay buffered log lines to the new client
-        replayLogs((line) => {
-          if (ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: "log:line", data: line }));
-          }
-        });
-
-        ws.on("message", (raw) => {
-          try {
-            const msg = JSON.parse(String(raw)) as { type: string; data?: unknown };
-            if (msg.type === "deck:press") {
-              const data = msg.data as { key: number };
-              log.info({ key: data.key }, "Browser simulated key press");
-            }
-          } catch {
-            // ignore malformed messages
-          }
-        });
-
-        ws.on("close", () => {
-          broadcaster.remove(ws as unknown as Parameters<Broadcaster["remove"]>[0]);
-          log.info("Browser WebSocket disconnected");
-        });
-      });
+      // Also set up a WSS for the HTTPS server
+      if (this.opts.tls) {
+        this.wssHttps = new WebSocketServer({ noServer: true });
+        this.setupWss(this.wssHttps, broadcaster);
+      }
     }
+  }
+
+  private setupWss(wss: WebSocketServer, broadcaster: Broadcaster): void {
+    wss.on("connection", (ws: WebSocket) => {
+      broadcaster.add(ws as unknown as Parameters<Broadcaster["add"]>[0]);
+      log.info("Browser WebSocket connected");
+
+      // Replay buffered log lines to the new client
+      replayLogs((line) => {
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: "log:line", data: line }));
+        }
+      });
+
+      ws.on("message", (raw) => {
+        try {
+          const msg = JSON.parse(String(raw)) as { type: string; data?: unknown };
+          if (msg.type === "deck:press") {
+            const data = msg.data as { key: number };
+            log.info({ key: data.key }, "Browser simulated key press");
+          }
+        } catch {
+          // ignore malformed messages
+        }
+      });
+
+      ws.on("close", () => {
+        broadcaster.remove(ws as unknown as Parameters<Broadcaster["remove"]>[0]);
+        log.info("Browser WebSocket disconnected");
+      });
+    });
+  }
+
+  private attachUpgradeHandler(
+    server: { on(event: string, listener: (...args: unknown[]) => void): void },
+    wss: WebSocketServer,
+  ): void {
+    server.on("upgrade", (req: unknown, socket: unknown, head: unknown) => {
+      const reqHttp = req as { url?: string };
+      if (reqHttp.url === "/ws") {
+        wss.handleUpgrade(
+          req as Parameters<WebSocketServer["handleUpgrade"]>[0],
+          socket as Parameters<WebSocketServer["handleUpgrade"]>[1],
+          head as Parameters<WebSocketServer["handleUpgrade"]>[2],
+          (ws) => {
+            wss.emit("connection", ws, req);
+          },
+        );
+      } else {
+        (socket as { destroy(): void }).destroy();
+      }
+    });
   }
 
   async start(): Promise<number> {
     return new Promise((resolve) => {
+      // Start HTTP server
       this.server = serve(
         { fetch: this.app.fetch, port: this.opts.port, hostname: "0.0.0.0" },
         (info) => {
-          // Attach WebSocket upgrade handler to the raw Node HTTP server
           if (this.wss) {
-            const rawServer = this.server as unknown as {
-              on(event: string, listener: (...args: unknown[]) => void): void;
-            };
-            rawServer.on("upgrade", (req: unknown, socket: unknown, head: unknown) => {
-              const reqHttp = req as { url?: string };
-              if (reqHttp.url === "/ws") {
-                this.wss!.handleUpgrade(
-                  req as Parameters<WebSocketServer["handleUpgrade"]>[0],
-                  socket as Parameters<WebSocketServer["handleUpgrade"]>[1],
-                  head as Parameters<WebSocketServer["handleUpgrade"]>[2],
-                  (ws) => {
-                    this.wss!.emit("connection", ws, req);
-                  },
-                );
-              } else {
-                (socket as { destroy(): void }).destroy();
-              }
-            });
+            this.attachUpgradeHandler(
+              this.server as unknown as { on(event: string, listener: (...args: unknown[]) => void): void },
+              this.wss,
+            );
           }
-          log.info({ port: info.port }, "Web server started");
+          log.info({ port: info.port }, "Web server started (HTTP)");
           resolve(info.port);
         },
       );
+
+      // Start HTTPS server if TLS is configured
+      if (this.opts.tls) {
+        const httpsPort = this.opts.httpsPort ?? 9443;
+        this.httpsServer = createHttpsServer(
+          { cert: this.opts.tls.cert, key: this.opts.tls.key },
+          (req, res) => {
+            // Let Hono handle HTTP requests on HTTPS
+            const handleResponse = async () => {
+              const response = await this.app.fetch(
+                new Request(`https://${req.headers.host ?? "localhost"}${req.url ?? "/"}`, {
+                  method: req.method,
+                  headers: Object.fromEntries(
+                    Object.entries(req.headers).filter(([, v]) => v !== undefined) as [string, string][],
+                  ),
+                  body: ["GET", "HEAD"].includes(req.method ?? "GET") ? undefined : req as unknown as ReadableStream,
+                  // @ts-expect-error duplex is needed for node request bodies
+                  duplex: "half",
+                }),
+              );
+              res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+              const body = response.body;
+              if (body) {
+                const reader = body.getReader();
+                const pump = async (): Promise<void> => {
+                  const { done, value } = await reader.read();
+                  if (done) { res.end(); return; }
+                  res.write(value);
+                  return pump();
+                };
+                await pump();
+              } else {
+                res.end();
+              }
+            };
+            handleResponse().catch((err: unknown) => {
+              log.error({ err }, "HTTPS request handler error");
+              res.writeHead(500);
+              res.end("Internal Server Error");
+            });
+          },
+        );
+
+        if (this.wssHttps) {
+          this.attachUpgradeHandler(this.httpsServer, this.wssHttps);
+        }
+
+        this.httpsServer.listen(httpsPort, "0.0.0.0", () => {
+          log.info({ port: httpsPort }, "Web server started (HTTPS)");
+        });
+      }
     });
   }
 
@@ -207,9 +334,17 @@ export class WebServer {
       await new Promise<void>((resolve) => this.wss!.close(() => resolve()));
       this.wss = null;
     }
+    if (this.wssHttps) {
+      await new Promise<void>((resolve) => this.wssHttps!.close(() => resolve()));
+      this.wssHttps = null;
+    }
     if (this.server) {
       await new Promise<void>((resolve) => this.server!.close(() => resolve()));
       this.server = null;
+    }
+    if (this.httpsServer) {
+      await new Promise<void>((resolve) => this.httpsServer!.close(() => resolve()));
+      this.httpsServer = null;
     }
   }
 

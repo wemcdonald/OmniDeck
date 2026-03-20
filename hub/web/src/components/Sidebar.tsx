@@ -5,6 +5,7 @@ import {
   Puzzle,
   Monitor,
   ScrollText,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ const navItems = [
   { to: "/plugins", icon: Puzzle, label: "Plugins" },
   { to: "/devices", icon: Monitor, label: "Devices" },
   { to: "/logs", icon: ScrollText, label: "Logs" },
+  { to: "/security", icon: Shield, label: "Security" },
 ] as const;
 
 export default function Sidebar() {

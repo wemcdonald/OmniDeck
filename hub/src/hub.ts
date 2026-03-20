@@ -19,10 +19,19 @@ import { Broadcaster } from "./web/broadcast.js";
 import { ConfigWatcher } from "./config/watcher.js";
 import { AgentServer } from "./server/server.js";
 import { PluginRegistry } from "./plugins/registry.js";
+import { PairingManager } from "./server/pairing.js";
+import { HubDiscovery } from "./server/discovery.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const log = createLogger("hub");
+
+export interface TlsConfig {
+  cert: Buffer;
+  key: Buffer;
+  caCert: Buffer;
+  caFingerprint: string;
+}
 
 interface HubOptions {
   deck: DeckManager;
@@ -30,6 +39,12 @@ interface HubOptions {
   pluginsDir?: string;
   webPort?: number;
   agentPort?: number;
+  tls?: TlsConfig;
+  hubName?: string;
+  agentsRegistryPath?: string;
+  authPasswordHash?: string;
+  tlsRedirect?: boolean;
+  httpsPort?: number;
 }
 
 export class Hub {
@@ -43,7 +58,9 @@ export class Hub {
   private webServer: WebServer | null = null;
   private agentServer: AgentServer | null = null;
   private configWatcher: ConfigWatcher | null = null;
+  private discovery: HubDiscovery | null = null;
   private broadcaster = new Broadcaster();
+  private pairing: PairingManager | null = null;
   private opts: HubOptions;
 
   constructor(opts: HubOptions) {
@@ -78,10 +95,31 @@ export class Hub {
       log.info({ plugins: registry.getManifests().map((m) => m.id) }, "Plugin registry loaded");
     }
 
+    // Initialize pairing manager
+    if (this.opts.agentsRegistryPath) {
+      this.pairing = new PairingManager(this.opts.agentsRegistryPath);
+    }
+
     // Start agent WebSocket server
     const agentPort = this.opts.agentPort ?? 9210;
-    this.agentServer = new AgentServer({ port: agentPort, registry });
+    this.agentServer = new AgentServer({
+      port: agentPort,
+      registry,
+      tls: this.opts.tls ? { cert: this.opts.tls.cert, key: this.opts.tls.key } : undefined,
+      pairing: this.pairing ?? undefined,
+      caCert: this.opts.tls?.caCert.toString(),
+      caFingerprint: this.opts.tls?.caFingerprint,
+      hubName: this.opts.hubName,
+    });
     await this.agentServer.start();
+
+    // mDNS discovery
+    this.discovery = new HubDiscovery({
+      port: agentPort,
+      name: this.opts.hubName,
+      fingerprint: this.opts.tls?.caFingerprint,
+    });
+    this.discovery.advertise();
 
     // Bridge agent state into the state store so plugins can read it
     this.agentServer.onAgentStateUpdate((hostname, state) => {
@@ -108,6 +146,13 @@ export class Hub {
       getPluginStatuses: () => this.pluginHost.getStatuses(),
       getPresets: () => this.pluginHost.getAllPresets(),
       store: this.store,
+      pairing: this.pairing ?? undefined,
+      tls: this.opts.tls ? { cert: this.opts.tls.cert, key: this.opts.tls.key } : undefined,
+      httpsPort: this.opts.httpsPort,
+      authPasswordHash: this.opts.authPasswordHash,
+      tlsRedirect: this.opts.tlsRedirect,
+      caCertPath: this.opts.tls?.caCert ? undefined : undefined,
+      caCert: this.opts.tls?.caCert,
     });
     await this.webServer.start();
 
@@ -205,6 +250,10 @@ export class Hub {
   }
 
   async stop(): Promise<void> {
+    if (this.discovery) {
+      this.discovery.destroy();
+      this.discovery = null;
+    }
     if (this.configWatcher) {
       await this.configWatcher.stop();
       this.configWatcher = null;
