@@ -7,8 +7,7 @@ import {
   pollSystemState,
 } from "./primitives/platform.js";
 import { createLogger } from "./logger.js";
-import { join } from "node:path";
-import { homedir } from "node:os";
+import { getPluginsCacheDir } from "./config-dir.js";
 
 const log = createLogger("agent");
 
@@ -31,6 +30,12 @@ interface AgentOptions {
   onPairFailed?: (error: string) => void;
   /** Called when token auth fails (revoked) */
   onAuthFailed?: () => void;
+  /** Called when the agent connects to the hub */
+  onConnected?: (hubName: string, hubUrl: string) => void;
+  /** Called when the agent disconnects */
+  onDisconnected?: (reason: string) => void;
+  /** Called when the agent is reconnecting */
+  onReconnecting?: () => void;
 }
 
 export class Agent {
@@ -42,8 +47,7 @@ export class Agent {
   constructor(opts: AgentOptions) {
     this.opts = opts;
     const hostname = opts.hostname ?? getAgentHostname();
-    const cacheDir =
-      opts.cacheDir ?? join(homedir(), ".omnideck", "plugins");
+    const cacheDir = opts.cacheDir ?? getPluginsCacheDir();
 
     this.client = new AgentClient({
       hubUrl: opts.hubUrl,
@@ -52,6 +56,9 @@ export class Agent {
       agentVersion: "0.2.0",
       caCert: opts.caCert,
       auth: opts.auth,
+      onConnected: () => opts.onConnected?.(opts.hubUrl, opts.hubUrl),
+      onDisconnected: (reason) => opts.onDisconnected?.(reason),
+      onReconnecting: () => opts.onReconnecting?.(),
     });
 
     this.loader = new PluginLoader(cacheDir);

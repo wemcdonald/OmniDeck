@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/schemas/main/tauri/capability.json",
+  "identifier": "default",
+  "description": "Default capability for OmniDeck Agent",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "shell:allow-execute",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write",
+    "shell:allow-kill",
+    "deep-link:default",
+    "autostart:default",
+    "dialog:default",
+    "opener:default",
+    "single-instance:default"
+  ]
+}

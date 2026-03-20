@@ -14,6 +14,10 @@ export interface AgentClientOptions {
   caCert?: string;
   /** Auth credentials for token-based authentication */
   auth?: { agentId: string; token: string };
+  /** Lifecycle callbacks for the Tauri shell */
+  onConnected?: () => void;
+  onDisconnected?: (reason: string) => void;
+  onReconnecting?: () => void;
 }
 
 type MessageHandler = (msg: WsMessage) => void | Promise<void>;
@@ -81,6 +85,7 @@ export class AgentClient {
         } else {
           // No auth — send hello directly (pairing flow or legacy)
           this.send(this.createHelloMessage());
+          this.opts.onConnected?.();
         }
         resolve();
       };
@@ -98,6 +103,7 @@ export class AgentClient {
             if (data.success) {
               log.info("Authentication successful");
               this.send(this.createHelloMessage());
+              this.opts.onConnected?.();
             } else {
               log.error("Authentication failed", { error: data.error });
               // Trigger auth_failed handler if registered
@@ -143,6 +149,7 @@ export class AgentClient {
 
       this.ws.onclose = () => {
         log.warn("Disconnected from hub");
+        this.opts.onDisconnected?.(this.closing ? "shutdown" : "connection_lost");
         if (!this.closing) {
           this.scheduleReconnect();
         }
@@ -186,6 +193,7 @@ export class AgentClient {
 
   private scheduleReconnect(): void {
     log.info(`Reconnecting in ${RECONNECT_DELAY_MS}ms…`);
+    this.opts.onReconnecting?.();
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((err: unknown) =>

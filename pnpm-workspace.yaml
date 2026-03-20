@@ -3,3 +3,4 @@ packages:
   - hub/web
   - packages/*
   - agent
+  - agent-app

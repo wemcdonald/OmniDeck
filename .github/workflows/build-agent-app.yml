@@ -1,0 +1,73 @@
+name: Build Agent App
+
+on:
+  push:
+    tags: ["agent-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14
+            target: aarch64-apple-darwin
+            bun_target: bun-darwin-arm64
+          - platform: macos-13
+            target: x86_64-apple-darwin
+            bun_target: bun-darwin-x64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bun_target: bun-windows-x64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bun_target: bun-linux-x64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+
+      - name: Install project dependencies
+        run: pnpm install
+
+      - name: Build agent sidecar
+        run: |
+          cd agent
+          bun build src/index.ts --compile --target=${{ matrix.bun_target }} \
+            --outfile ../agent-app/src-tauri/sidecars/omnideck-agent-${{ matrix.target }}${{ runner.os == 'Windows' && '.exe' || '' }}
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: agent-app
+          tagName: agent-v__VERSION__
+          releaseName: "OmniDeck Agent v__VERSION__"
+          releaseBody: "See the assets below to download the installer for your platform."
+          releaseDraft: true
+          prerelease: false
