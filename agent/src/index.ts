@@ -80,12 +80,25 @@ async function discoverHubs(
     }, timeoutMs);
 
     bonjour.find({ type: "omnideck-hub" }, (service) => {
+      // Prefer the IP address from referer, fall back to host
+      // Ensure host has .local suffix for mDNS resolution
+      let address = service.referer?.address ?? service.host;
+      if (address && !address.includes(".") && !address.includes(":")) {
+        // Bare hostname without domain — append .local for mDNS
+        address = `${address}.local`;
+      }
       const hub: DiscoveredHub = {
         name: (service.txt as Record<string, string>)?.name ?? service.name ?? "OmniDeck",
-        address: service.referer?.address ?? service.host,
+        address,
         port: service.port,
         fingerprint: (service.txt as Record<string, string>)?.fp,
       };
+
+      if (!hub.address || !hub.port) {
+        log.warn("Discovered hub with incomplete data, skipping", { address: hub.address, port: hub.port });
+        return;
+      }
+
       hubs.push(hub);
       onHub?.(hub);
       log.info("Hub discovered via mDNS", { name: hub.name, address: hub.address, port: hub.port });

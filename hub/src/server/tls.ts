@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { hostname } from "node:os";
+import { hostname, networkInterfaces } from "node:os";
 import { createHash } from "node:crypto";
 import * as x509 from "@peculiar/x509";
 import { createLogger } from "../logger.js";
@@ -177,7 +177,8 @@ async function generateServerCert(
     "verify",
   ]);
 
-  // Build SAN list
+  // Build SAN list — include all local IPs so the cert works
+  // over any network interface (LAN, Tailscale, etc.)
   const hostName = hostname();
   const sans: x509.JsonGeneralNames = [
     { type: "dns", value: "localhost" },
@@ -186,9 +187,19 @@ async function generateServerCert(
   ];
   if (hostName && hostName !== "localhost") {
     sans.push({ type: "dns", value: hostName });
-    // Also add hostname.local for mDNS
     if (!hostName.endsWith(".local")) {
       sans.push({ type: "dns", value: `${hostName}.local` });
+    }
+  }
+  // Add all non-internal IPv4 addresses from network interfaces
+  const nets = networkInterfaces();
+  for (const ifaces of Object.values(nets)) {
+    if (!ifaces) continue;
+    for (const iface of ifaces) {
+      if (iface.internal) continue;
+      if (iface.family === "IPv4") {
+        sans.push({ type: "ip", value: iface.address });
+      }
     }
   }
 
