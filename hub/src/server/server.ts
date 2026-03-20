@@ -294,6 +294,7 @@ export class AgentServer {
     log.info({ hostname: data.hostname, platform: data.platform }, "Pairing request received");
 
     if (!this.pairing.validateAndConsumeCode(data.pairing_code)) {
+      log.warn({ code: data.pairing_code }, "Invalid or expired pairing code");
       const response: PairResponseData = {
         success: false,
         error: "Invalid or expired pairing code",
@@ -309,6 +310,7 @@ export class AgentServer {
     );
 
     connState.authenticated = true;
+    log.info({ agentId, hostname: data.hostname, authenticated: connState.authenticated }, "Connection authenticated after pairing");
     connState.agentId = agentId;
 
     const response: PairResponseData = {

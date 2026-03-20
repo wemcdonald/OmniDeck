@@ -87,6 +87,9 @@ export class Agent {
       this.client.onMessage("pair_response", (msg) => {
         const data = msg.data as PairResponseData;
         if (data.success) {
+          // Now authenticated — send hello and start state polling
+          this.client.send(this.client.createHelloMessage());
+          this.startStatePolling();
           opts.onPaired?.(data);
         } else {
           opts.onPairFailed?.(data.error ?? "Unknown pairing error");
@@ -105,11 +108,17 @@ export class Agent {
   async start(): Promise<void> {
     await this.client.connect();
 
-    // If pairing, send the pair request (the hello/state_update will be sent after pair_response)
+    // If pairing, send the pair request and DON'T start state polling yet.
+    // The pair_response handler will send the hello and start polling.
     if (this.opts.pairingCode) {
       this.client.sendPairRequest(this.opts.pairingCode);
+      return; // Don't start state polling until pairing is confirmed
     }
 
+    this.startStatePolling();
+  }
+
+  private startStatePolling(): void {
     // Start periodic state streaming (default 5 s)
     const interval = this.opts.stateInterval ?? 5000;
     this.stateTimer = setInterval(() => {
