@@ -14,6 +14,8 @@ export interface AgentClientOptions {
   caCert?: string;
   /** Auth credentials for token-based authentication */
   auth?: { agentId: string; token: string };
+  /** Skip sending hello on connect (pairing flow sends pair_request first) */
+  skipHelloOnConnect?: boolean;
   /** Lifecycle callbacks for the Tauri shell */
   onConnected?: () => void;
   onDisconnected?: (reason: string) => void;
@@ -79,11 +81,12 @@ export class AgentClient {
             token: this.opts.auth.token,
           });
           this.send(authMsg);
-        } else {
-          // No auth — send hello directly (pairing flow or legacy)
+        } else if (!this.opts.skipHelloOnConnect) {
+          // No auth and not pairing — send hello directly
           this.send(this.createHelloMessage());
           this.opts.onConnected?.();
         }
+        // If skipHelloOnConnect, the caller (Agent) will send pair_request first
         resolve();
       };
 

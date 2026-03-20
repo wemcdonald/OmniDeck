@@ -56,6 +56,7 @@ export class Agent {
       agentVersion: "0.2.0",
       caCert: opts.caCert,
       auth: opts.auth,
+      skipHelloOnConnect: !!opts.pairingCode,
       onConnected: () => opts.onConnected?.(opts.hubUrl, opts.hubUrl),
       onDisconnected: (reason) => opts.onDisconnected?.(reason),
       onReconnecting: () => opts.onReconnecting?.(),
