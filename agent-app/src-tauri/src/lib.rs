@@ -3,7 +3,8 @@ mod tray;
 
 use sidecar::{AgentState, SidecarManager};
 use std::sync::Arc;
-use tauri::{Manager, Emitter};
+use tauri::{Manager, Emitter, Listener};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_autostart::MacosLauncher;
 
 /// Global state wrapper for the sidecar manager.
@@ -184,15 +185,16 @@ pub fn run() {
 
             // Listen for state changes to update tray
             let app_handle = app.handle().clone();
-            app.listen("agent-status", move |event| {
-                if let Ok(state) = serde_json::from_str::<AgentState>(event.payload()) {
+            app.handle().listen("agent-status", move |event| {
+                let payload = event.payload();
+                if let Ok(state) = serde_json::from_str::<AgentState>(payload) {
                     let _ = tray::update_tray(&app_handle, &state);
                 }
             });
 
             // Listen for deep link URLs
             let app_handle2 = app.handle().clone();
-            app.listen("deep-link://new-url", move |event| {
+            app.handle().listen("deep-link://new-url", move |event| {
                 let payload = event.payload();
                 if let Ok(urls) = serde_json::from_str::<Vec<String>>(payload) {
                     if let Some(url) = urls.first() {
@@ -203,7 +205,7 @@ pub fn run() {
 
             // Listen for "show pairing window" requests
             let app_handle3 = app.handle().clone();
-            app.listen("show-pairing-window", move |_| {
+            app.handle().listen("show-pairing-window", move |_| {
                 show_pairing_window(&app_handle3);
             });
 
@@ -268,7 +270,8 @@ fn handle_deep_link(app: &tauri::AppHandle, url_str: &str) {
                     let config_dir = get_config_dir();
                     match cmd_pair(app_handle.clone(), hub_url, pair_code).await {
                         Ok(_) => {
-                            let _ = tauri_plugin_dialog::MessageDialogBuilder::new(
+                            tauri_plugin_dialog::MessageDialogBuilder::new(
+                                app_handle.dialog().clone(),
                                 "OmniDeck Agent",
                                 "Successfully paired with OmniDeck Hub!",
                             )
@@ -276,7 +279,8 @@ fn handle_deep_link(app: &tauri::AppHandle, url_str: &str) {
                             .blocking_show();
                         }
                         Err(e) => {
-                            let _ = tauri_plugin_dialog::MessageDialogBuilder::new(
+                            tauri_plugin_dialog::MessageDialogBuilder::new(
+                                app_handle.dialog().clone(),
                                 "Pairing Failed",
                                 format!("Could not pair with hub: {}", e),
                             )

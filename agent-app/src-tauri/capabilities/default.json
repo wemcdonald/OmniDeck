@@ -12,7 +12,6 @@
     "deep-link:default",
     "autostart:default",
     "dialog:default",
-    "opener:default",
-    "single-instance:default"
+    "opener:default"
   ]
 }
