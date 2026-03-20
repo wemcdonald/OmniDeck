@@ -188,8 +188,8 @@ export const soundPlugin: OmniDeckPlugin = {
         const agentState = getAgentState(target);
         const isMuted = (agentState?.is_muted as boolean) ?? false;
         return isMuted
-          ? { state: { icon: "ms:volume-off", background: "#ef4444" }, variables: {} }
-          : { state: { icon: "ms:volume-up" }, variables: {} };
+          ? { state: { icon: "ms:volume-up", background: "#ef4444" }, variables: {} }
+          : { state: { icon: "ms:volume-off" }, variables: {} };
       },
     });
 
@@ -205,8 +205,8 @@ export const soundPlugin: OmniDeckPlugin = {
         const agentState = getAgentState(target);
         const isMuted = (agentState?.mic_muted as boolean) ?? false;
         return isMuted
-          ? { state: { icon: "ms:mic-off", background: "#ef4444" }, variables: {} }
-          : { state: { icon: "ms:mic" }, variables: {} };
+          ? { state: { icon: "ms:mic", background: "#ef4444" }, variables: {} }
+          : { state: { icon: "ms:mic-off" }, variables: {} };
       },
     });
 
