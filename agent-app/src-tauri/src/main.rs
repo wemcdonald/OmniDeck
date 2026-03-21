@@ -6,7 +6,9 @@ fn main() {
     #[cfg(target_os = "macos")]
     {
         use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
-        let app = NSApplication::sharedApplication();
+        use objc2::MainThreadMarker;
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
     }
 
