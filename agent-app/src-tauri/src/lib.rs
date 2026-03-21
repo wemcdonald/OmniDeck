@@ -177,6 +177,16 @@ pub fn run() {
         }))
         .manage(SidecarState(sidecar_manager))
         .setup(|app| {
+            // On macOS, hide the dock icon (menu bar agent only)
+            #[cfg(target_os = "macos")]
+            {
+                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                use objc2::MainThreadMarker;
+                let mtm = unsafe { MainThreadMarker::new_unchecked() };
+                let ns_app = NSApplication::sharedApplication(mtm);
+                ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+            }
+
             let config_dir = get_config_dir();
             std::fs::create_dir_all(&config_dir).ok();
 
