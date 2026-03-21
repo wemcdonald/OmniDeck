@@ -255,7 +255,9 @@ The "smart" layer that makes OmniDeck more than a dumb button grid. See [Orchest
 
 ## Agent (Mac/Windows)
 
-A single TypeScript binary compiled with `bun build --compile` per platform. Connects to the hub via WebSocket. Executes OS-level commands via built-in primitives, and dynamically loads TypeScript plugins distributed from the hub.
+A native desktop application built with Tauri v2 that wraps a Bun-compiled TypeScript agent binary. Runs as a system tray / menu bar app on macOS, Windows, and Linux. Distributed as `.dmg` (macOS), `.msi`/`.exe` (Windows), and `.deb`/`.AppImage` (Linux) via [GitHub Releases](https://github.com/wemcdonald/OmniDeck/releases). On macOS, also installable via `brew install --cask omnideck-agent`.
+
+The Tauri shell handles system tray UI, `omnideck://` deep link pairing, and auto-start on login. The agent binary connects to the hub via WebSocket, executes OS-level commands via built-in primitives, and dynamically loads TypeScript plugins distributed from the hub.
 
 ### Architecture
 

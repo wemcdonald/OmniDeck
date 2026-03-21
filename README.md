@@ -109,13 +109,26 @@ buttons:
       entity_id: sensor.temperature
 ```
 
-### Run
+### Run the Hub
 
 ```bash
 cd hub
 pnpm dev        # Hub (auto-reloads on code changes)
 pnpm dev:web    # Web UI at http://localhost:5173 (in a second terminal)
 ```
+
+### Install the Agent (Mac/Windows/Linux)
+
+The agent runs on each computer you want to control. Download the installer from [GitHub Releases](https://github.com/wemcdonald/OmniDeck/releases/latest), or install via Homebrew on macOS:
+
+```bash
+brew tap wemcdonald/omnideck
+brew install --cask omnideck-agent
+```
+
+The agent runs in your system tray / menu bar. On first launch it discovers the hub on your network and prompts for a pairing code — generate one from the hub web UI under **Security > Pair New Agent**.
+
+You can also pair by clicking an `omnideck://pair` link from the hub web UI if the agent is already installed.
 
 <!-- TODO: Screenshot — terminal showing hub startup with "Config loaded", "HA connected", "Web server started" log lines, and the Stream Deck showing rendered buttons. -->
 
