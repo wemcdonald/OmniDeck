@@ -57,7 +57,13 @@ export class Agent {
       caCert: opts.caCert,
       auth: opts.auth,
       skipHelloOnConnect: !!opts.pairingCode,
-      onConnected: () => opts.onConnected?.(opts.hubUrl, opts.hubUrl),
+      onConnected: () => {
+        // Start polling once authenticated (for token auth flow)
+        if (!this.stateTimer) {
+          this.startStatePolling();
+        }
+        opts.onConnected?.(opts.hubUrl, opts.hubUrl);
+      },
       onDisconnected: (reason) => opts.onDisconnected?.(reason),
       onReconnecting: () => opts.onReconnecting?.(),
     });
@@ -112,9 +118,17 @@ export class Agent {
     // The pair_response handler will send the hello and start polling.
     if (this.opts.pairingCode) {
       this.client.sendPairRequest(this.opts.pairingCode);
-      return; // Don't start state polling until pairing is confirmed
+      return;
     }
 
+    // If authenticating with token, DON'T start polling yet.
+    // The authenticate_response handler in AgentClient will fire onConnected,
+    // which triggers startStatePolling via the callback below.
+    if (this.opts.auth) {
+      return;
+    }
+
+    // No auth, no pairing (legacy/dev mode) — start polling immediately
     this.startStatePolling();
   }
 
