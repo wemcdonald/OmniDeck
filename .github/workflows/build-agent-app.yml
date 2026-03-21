@@ -20,9 +20,6 @@ jobs:
           - platform: macos-15
             target: aarch64-apple-darwin
             bun_target: bun-darwin-arm64
-          - platform: macos-15-large
-            target: x86_64-apple-darwin
-            bun_target: bun-darwin-x64
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             bun_target: bun-windows-x64
