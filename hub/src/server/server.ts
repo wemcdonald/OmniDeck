@@ -172,6 +172,8 @@ export class AgentServer {
     };
     this.connectionStates.set(ws, connState);
 
+    log.info({ authenticated: connState.authenticated }, "New agent connection");
+
     ws.on("message", (data) => {
       try {
         const msg = parseMessage(data.toString());
@@ -213,10 +215,13 @@ export class AgentServer {
         this.handleAuthenticate(ws, msg, connState);
         return;
       }
-      log.warn({ type: msg.type }, "Unauthenticated message rejected");
-      ws.close(4001, "Not authenticated");
+      // Don't close the connection — just drop the message.
+      // Closing triggers reconnect loops where the agent can never recover.
+      log.warn({ type: msg.type }, "Unauthenticated message dropped (waiting for auth)");
       return;
     }
+
+    log.debug({ type: msg.type, authenticated: connState.authenticated, agentId: connState.agentId }, "Processing authenticated message");
 
     switch (msg.type) {
       case "state_update": {
