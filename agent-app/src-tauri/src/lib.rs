@@ -267,7 +267,6 @@ fn handle_deep_link(app: &tauri::AppHandle, url_str: &str) {
                 // Auto-pair without showing UI
                 let app_handle = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    let config_dir = get_config_dir();
                     match cmd_pair(app_handle.clone(), hub_url, pair_code).await {
                         Ok(_) => {
                             tauri_plugin_dialog::MessageDialogBuilder::new(
