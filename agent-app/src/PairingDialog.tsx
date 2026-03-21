@@ -59,10 +59,12 @@ export default function PairingDialog() {
 
   if (success) {
     return (
-      <div style={styles.container}>
+      <div style={{ ...styles.container, justifyContent: "center", alignItems: "center" }}>
         <div style={styles.successIcon}>&#10003;</div>
         <h2 style={styles.heading}>Paired successfully!</h2>
-        <p style={styles.sub}>OmniDeck Agent is now connected.</p>
+        <p style={{ ...styles.sub, marginBottom: 0, textAlign: "center" as const }}>
+          OmniDeck Agent is now connected.
+        </p>
       </div>
     );
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Copy, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ export default function Security() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [codeExpiresAt, setCodeExpiresAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -71,10 +73,21 @@ export default function Security() {
               <p className="text-sm text-muted-foreground">
                 Enter this code on your agent to pair it:
               </p>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <code className="text-3xl font-mono font-bold tracking-widest bg-muted px-4 py-2 rounded-lg">
                   {pairingCode}
                 </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(pairingCode);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Copy to clipboard"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </button>
                 <span className="text-sm text-muted-foreground">
                   Expires in {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
                 </span>
