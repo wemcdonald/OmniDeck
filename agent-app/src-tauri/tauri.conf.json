@@ -30,7 +30,7 @@
     "macOS": {
       "minimumSystemVersion": "10.15",
       "infoPlist": {
-        "LSUIElement": true
+        "LSUIElement": "1"
       }
     },
     "windows": {
