@@ -29,9 +29,6 @@
     "externalBin": ["sidecars/omnideck-agent"],
     "macOS": {
       "minimumSystemVersion": "10.15",
-      "infoPlist": {
-        "LSUIElement": "1"
-      }
     },
     "windows": {
       "nsis": {
