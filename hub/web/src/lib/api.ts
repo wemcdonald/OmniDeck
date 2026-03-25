@@ -113,6 +113,7 @@ export interface ModeCheck {
   params?: Record<string, unknown>;
   attribute: string;
   target?: string;
+  not?: boolean;
   equals?: string | number | boolean;
   not_equals?: string | number | boolean;
   in?: (string | number)[];
@@ -151,6 +152,7 @@ export interface CheckResult {
   expectedValue: unknown;
   passes: boolean;
   providerFound: boolean;
+  negated: boolean;
 }
 
 export interface RuleResult {
@@ -165,6 +167,12 @@ export interface ModeEvalResult {
   priority: number;
   rules: RuleResult[];
   active: boolean;
+}
+
+export interface ModeHistoryEntry {
+  from: string | null;
+  to: string | null;
+  timestamp: string;
 }
 
 export interface ActiveModeInfo {
@@ -245,6 +253,8 @@ export const api = {
     pluginCatalog: () => request<PluginCatalog>("/api/status/plugin-catalog"),
     activeMode: () => request<ActiveModeInfo>("/api/status/active-mode"),
     debugModes: () => request<ModeEvalResult[]>("/api/status/modes/debug"),
+    modeHistory: () => request<ModeHistoryEntry[]>("/api/status/modes/history"),
+    modeOverride: () => request<{ override: string | null }>("/api/status/modes/override"),
   },
   deck: {
     press: (key: number) =>

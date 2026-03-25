@@ -36,6 +36,8 @@ export interface WebServerOptions {
   getPresets?: () => Array<{ qualifiedId: string; pluginId: string; name: string; defaults: Record<string, unknown> }>;
   store?: StateStore;
   debugModes?: () => unknown[];
+  getModeHistory?: () => unknown[];
+  getModeOverride?: () => string | null;
   // Security options
   pairing?: PairingManager;
   tls?: { cert: Buffer; key: Buffer };
@@ -151,6 +153,8 @@ export class WebServer {
           icon: (store.get("omnideck-core", "active_mode_icon") as string | null) ?? null,
         }) : undefined,
         debugModes: this.opts.debugModes,
+        getModeHistory: this.opts.getModeHistory,
+        getModeOverride: this.opts.getModeOverride,
       }),
     );
 

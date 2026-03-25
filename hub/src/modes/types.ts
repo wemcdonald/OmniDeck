@@ -27,6 +27,8 @@ export interface ModeCheck {
   attribute: string;
   /** Scope to a specific agent */
   target?: string;
+  /** Negate the result of this check */
+  not?: boolean;
 
   // Exactly one comparator:
   equals?: string | number | boolean;
@@ -37,6 +39,12 @@ export interface ModeCheck {
   less_than?: number;
   contains?: string;
   matches?: string;
+}
+
+export interface ModeHistoryEntry {
+  from: string | null;
+  to: string | null;
+  timestamp: string; // ISO 8601
 }
 
 export interface ModeAction {

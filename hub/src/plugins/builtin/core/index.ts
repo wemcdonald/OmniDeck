@@ -317,6 +317,63 @@ export const corePlugin: OmniDeckPlugin = {
       },
     });
 
+    ctx.registerStateProvider({
+      id: "time",
+      name: "Current Time",
+      description: "Current time of day, day of week, etc.",
+      icon: "ms:schedule",
+      templateVariables: [
+        { key: "hour", label: "Hour (0-23)", example: "14" },
+        { key: "minute", label: "Minute (0-59)", example: "30" },
+        { key: "hour_minute", label: "HH:MM", example: "14:30" },
+        { key: "day_of_week", label: "Day of Week", example: "monday" },
+        { key: "is_weekend", label: "Is Weekend", example: "false" },
+      ],
+      resolve() {
+        const now = new Date();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+        const dayOfWeek = dayNames[now.getDay()];
+        const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+
+        return {
+          state: {
+            label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+          },
+          variables: {
+            hour: String(hour),
+            minute: String(minute),
+            hour_minute: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+            day_of_week: dayOfWeek,
+            is_weekend: String(isWeekend),
+          },
+        };
+      },
+    });
+
+    // ── Manual mode override ──────────────────────────────────────────
+
+    const setModeSchema = z.object({
+      mode: field(z.string(), { label: "Mode ID", description: "Mode to force-activate (or 'auto' to resume automatic)" }),
+    });
+
+    ctx.registerAction({
+      id: "set_mode",
+      name: "Set Mode",
+      description: "Manually override the active mode",
+      icon: "ms:conversion_path",
+      paramsSchema: setModeSchema,
+      async execute(params) {
+        const { mode } = setModeSchema.parse(params);
+        if (mode === "auto") {
+          ctx.state.set("omnideck-core", "mode_override", null);
+        } else {
+          ctx.state.set("omnideck-core", "mode_override", mode);
+        }
+      },
+    });
+
     ctx.setHealth({ status: "ok" });
   },
 

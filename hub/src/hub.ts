@@ -168,6 +168,7 @@ export class Hub {
               less_than: c.less_than as number | undefined,
               contains: c.contains as string | undefined,
               matches: c.matches as string | undefined,
+              not: c.not as boolean | undefined,
             })),
           })),
           onEnter: cfg.on_enter?.map((a) => ({
@@ -230,6 +231,8 @@ export class Hub {
       getPresets: () => this.pluginHost.getAllPresets(),
       store: this.store,
       debugModes: this.modeEngine ? () => this.modeEngine!.debugEvaluate() : undefined,
+      getModeHistory: this.modeEngine ? () => [...this.modeEngine!.history] : undefined,
+      getModeOverride: () => (this.store.get("omnideck-core", "mode_override") as string | null) ?? null,
       pairing: this.pairing ?? undefined,
       tls: this.opts.tls ? { cert: this.opts.tls.cert, key: this.opts.tls.key } : undefined,
       httpsPort: this.opts.httpsPort,
@@ -618,27 +621,37 @@ export class Hub {
     const override = button.modes[activeMode];
     if (!override) return button;
 
-    // Shallow merge: mode override fields win over button-level fields.
+    // Merge helper: null means "clear", undefined means "inherit base"
+    const merge = <T>(overrideVal: T | null | undefined, baseVal: T | undefined): T | undefined => {
+      if (overrideVal === null) return undefined; // explicit clear
+      if (overrideVal !== undefined) return overrideVal; // override set
+      return baseVal; // inherit
+    };
+
     // If action is overridden but params aren't, default to empty params
     // to avoid passing the base action's params to a different action.
-    const actionOverridden = override.action !== undefined;
-    const longPressOverridden = override.long_press_action !== undefined;
+    const actionOverridden = override.action !== undefined && override.action !== null;
+    const longPressOverridden = override.long_press_action !== undefined && override.long_press_action !== null;
 
     return {
       ...button,
-      action: override.action ?? button.action,
-      params: override.params ?? (actionOverridden ? {} : button.params),
-      state: override.state ?? button.state,
-      icon: override.icon ?? button.icon,
-      icon_color: override.icon_color ?? button.icon_color,
-      label: override.label ?? button.label,
-      label_color: override.label_color ?? button.label_color,
-      top_label: override.top_label ?? button.top_label,
-      top_label_color: override.top_label_color ?? button.top_label_color,
-      background: override.background ?? button.background,
-      opacity: override.opacity ?? button.opacity,
-      long_press_action: override.long_press_action ?? button.long_press_action,
-      long_press_params: override.long_press_params ?? (longPressOverridden ? {} : button.long_press_params),
+      action: merge(override.action, button.action),
+      params: override.params !== undefined
+        ? (override.params === null ? undefined : override.params)
+        : (actionOverridden ? {} : button.params),
+      state: merge(override.state, button.state),
+      icon: merge(override.icon, button.icon),
+      icon_color: merge(override.icon_color, button.icon_color),
+      label: merge(override.label, button.label),
+      label_color: merge(override.label_color, button.label_color),
+      top_label: merge(override.top_label, button.top_label),
+      top_label_color: merge(override.top_label_color, button.top_label_color),
+      background: merge(override.background, button.background),
+      opacity: merge(override.opacity, button.opacity),
+      long_press_action: merge(override.long_press_action, button.long_press_action),
+      long_press_params: override.long_press_params !== undefined
+        ? (override.long_press_params === null ? undefined : override.long_press_params)
+        : (longPressOverridden ? {} : button.long_press_params),
     };
   }
 

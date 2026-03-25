@@ -8,6 +8,8 @@ interface StatusRouteDeps {
   pressKey(key: number): Promise<void>;
   getActiveMode?(): { id: string | null; name: string | null; icon: string | null };
   debugModes?(): unknown[];
+  getModeHistory?(): unknown[];
+  getModeOverride?(): string | null;
 }
 
 export function createStatusRoutes(deps: StatusRouteDeps): Hono {
@@ -29,6 +31,16 @@ export function createStatusRoutes(deps: StatusRouteDeps): Hono {
   if (deps.debugModes) {
     const debugModes = deps.debugModes;
     router.get("/status/modes/debug", (c) => c.json(debugModes()));
+  }
+
+  if (deps.getModeHistory) {
+    const getModeHistory = deps.getModeHistory;
+    router.get("/status/modes/history", (c) => c.json(getModeHistory()));
+  }
+
+  if (deps.getModeOverride) {
+    const getModeOverride = deps.getModeOverride;
+    router.get("/status/modes/override", (c) => c.json({ override: getModeOverride() }));
   }
 
   router.post("/deck/press/:key", async (c) => {

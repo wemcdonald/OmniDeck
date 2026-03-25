@@ -40,20 +40,21 @@ const StyleSchema = z
   })
   .optional();
 
+// Nullable fields allow clearing a base value (e.g. action: null removes the action)
 const ButtonModeOverrideSchema = z.object({
-  action: z.string().optional(),
-  params: z.record(z.unknown()).optional(),
-  state: ButtonStateSchema.optional(),
-  icon: z.string().optional(),
-  icon_color: z.string().optional(),
-  label: z.string().optional(),
-  label_color: z.string().optional(),
-  top_label: z.string().optional(),
-  top_label_color: z.string().optional(),
-  background: z.string().optional(),
-  opacity: z.number().min(0).max(1).optional(),
-  long_press_action: z.string().optional(),
-  long_press_params: z.record(z.unknown()).optional(),
+  action: z.string().nullable().optional(),
+  params: z.record(z.unknown()).nullable().optional(),
+  state: ButtonStateSchema.nullable().optional(),
+  icon: z.string().nullable().optional(),
+  icon_color: z.string().nullable().optional(),
+  label: z.string().nullable().optional(),
+  label_color: z.string().nullable().optional(),
+  top_label: z.string().nullable().optional(),
+  top_label_color: z.string().nullable().optional(),
+  background: z.string().nullable().optional(),
+  opacity: z.number().min(0).max(1).nullable().optional(),
+  long_press_action: z.string().nullable().optional(),
+  long_press_params: z.record(z.unknown()).nullable().optional(),
 });
 
 export const ButtonConfigSchema = z.object({
@@ -98,6 +99,7 @@ const ModeCheckSchema = z.object({
   params: z.record(z.unknown()).optional(),
   attribute: z.string(),
   target: z.string().optional(),
+  not: z.boolean().optional(),
   equals: z.union([z.string(), z.number(), z.boolean()]).optional(),
   not_equals: z.union([z.string(), z.number(), z.boolean()]).optional(),
   in: z.array(z.union([z.string(), z.number()])).optional(),

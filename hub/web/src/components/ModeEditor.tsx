@@ -260,6 +260,15 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
 
               {rule.checks.map((check, checkIdx) => (
                 <div key={checkIdx} className="flex flex-wrap items-center gap-2 pl-2">
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" title="Negate this check">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={check.not === true}
+                      onChange={(e) => updateCheck(ruleIdx, checkIdx, { not: e.target.checked || undefined })}
+                    />
+                    NOT
+                  </label>
                   <input
                     className="rounded border bg-background px-2 py-1 text-xs w-48"
                     placeholder="provider (e.g. os-control.active_window)"

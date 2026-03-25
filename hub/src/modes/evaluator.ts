@@ -81,9 +81,10 @@ export function evaluateCheck(
   resolve: StateResolver,
 ): boolean {
   const resolved = resolve(check.provider, check.params ?? {});
-  if (!resolved) return false;
+  if (!resolved) return check.not === true; // negated missing provider = true
   const actual = extractAttribute(resolved, check.attribute);
-  return compareValue(actual, check);
+  const result = compareValue(actual, check);
+  return check.not ? !result : result;
 }
 
 /**
@@ -112,6 +113,7 @@ export interface CheckResult {
   expectedValue: unknown;
   passes: boolean;
   providerFound: boolean;
+  negated: boolean;
 }
 
 export interface RuleResult {
@@ -147,17 +149,27 @@ export function debugCheck(check: ModeCheck, resolve: StateResolver): CheckResul
   const resolved = resolve(check.provider, check.params ?? {});
   const providerFound = resolved !== undefined;
   const actual = resolved ? extractAttribute(resolved, check.attribute) : undefined;
-  const passes = providerFound ? compareValue(actual, check) : false;
+  const negated = check.not === true;
+  let rawResult: boolean;
+  if (!providerFound) {
+    rawResult = false;
+  } else {
+    rawResult = compareValue(actual, check);
+  }
+  const passes = negated ? !rawResult : rawResult;
+  // Special case: negated + provider not found = true
+  const finalPasses = !providerFound && negated ? true : passes;
   const { comparator, expected } = getComparatorInfo(check);
 
   return {
     provider: check.provider,
     attribute: check.attribute,
     actualValue: actual,
-    comparator,
+    comparator: negated ? `NOT ${comparator}` : comparator,
     expectedValue: expected,
-    passes,
+    passes: finalPasses,
     providerFound,
+    negated,
   };
 }
 

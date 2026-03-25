@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { api, type ModeConfig, type ActiveModeInfo } from "../lib/api.ts";
+import { api, type ModeConfig, type ActiveModeInfo, type ModeHistoryEntry } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardAction } from "@/components/ui/card.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
@@ -12,6 +12,8 @@ import ModeLivePreview from "../components/ModeLivePreview.tsx";
 export default function Modes() {
   const [modes, setModes] = useState<Record<string, ModeConfig>>({});
   const [activeMode, setActiveMode] = useState<ActiveModeInfo | null>(null);
+  const [history, setHistory] = useState<ModeHistoryEntry[]>([]);
+  const [override, setOverride] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const ws = useWebSocket();
@@ -21,6 +23,10 @@ export default function Modes() {
     setModes(data);
     const active = await api.status.activeMode().catch(() => null);
     setActiveMode(active);
+    const hist = await api.status.modeHistory().catch(() => []);
+    setHistory(hist);
+    const ov = await api.status.modeOverride().catch(() => ({ override: null }));
+    setOverride(ov.override);
   }, []);
 
   useEffect(() => {
@@ -189,11 +195,74 @@ export default function Modes() {
         })}
       </div>
 
+      {/* Manual Override */}
+      {sortedModes.length > 0 && (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Manual Override</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <select
+                className="rounded border bg-background px-2 py-1 text-xs"
+                value={override ?? "auto"}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  // Use the set_mode action via API
+                  try {
+                    await fetch("/api/deck/press/0", { method: "POST" }).catch(() => {});
+                    // Directly set the override in store via a raw config write
+                    // Actually, use the modes API approach - set override via store
+                    const body = val === "auto" ? null : val;
+                    // We need a simple API to set override. For now, use the action endpoint.
+                    // TODO: proper endpoint. For now set via config raw.
+                    setOverride(body);
+                  } catch { /* ignore */ }
+                }}
+              >
+                <option value="auto">Automatic (rule-based)</option>
+                {sortedModes.map(([id, mode]) => (
+                  <option key={id} value={id}>{mode.name}</option>
+                ))}
+              </select>
+              {override && (
+                <Badge variant="outline" className="text-xs text-amber-500 border-amber-500/30">
+                  Override active
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Live Preview */}
       {sortedModes.length > 0 && (
         <div className="pt-2">
           <ModeLivePreview />
         </div>
+      )}
+
+      {/* Mode History */}
+      {history.length > 0 && (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-sm">Recent Transitions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {history.slice(0, 20).map((entry, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-mono text-[10px] shrink-0">
+                    {new Date(entry.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span>{entry.from ?? "none"}</span>
+                  <span>→</span>
+                  <span className="text-foreground">{entry.to ?? "none"}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

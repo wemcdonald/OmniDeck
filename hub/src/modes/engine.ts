@@ -1,7 +1,7 @@
 // hub/src/modes/engine.ts — ModeEngine: subscribes to StateStore, evaluates mode rules
 
 import type { StateStore } from "../state/store.js";
-import type { ModeDefinition, ModeAction, ModeChangeCallback } from "./types.js";
+import type { ModeDefinition, ModeAction, ModeChangeCallback, ModeHistoryEntry } from "./types.js";
 import { evaluateRule, debugRule, type StateResolver, type ModeEvalResult } from "./evaluator.js";
 import { createLogger } from "../logger.js";
 
@@ -22,6 +22,8 @@ export class ModeEngine {
   private changeCbs: ModeChangeCallback[] = [];
   private started = false;
   private evaluating = false;
+  private _history: ModeHistoryEntry[] = [];
+  private static readonly MAX_HISTORY = 50;
 
   constructor(modes: ModeDefinition[], deps: ModeEngineDeps) {
     // Sort by priority (lower = higher priority) for consistent evaluation
@@ -62,6 +64,11 @@ export class ModeEngine {
     return this.modes;
   }
 
+  /** Get mode transition history (most recent first). */
+  get history(): readonly ModeHistoryEntry[] {
+    return this._history;
+  }
+
   /**
    * Evaluate all modes and return detailed debug info per check.
    * Used by the live preview UI to show why each rule passes/fails.
@@ -97,13 +104,19 @@ export class ModeEngine {
     const resolve = this.deps.resolveState;
     let matched: ModeDefinition | null = null;
 
-    // Modes are pre-sorted by priority. First match wins.
-    for (const mode of this.modes) {
-      // Top-level OR: any rule matching = mode is active
-      const active = mode.rules.some((rule) => evaluateRule(rule, resolve));
-      if (active) {
-        matched = mode;
-        break;
+    // Check for manual override
+    const override = this.deps.store.get("omnideck-core", "mode_override") as string | null;
+    if (override) {
+      matched = this.modes.find((m) => m.id === override) ?? null;
+    } else {
+      // Modes are pre-sorted by priority. First match wins.
+      for (const mode of this.modes) {
+        // Top-level OR: any rule matching = mode is active
+        const active = mode.rules.some((rule) => evaluateRule(rule, resolve));
+        if (active) {
+          matched = mode;
+          break;
+        }
       }
     }
 
@@ -127,6 +140,16 @@ export class ModeEngine {
       this.deps.store.set("omnideck-core", "active_mode_name", matched?.name ?? null);
       this.deps.store.set("omnideck-core", "active_mode_icon", matched?.icon ?? null);
     });
+
+    // Record in history
+    this._history.unshift({
+      from: prev?.id ?? null,
+      to: matched?.id ?? null,
+      timestamp: new Date().toISOString(),
+    });
+    if (this._history.length > ModeEngine.MAX_HISTORY) {
+      this._history.length = ModeEngine.MAX_HISTORY;
+    }
 
     this.evaluating = false;
 
