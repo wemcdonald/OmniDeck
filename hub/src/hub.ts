@@ -21,6 +21,9 @@ import { AgentServer } from "./server/server.js";
 import { PluginRegistry } from "./plugins/registry.js";
 import { PairingManager } from "./server/pairing.js";
 import { HubDiscovery } from "./server/discovery.js";
+import { ModeEngine } from "./modes/engine.js";
+import type { ModeDefinition, ModeCheck } from "./modes/types.js";
+import type { ResolvedState } from "./modes/evaluator.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -61,6 +64,7 @@ export class Hub {
   private discovery: HubDiscovery | null = null;
   private broadcaster = new Broadcaster();
   private pairing: PairingManager | null = null;
+  private modeEngine: ModeEngine | null = null;
   private opts: HubOptions;
 
   constructor(opts: HubOptions) {
@@ -78,6 +82,17 @@ export class Hub {
   async start(
     pageConfigs: PageConfig[],
     pluginConfigs: Record<string, Record<string, unknown>> = {},
+    modesConfig?: Record<string, {
+      name: string;
+      icon?: string;
+      priority?: number;
+      rules: Array<{
+        condition: "and" | "or";
+        checks: Array<Record<string, unknown>>;
+      }>;
+      on_enter?: Array<Record<string, unknown>>;
+      on_exit?: Array<Record<string, unknown>>;
+    }>,
   ): Promise<void> {
     // Store pages
     for (const page of pageConfigs) {
@@ -129,6 +144,66 @@ export class Hub {
     this.agentServer.onAgentConnection((hostname, connected) => {
       this.store.set("os-control", `agent:${hostname}:online`, connected);
     });
+
+    // Initialize mode engine (if modes configured)
+    if (modesConfig && Object.keys(modesConfig).length > 0) {
+      const modes: ModeDefinition[] = Object.entries(modesConfig).map(
+        ([id, cfg]) => ({
+          id,
+          name: cfg.name,
+          icon: cfg.icon,
+          priority: cfg.priority ?? 50,
+          rules: cfg.rules.map((r) => ({
+            condition: r.condition,
+            checks: r.checks.map((c): ModeCheck => ({
+              provider: c.provider as string,
+              attribute: c.attribute as string,
+              params: c.params as Record<string, unknown> | undefined,
+              target: c.target as string | undefined,
+              equals: c.equals as ModeCheck["equals"],
+              not_equals: c.not_equals as ModeCheck["not_equals"],
+              in: c.in as ModeCheck["in"],
+              not_in: c.not_in as ModeCheck["not_in"],
+              greater_than: c.greater_than as number | undefined,
+              less_than: c.less_than as number | undefined,
+              contains: c.contains as string | undefined,
+              matches: c.matches as string | undefined,
+            })),
+          })),
+          onEnter: cfg.on_enter?.map((a) => ({
+            switch_page: a.switch_page as string | undefined,
+            trigger_action: a.trigger_action as string | undefined,
+            params: a.params as Record<string, unknown> | undefined,
+          })),
+          onExit: cfg.on_exit?.map((a) => ({
+            switch_page: a.switch_page as string | undefined,
+            trigger_action: a.trigger_action as string | undefined,
+            params: a.params as Record<string, unknown> | undefined,
+          })),
+        }),
+      );
+
+      this.modeEngine = new ModeEngine(modes, {
+        store: this.store,
+        resolveState: (qualifiedId, params): ResolvedState | undefined => {
+          const result = this.pluginHost.resolveState(qualifiedId, params);
+          if (!result) return undefined;
+          return {
+            state: result.state as unknown as Record<string, unknown>,
+            variables: result.variables,
+          };
+        },
+        executeAction: (qualifiedId, params) =>
+          this.pluginHost.executeAction(qualifiedId, params),
+      });
+
+      this.modeEngine.onModeChange((from, to) => {
+        log.info(
+          { from: from?.id ?? null, to: to?.id ?? null },
+          "Mode changed",
+        );
+      });
+    }
 
     // Start web server
     setLogBroadcaster(this.broadcaster);
@@ -233,13 +308,22 @@ export class Hub {
       }
 
       // Entity/plugin state changed — debounced re-render of current page
-      if (stateKey.startsWith("entity:") || stateKey.startsWith("agent:")) {
+      if (
+        stateKey.startsWith("entity:") ||
+        stateKey.startsWith("agent:") ||
+        stateKey === "active_mode"
+      ) {
         scheduleRender();
       }
     });
 
     // Render initial page
     await this.renderCurrentPage();
+
+    // Start mode engine (after plugins are initialized and initial page is rendered)
+    if (this.modeEngine) {
+      this.modeEngine.start();
+    }
 
     // Listen for key presses
     this.deck.onKeyDown((key) => {
@@ -250,6 +334,10 @@ export class Hub {
   }
 
   async stop(): Promise<void> {
+    if (this.modeEngine) {
+      this.modeEngine.stop();
+      this.modeEngine = null;
+    }
     if (this.discovery) {
       this.discovery.destroy();
       this.discovery = null;
@@ -338,7 +426,8 @@ export class Hub {
       return;
     }
 
-    const resolved = this.resolveButton(button);
+    const effectiveButton = this.applyModeOverrides(button);
+    const resolved = this.resolveButton(effectiveButton);
     if (!resolved.action) {
       log.info({ keyIndex, pageId: this.currentPageId }, "Key press with no action");
       return;
@@ -507,18 +596,57 @@ export class Hub {
     return { action, actionParams: userParams, stateProvider, stateParams, icon, label, topLabel, background };
   }
 
+  /**
+   * Apply mode overrides to a button config. Returns a shallow copy with
+   * the active mode's overrides merged in, or the original if no overrides apply.
+   */
+  private applyModeOverrides(button: ButtonConfig): ButtonConfig {
+    if (!button.modes) return button;
+
+    const activeMode = this.store.get("omnideck-core", "active_mode") as string | null;
+    if (!activeMode) return button;
+
+    const override = button.modes[activeMode];
+    if (!override) return button;
+
+    // Shallow merge: mode override fields win over button-level fields.
+    // If action is overridden but params aren't, default to empty params
+    // to avoid passing the base action's params to a different action.
+    const actionOverridden = override.action !== undefined;
+    const longPressOverridden = override.long_press_action !== undefined;
+
+    return {
+      ...button,
+      action: override.action ?? button.action,
+      params: override.params ?? (actionOverridden ? {} : button.params),
+      state: override.state ?? button.state,
+      icon: override.icon ?? button.icon,
+      icon_color: override.icon_color ?? button.icon_color,
+      label: override.label ?? button.label,
+      label_color: override.label_color ?? button.label_color,
+      top_label: override.top_label ?? button.top_label,
+      top_label_color: override.top_label_color ?? button.top_label_color,
+      background: override.background ?? button.background,
+      opacity: override.opacity ?? button.opacity,
+      long_press_action: override.long_press_action ?? button.long_press_action,
+      long_press_params: override.long_press_params ?? (longPressOverridden ? {} : button.long_press_params),
+    };
+  }
+
   private resolveButtonState(button: ButtonConfig): ButtonState {
-    const resolved = this.resolveButton(button);
+    // Apply mode overrides before resolving
+    const effectiveButton = this.applyModeOverrides(button);
+    const resolved = this.resolveButton(effectiveButton);
 
     const state: ButtonState = {
-      background: resolved.background ?? button.background,
-      icon: resolved.icon ?? button.icon,
-      iconColor: button.icon_color,
-      label: resolved.label ?? button.label,
-      labelColor: button.label_color,
-      topLabel: resolved.topLabel ?? button.top_label,
-      topLabelColor: button.top_label_color,
-      opacity: button.opacity,
+      background: resolved.background ?? effectiveButton.background,
+      icon: resolved.icon ?? effectiveButton.icon,
+      iconColor: effectiveButton.icon_color,
+      label: resolved.label ?? effectiveButton.label,
+      labelColor: effectiveButton.label_color,
+      topLabel: resolved.topLabel ?? effectiveButton.top_label,
+      topLabelColor: effectiveButton.top_label_color,
+      opacity: effectiveButton.opacity,
     };
 
     // Template variables from the state provider (for Mustache interpolation)
@@ -543,16 +671,16 @@ export class Hub {
 
     // Explicit button-level values always win over state provider results.
     // Also interpolate Mustache templates in user-set labels.
-    if (button.icon) state.icon = button.icon;
-    if (button.background) state.background = button.background;
-    if (button.label) {
-      state.label = this.interpolate(button.label, templateVars);
+    if (effectiveButton.icon) state.icon = effectiveButton.icon;
+    if (effectiveButton.background) state.background = effectiveButton.background;
+    if (effectiveButton.label) {
+      state.label = this.interpolate(effectiveButton.label, templateVars);
     } else if (state.label && state.label.includes("{{")) {
       // Preset-provided label template — also interpolate
       state.label = this.interpolate(state.label, templateVars);
     }
-    if (button.top_label) {
-      state.topLabel = this.interpolate(button.top_label, templateVars);
+    if (effectiveButton.top_label) {
+      state.topLabel = this.interpolate(effectiveButton.top_label, templateVars);
     } else if (state.topLabel && state.topLabel.includes("{{")) {
       state.topLabel = this.interpolate(state.topLabel, templateVars);
     }

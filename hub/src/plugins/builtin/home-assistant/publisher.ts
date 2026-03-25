@@ -16,6 +16,8 @@ export interface PublishConfig {
   device_presence: boolean;
   /** Publish per-device idle time */
   idle_time: boolean;
+  /** Publish active OmniDeck mode */
+  active_mode: boolean;
   /** Entity prefix for input helpers. Default: "omnideck" */
   entity_prefix: string;
 }
@@ -28,6 +30,7 @@ const DEFAULT_PUBLISH_CONFIG: PublishConfig = {
   active_window: true,
   device_presence: true,
   idle_time: false,
+  active_mode: true,
   entity_prefix: "omnideck",
 };
 
@@ -80,6 +83,15 @@ export class HaStatePublisher {
     this.timer = setInterval(() => {
       this.publish().catch((err) => this.log.warn({ err }, "HA publish error"));
     }, this.config.update_interval_ms);
+
+    // Publish mode changes immediately (not just on polling interval)
+    if (this.config.active_mode) {
+      this.store.onChange((pluginId, key) => {
+        if (pluginId === "omnideck-core" && key === "active_mode") {
+          this.publish().catch((err) => this.log.warn({ err }, "HA mode publish error"));
+        }
+      });
+    }
   }
 
   stop(): void {
@@ -132,6 +144,10 @@ export class HaStatePublisher {
       eventData.idle_times = idle;
     }
 
+    if (this.config.active_mode) {
+      eventData.active_mode = this.getActiveMode();
+    }
+
     await this.client.fireEvent("omnideck_state", eventData);
   }
 
@@ -181,6 +197,17 @@ export class HaStatePublisher {
       }
     }
 
+    if (this.config.active_mode) {
+      calls.push(
+        this.client.callService(
+          "input_text",
+          "set_value",
+          { value: this.getActiveMode() },
+          { entity_id: `input_text.${prefix}_active_mode` },
+        ),
+      );
+    }
+
     // Fire calls in parallel, but don't fail the whole batch if one fails
     const results = await Promise.allSettled(calls);
     const failures = results.filter((r) => r.status === "rejected");
@@ -212,6 +239,11 @@ export class HaStatePublisher {
     }
 
     return agents;
+  }
+
+  private getActiveMode(): string {
+    const mode = this.store.get("omnideck-core", "active_mode") as string | null;
+    return mode ?? "none";
   }
 
   private getFocusedDevice(agents: AgentSnapshot[]): string | null {

@@ -238,6 +238,85 @@ export const corePlugin: OmniDeckPlugin = {
       },
     });
 
+    // ── State Providers ─────────────────────────────────────────────────
+
+    ctx.registerStateProvider({
+      id: "mode",
+      name: "Active Mode",
+      description: "The currently active OmniDeck mode",
+      icon: "ms:conversion_path",
+      templateVariables: [
+        { key: "active_mode", label: "Active Mode ID", example: "gaming" },
+        { key: "active_mode_name", label: "Active Mode Name", example: "Gaming" },
+        { key: "active_mode_icon", label: "Active Mode Icon", example: "ms:sports_esports" },
+      ],
+      resolve() {
+        const modeId = ctx.state.get("omnideck-core", "active_mode") as string | null;
+        const modeName = ctx.state.get("omnideck-core", "active_mode_name") as string | null;
+        const modeIcon = ctx.state.get("omnideck-core", "active_mode_icon") as string | null;
+
+        return {
+          state: {
+            label: modeName ?? "None",
+            icon: modeIcon ?? undefined,
+            background: modeId ? "#1e40af" : "#424242",
+          },
+          variables: {
+            active_mode: modeId ?? "none",
+            active_mode_name: modeName ?? "None",
+            active_mode_icon: modeIcon ?? "",
+          },
+        };
+      },
+    });
+
+    ctx.registerStateProvider({
+      id: "all_agents_idle",
+      name: "All Agents Idle",
+      description: "Whether all connected agents are idle",
+      icon: "ms:flight_takeoff",
+      templateVariables: [
+        { key: "idle", label: "All Idle", example: "true" },
+        { key: "agent_count", label: "Agent Count", example: "2" },
+        { key: "idle_count", label: "Idle Agent Count", example: "2" },
+      ],
+      resolve() {
+        const allOsControl = ctx.state.getAll("os-control");
+        let agentCount = 0;
+        let idleCount = 0;
+        const IDLE_THRESHOLD_MS = 300_000; // 5 minutes
+
+        for (const [key, value] of allOsControl) {
+          if (!key.match(/^agent:.+:state$/)) continue;
+          const hostname = key.split(":")[1];
+          const online = ctx.state.get("os-control", `agent:${hostname}:online`) as boolean | undefined;
+          if (!online) continue;
+
+          agentCount++;
+          const state = value as Record<string, unknown> | undefined;
+          // Default to 0 (assume active) if idle_time_ms not yet reported
+          const idleTime = (state?.idle_time_ms as number) ?? 0;
+          if (idleTime >= IDLE_THRESHOLD_MS) {
+            idleCount++;
+          }
+        }
+
+        const allIdle = agentCount === 0 || idleCount === agentCount;
+
+        return {
+          state: {
+            label: allIdle ? "Idle" : "Active",
+            background: allIdle ? "#6b7280" : "#16a34a",
+          },
+          variables: {
+            idle: String(allIdle),
+            agent_count: String(agentCount),
+            idle_count: String(idleCount),
+          },
+        };
+      },
+    });
+
     ctx.setHealth({ status: "ok" });
   },
 
