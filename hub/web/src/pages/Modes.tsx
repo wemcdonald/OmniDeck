@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Icon } from "@iconify/react";
 import { Plus, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import ModeEditor from "../components/ModeEditor.tsx";
+import ModeLivePreview from "../components/ModeLivePreview.tsx";
 
 export default function Modes() {
   const [modes, setModes] = useState<Record<string, ModeConfig>>({});
@@ -187,6 +188,13 @@ export default function Modes() {
           );
         })}
       </div>
+
+      {/* Live Preview */}
+      {sortedModes.length > 0 && (
+        <div className="pt-2">
+          <ModeLivePreview />
+        </div>
+      )}
     </div>
   );
 }

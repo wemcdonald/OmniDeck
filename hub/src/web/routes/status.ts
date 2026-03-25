@@ -7,6 +7,7 @@ interface StatusRouteDeps {
   getDeckPreview(): Promise<Record<number, string>>;
   pressKey(key: number): Promise<void>;
   getActiveMode?(): { id: string | null; name: string | null; icon: string | null };
+  debugModes?(): unknown[];
 }
 
 export function createStatusRoutes(deps: StatusRouteDeps): Hono {
@@ -23,6 +24,11 @@ export function createStatusRoutes(deps: StatusRouteDeps): Hono {
   if (deps.getActiveMode) {
     const getActiveMode = deps.getActiveMode;
     router.get("/status/active-mode", (c) => c.json(getActiveMode()));
+  }
+
+  if (deps.debugModes) {
+    const debugModes = deps.debugModes;
+    router.get("/status/modes/debug", (c) => c.json(debugModes()));
   }
 
   router.post("/deck/press/:key", async (c) => {

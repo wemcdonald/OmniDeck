@@ -143,6 +143,30 @@ export interface ModeConfig {
   on_exit?: ModeAction[];
 }
 
+export interface CheckResult {
+  provider: string;
+  attribute: string;
+  actualValue: unknown;
+  comparator: string;
+  expectedValue: unknown;
+  passes: boolean;
+  providerFound: boolean;
+}
+
+export interface RuleResult {
+  condition: "and" | "or";
+  checks: CheckResult[];
+  passes: boolean;
+}
+
+export interface ModeEvalResult {
+  id: string;
+  name: string;
+  priority: number;
+  rules: RuleResult[];
+  active: boolean;
+}
+
 export interface ActiveModeInfo {
   id: string | null;
   name: string | null;
@@ -220,6 +244,7 @@ export const api = {
     presets: () => request<PresetInfo[]>("/api/status/presets"),
     pluginCatalog: () => request<PluginCatalog>("/api/status/plugin-catalog"),
     activeMode: () => request<ActiveModeInfo>("/api/status/active-mode"),
+    debugModes: () => request<ModeEvalResult[]>("/api/status/modes/debug"),
   },
   deck: {
     press: (key: number) =>

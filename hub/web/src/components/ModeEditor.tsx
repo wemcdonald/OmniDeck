@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ModeConfig, ModeRule, ModeCheck, ModeAction } from "../lib/api.ts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import ModeLivePreview from "./ModeLivePreview.tsx";
 import {
   ArrowLeft,
   Plus,
@@ -442,6 +443,11 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
           </Button>
         </CardContent>
       </Card>
+
+      {/* Live Preview (only for existing modes) */}
+      {!isNew && (
+        <ModeLivePreview modeId={initialId} />
+      )}
 
       {/* Save / Delete */}
       <div className="flex items-center justify-between">

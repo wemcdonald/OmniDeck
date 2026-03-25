@@ -229,6 +229,7 @@ export class Hub {
       getPluginStatuses: () => this.pluginHost.getStatuses(),
       getPresets: () => this.pluginHost.getAllPresets(),
       store: this.store,
+      debugModes: this.modeEngine ? () => this.modeEngine!.debugEvaluate() : undefined,
       pairing: this.pairing ?? undefined,
       tls: this.opts.tls ? { cert: this.opts.tls.cert, key: this.opts.tls.key } : undefined,
       httpsPort: this.opts.httpsPort,

@@ -2,7 +2,7 @@
 
 import type { StateStore } from "../state/store.js";
 import type { ModeDefinition, ModeAction, ModeChangeCallback } from "./types.js";
-import { evaluateRule, type StateResolver } from "./evaluator.js";
+import { evaluateRule, debugRule, type StateResolver, type ModeEvalResult } from "./evaluator.js";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("modes");
@@ -55,6 +55,30 @@ export class ModeEngine {
 
     // Initial evaluation
     this.evaluate();
+  }
+
+  /** Get all mode definitions (for debug/status API). */
+  get definitions(): readonly ModeDefinition[] {
+    return this.modes;
+  }
+
+  /**
+   * Evaluate all modes and return detailed debug info per check.
+   * Used by the live preview UI to show why each rule passes/fails.
+   */
+  debugEvaluate(): ModeEvalResult[] {
+    const resolve = this.deps.resolveState;
+    return this.modes.map((mode) => {
+      const rules = mode.rules.map((rule) => debugRule(rule, resolve));
+      const active = rules.some((r) => r.passes);
+      return {
+        id: mode.id,
+        name: mode.name,
+        priority: mode.priority,
+        rules,
+        active,
+      };
+    });
   }
 
   /** Stop the engine. Does not unsubscribe from store (store has no removeListener). */

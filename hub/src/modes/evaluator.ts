@@ -101,3 +101,77 @@ export function evaluateRule(
   // "or"
   return rule.checks.some((check) => evaluateCheck(check, resolve));
 }
+
+// ── Debug evaluation (returns detailed results per check) ─────────────
+
+export interface CheckResult {
+  provider: string;
+  attribute: string;
+  actualValue: unknown;
+  comparator: string;
+  expectedValue: unknown;
+  passes: boolean;
+  providerFound: boolean;
+}
+
+export interface RuleResult {
+  condition: "and" | "or";
+  checks: CheckResult[];
+  passes: boolean;
+}
+
+export interface ModeEvalResult {
+  id: string;
+  name: string;
+  priority: number;
+  rules: RuleResult[];
+  active: boolean;
+}
+
+function getComparatorInfo(check: ModeCheck): { comparator: string; expected: unknown } {
+  if (check.equals !== undefined) return { comparator: "equals", expected: check.equals };
+  if (check.not_equals !== undefined) return { comparator: "not_equals", expected: check.not_equals };
+  if (check.in !== undefined) return { comparator: "in", expected: check.in };
+  if (check.not_in !== undefined) return { comparator: "not_in", expected: check.not_in };
+  if (check.greater_than !== undefined) return { comparator: "greater_than", expected: check.greater_than };
+  if (check.less_than !== undefined) return { comparator: "less_than", expected: check.less_than };
+  if (check.contains !== undefined) return { comparator: "contains", expected: check.contains };
+  if (check.matches !== undefined) return { comparator: "matches", expected: check.matches };
+  return { comparator: "none", expected: undefined };
+}
+
+/**
+ * Evaluate a single check and return detailed debug info.
+ */
+export function debugCheck(check: ModeCheck, resolve: StateResolver): CheckResult {
+  const resolved = resolve(check.provider, check.params ?? {});
+  const providerFound = resolved !== undefined;
+  const actual = resolved ? extractAttribute(resolved, check.attribute) : undefined;
+  const passes = providerFound ? compareValue(actual, check) : false;
+  const { comparator, expected } = getComparatorInfo(check);
+
+  return {
+    provider: check.provider,
+    attribute: check.attribute,
+    actualValue: actual,
+    comparator,
+    expectedValue: expected,
+    passes,
+    providerFound,
+  };
+}
+
+/**
+ * Evaluate a rule and return detailed debug info for each check.
+ */
+export function debugRule(rule: ModeRule, resolve: StateResolver): RuleResult {
+  const checks = rule.checks.map((c) => debugCheck(c, resolve));
+  const passes =
+    rule.checks.length === 0
+      ? false
+      : rule.condition === "and"
+        ? checks.every((c) => c.passes)
+        : checks.some((c) => c.passes);
+
+  return { condition: rule.condition, checks, passes };
+}

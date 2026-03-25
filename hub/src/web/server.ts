@@ -35,6 +35,7 @@ export interface WebServerOptions {
   getPluginStatuses?: () => Array<{ id: string; name: string; version: string; status: string }>;
   getPresets?: () => Array<{ qualifiedId: string; pluginId: string; name: string; defaults: Record<string, unknown> }>;
   store?: StateStore;
+  debugModes?: () => unknown[];
   // Security options
   pairing?: PairingManager;
   tls?: { cert: Buffer; key: Buffer };
@@ -149,6 +150,7 @@ export class WebServer {
           name: (store.get("omnideck-core", "active_mode_name") as string | null) ?? null,
           icon: (store.get("omnideck-core", "active_mode_icon") as string | null) ?? null,
         }) : undefined,
+        debugModes: this.opts.debugModes,
       }),
     );
 
