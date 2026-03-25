@@ -202,6 +202,14 @@ export class Hub {
           { from: from?.id ?? null, to: to?.id ?? null },
           "Mode changed",
         );
+        // Broadcast mode change to web clients
+        this.broadcaster.send({
+          type: "mode:change",
+          data: {
+            from: from ? { id: from.id, name: from.name, icon: from.icon } : null,
+            to: to ? { id: to.id, name: to.name, icon: to.icon } : null,
+          },
+        });
       });
     }
 

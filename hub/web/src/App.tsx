@@ -8,6 +8,7 @@ import Plugins from "./pages/Plugins.tsx";
 import Devices from "./pages/Devices.tsx";
 import Logs from "./pages/Logs.tsx";
 import Security from "./pages/Security.tsx";
+import Modes from "./pages/Modes.tsx";
 import Login from "./pages/Login.tsx";
 import { api } from "./lib/api.ts";
 
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/pages" element={<PagesList />} />
         <Route path="/pages/:id" element={<PageEditor />} />
+        <Route path="/modes" element={<Modes />} />
         <Route path="/plugins" element={<Plugins />} />
         <Route path="/devices" element={<Devices />} />
         <Route path="/logs" element={<Logs />} />

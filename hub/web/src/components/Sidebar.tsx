@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Layers,
+  SlidersHorizontal,
   Puzzle,
   Monitor,
   ScrollText,
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/pages", icon: Layers, label: "Pages" },
+  { to: "/modes", icon: SlidersHorizontal, label: "Modes" },
   { to: "/plugins", icon: Puzzle, label: "Plugins" },
   { to: "/devices", icon: Monitor, label: "Devices" },
   { to: "/logs", icon: ScrollText, label: "Logs" },

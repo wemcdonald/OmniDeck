@@ -11,6 +11,13 @@ export type BroadcastMessage =
   | {
       type: "log:line";
       data: { ts: string; level: string; name: string; msg: string; [k: string]: unknown };
+    }
+  | {
+      type: "mode:change";
+      data: {
+        from: { id: string; name: string; icon?: string } | null;
+        to: { id: string; name: string; icon?: string } | null;
+      };
     };
 
 export class Broadcaster {

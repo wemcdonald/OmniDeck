@@ -144,6 +144,11 @@ export class WebServer {
           if (pressKey) await pressKey(key);
           else log.info({ key }, "Browser simulated key press (no deck)");
         },
+        getActiveMode: store ? () => ({
+          id: (store.get("omnideck-core", "active_mode") as string | null) ?? null,
+          name: (store.get("omnideck-core", "active_mode_name") as string | null) ?? null,
+          icon: (store.get("omnideck-core", "active_mode_icon") as string | null) ?? null,
+        }) : undefined,
       }),
     );
 

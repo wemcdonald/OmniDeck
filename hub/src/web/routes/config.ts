@@ -99,6 +99,63 @@ export function createConfigRoutes(configDir: string): Hono {
     return c.json({ ok: true });
   });
 
+  // --- Modes ---
+
+  function loadModes(): Record<string, unknown> {
+    const configPath = join(configDir, "config.yaml");
+    if (!existsSync(configPath)) return {};
+    const raw = readFileSync(configPath, "utf-8");
+    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+    return (config.modes ?? {}) as Record<string, unknown>;
+  }
+
+  router.get("/modes", (c) => {
+    return c.json(loadModes());
+  });
+
+  router.get("/modes/active", (c) => {
+    // Read active mode from state store if available (passed via closure)
+    // For now, return from config — the frontend will get live updates via WebSocket
+    return c.json(loadModes());
+  });
+
+  router.put("/modes", async (c) => {
+    const newModes = await c.req.json();
+    const configPath = join(configDir, "config.yaml");
+    const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
+    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+    config.modes = newModes;
+    writeFileSync(configPath, stringifyYaml(config));
+    return c.json({ ok: true });
+  });
+
+  router.put("/modes/:id", async (c) => {
+    const modeId = c.req.param("id");
+    const modeConfig = await c.req.json();
+    const configPath = join(configDir, "config.yaml");
+    const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
+    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+    const modes = (config.modes ?? {}) as Record<string, unknown>;
+    modes[modeId] = modeConfig;
+    config.modes = modes;
+    writeFileSync(configPath, stringifyYaml(config));
+    return c.json({ ok: true });
+  });
+
+  router.delete("/modes/:id", (c) => {
+    const modeId = c.req.param("id");
+    const configPath = join(configDir, "config.yaml");
+    if (!existsSync(configPath)) return c.json({ error: "Config not found" }, 404);
+    const raw = readFileSync(configPath, "utf-8");
+    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+    const modes = (config.modes ?? {}) as Record<string, unknown>;
+    if (!(modeId in modes)) return c.json({ error: "Mode not found" }, 404);
+    delete modes[modeId];
+    config.modes = modes;
+    writeFileSync(configPath, stringifyYaml(config));
+    return c.json({ ok: true });
+  });
+
   // --- Raw YAML files ---
 
   router.get("/raw/:filename", (c) => {

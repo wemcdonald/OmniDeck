@@ -106,6 +106,49 @@ export interface CatalogPreset {
   longPressDefaults?: Record<string, unknown>;
 }
 
+// ── Mode types ───────────────────────────────────────────────────────────
+
+export interface ModeCheck {
+  provider: string;
+  params?: Record<string, unknown>;
+  attribute: string;
+  target?: string;
+  equals?: string | number | boolean;
+  not_equals?: string | number | boolean;
+  in?: (string | number)[];
+  not_in?: (string | number)[];
+  greater_than?: number;
+  less_than?: number;
+  contains?: string;
+  matches?: string;
+}
+
+export interface ModeRule {
+  condition: "and" | "or";
+  checks: ModeCheck[];
+}
+
+export interface ModeAction {
+  switch_page?: string;
+  trigger_action?: string;
+  params?: Record<string, unknown>;
+}
+
+export interface ModeConfig {
+  name: string;
+  icon?: string;
+  priority?: number;
+  rules: ModeRule[];
+  on_enter?: ModeAction[];
+  on_exit?: ModeAction[];
+}
+
+export interface ActiveModeInfo {
+  id: string | null;
+  name: string | null;
+  icon: string | null;
+}
+
 export interface AgentState {
   hostname: string;
   platform: string;
@@ -152,6 +195,21 @@ export const api = {
         body: JSON.stringify({ content }),
       }),
   },
+  modes: {
+    list: () => request<Record<string, ModeConfig>>("/api/config/modes"),
+    saveAll: (modes: Record<string, ModeConfig>) =>
+      request<{ ok: boolean }>("/api/config/modes", {
+        method: "PUT",
+        body: JSON.stringify(modes),
+      }),
+    save: (id: string, mode: ModeConfig) =>
+      request<{ ok: boolean }>(`/api/config/modes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(mode),
+      }),
+    delete: (id: string) =>
+      request<{ ok: boolean }>(`/api/config/modes/${id}`, { method: "DELETE" }),
+  },
   status: {
     agents: () => request<AgentState[]>("/api/status/agents"),
     plugins: () =>
@@ -161,6 +219,7 @@ export const api = {
     deckPreview: () => request<Record<number, string>>("/api/deck/preview"),
     presets: () => request<PresetInfo[]>("/api/status/presets"),
     pluginCatalog: () => request<PluginCatalog>("/api/status/plugin-catalog"),
+    activeMode: () => request<ActiveModeInfo>("/api/status/active-mode"),
   },
   deck: {
     press: (key: number) =>
