@@ -7,7 +7,15 @@ import {
 } from "node:fs";
 import { unlinkSync } from "node:fs";
 import { join, basename, extname } from "node:path";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { parseDocument, stringify as stringifyYaml } from "yaml";
+
+/** Parse YAML tolerating !secret tags (leaves them as plain strings). */
+function parseYaml(content: string): unknown {
+  const doc = parseDocument(content, {
+    customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
+  });
+  return doc.toJSON();
+}
 
 export function createConfigRoutes(configDir: string): Hono {
   const router = new Hono();

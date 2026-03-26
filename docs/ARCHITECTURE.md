@@ -1463,6 +1463,18 @@ The hub runs on a Raspberry Pi and requires these OS-level packages:
 
 Install via: `sudo apt install fontconfig`
 
+### udev Rules (Linux / Pi)
+
+The Stream Deck is a USB HID device owned by root. On a headless Pi (no console session), the `uaccess` tag alone is insufficient — the hub process needs explicit group permissions to open the device.
+
+The installer must:
+
+1. Copy `deploy/udev/50-stream-deck.rules` to `/etc/udev/rules.d/`
+2. Run `udevadm control --reload-rules && udevadm trigger`
+3. Ensure the hub user is in the `plugdev` group
+
+Without this, the hub fails at startup with `cannot open device with path /dev/hidraw*`.
+
 ### Hub TypeScript Configuration
 
 - **ESM-only**: `"type": "module"` in `package.json`. No CommonJS.

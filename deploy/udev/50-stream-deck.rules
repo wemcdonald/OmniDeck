@@ -1,2 +1,7 @@
 # Elgato Stream Deck - allow access without root
-SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", TAG+="uaccess"
+# uaccess tag only works for local console sessions; on a headless Pi we need
+# explicit group/mode so the hub process (running as a regular user) can open
+# the HID device.  Both subsystems are listed because different kernel versions
+# may expose the device under "usb" or "hidraw".
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0fd9", MODE="0660", GROUP="plugdev"
