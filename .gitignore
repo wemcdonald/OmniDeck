@@ -1,4 +1,5 @@
 .claude/
+.worktrees/
 docs/plans/
 node_modules/
 dist/
