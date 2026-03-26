@@ -9,6 +9,9 @@ export const PluginManifestSchema = z.object({
   /** Human-readable name */
   name: z.string(),
 
+  /** Short description of what this plugin does */
+  description: z.string().optional(),
+
   /** Semver version */
   version: z.string(),
 
