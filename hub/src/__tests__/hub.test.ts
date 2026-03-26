@@ -96,8 +96,8 @@ describe("Hub", () => {
     const imagesBefore = new Map(deck.images);
     deck.simulateKeyDown(0); // navigate to media page
 
-    // Give async rendering a tick
-    await new Promise((r) => setTimeout(r, 50));
+    // Give async rendering time to complete (sharp can be slow on ARM)
+    await new Promise((r) => setTimeout(r, 500));
     // Images should have changed (media page rendered)
     expect(deck.images.get(0)).not.toEqual(imagesBefore.get(0));
   });

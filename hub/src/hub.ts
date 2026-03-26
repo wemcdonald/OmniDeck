@@ -126,11 +126,11 @@ export class Hub {
       caFingerprint: this.opts.tls?.caFingerprint,
       hubName: this.opts.hubName,
     });
-    await this.agentServer.start();
+    const actualAgentPort = await this.agentServer.start();
 
     // mDNS discovery
     this.discovery = new HubDiscovery({
-      port: agentPort,
+      port: actualAgentPort,
       name: this.opts.hubName,
       fingerprint: this.opts.tls?.caFingerprint,
     });
