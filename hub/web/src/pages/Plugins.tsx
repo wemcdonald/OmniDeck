@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { api } from "../lib/api.ts";
 import PluginConfigCard from "../components/PluginConfigCard.tsx";
+import { PluginInstallModal } from "../components/PluginInstallModal.tsx";
+import { Button } from "../components/ui/button.tsx";
 
 export default function Plugins() {
   const [plugins, setPlugins] = useState<Record<string, Record<string, unknown>>>({});
+  const [installOpen, setInstallOpen] = useState(false);
 
   async function load() {
     const data = await api.plugins.list().catch(() => ({}));
@@ -18,7 +22,13 @@ export default function Plugins() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Plugins</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Plugins</h2>
+        <Button onClick={() => setInstallOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Install Plugin
+        </Button>
+      </div>
       {entries.length === 0 && (
         <p className="text-muted-foreground text-sm">
           No plugins configured. Add plugins to main.yaml.
@@ -34,6 +44,14 @@ export default function Plugins() {
           />
         ))}
       </div>
+
+      <PluginInstallModal
+        open={installOpen}
+        onClose={() => {
+          setInstallOpen(false);
+          load(); // Refresh plugin list after modal closes
+        }}
+      />
     </div>
   );
 }
