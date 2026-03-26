@@ -175,6 +175,39 @@ export interface ModeHistoryEntry {
   timestamp: string;
 }
 
+// ── Plugin Install types ─────────────────────────────────────────────────
+
+export interface BrowsePlugin {
+  id: string;
+  name: string;
+  description?: string;
+  version: string;
+  platforms: string[];
+  dirName: string;
+}
+
+export interface InstallResult {
+  status: "installed" | "conflict" | "error";
+  plugin?: { id: string; name: string; version: string };
+  installed?: { version: string };
+  incoming?: { version: string };
+  errors?: string[];
+}
+
+export interface ValidateResult {
+  status: "valid" | "error";
+  manifest?: {
+    id: string;
+    name: string;
+    description?: string;
+    version: string;
+    platforms: string[];
+    hub?: string;
+    agent?: string;
+  };
+  errors?: string[];
+}
+
 export interface ActiveModeInfo {
   id: string | null;
   name: string | null;
@@ -216,6 +249,30 @@ export const api = {
       request<{ ok: boolean }>(`/api/config/plugins/${id}`, {
         method: "PUT",
         body: JSON.stringify(config),
+      }),
+    browse: () => request<{ plugins: BrowsePlugin[] }>("/api/plugins/browse"),
+    installFromGitHub: (url: string, overwrite = false) =>
+      request<InstallResult>("/api/plugins/install/github", {
+        method: "POST",
+        body: JSON.stringify({ url, overwrite }),
+      }),
+    installFromZip: async (file: File, overwrite = false) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(
+        `/api/plugins/install/zip${overwrite ? "?overwrite=true" : ""}`,
+        { method: "POST", body: formData },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ status: "error", errors: [res.statusText] }));
+        return err as InstallResult;
+      }
+      return res.json() as Promise<InstallResult>;
+    },
+    validateGitHub: (url: string) =>
+      request<ValidateResult>("/api/plugins/validate/github", {
+        method: "POST",
+        body: JSON.stringify({ url }),
       }),
   },
   raw: {
