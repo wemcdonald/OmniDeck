@@ -1,7 +1,7 @@
 import { resolve, join, basename, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { parse as parseYaml } from "yaml";
+import { parseDocument } from "yaml";
 import sharp from "sharp";
 import type { DeckManager } from "./deck/types.js";
 import type { PageConfig, ButtonConfig } from "./config/validator.js";
@@ -220,6 +220,7 @@ export class Hub {
     this.webServer = new WebServer({
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,
+      pluginsDir: this.opts.pluginsDir,
       agentServer: this.agentServer,
       pluginHost: this.pluginHost,
       broadcaster: this.broadcaster,
@@ -254,7 +255,9 @@ export class Hub {
         const pageId = basename(filePath, ext);
         if (existsSync(filePath)) {
           try {
-            const raw = parseYaml(readFileSync(filePath, "utf-8"));
+            const raw = parseDocument(readFileSync(filePath, "utf-8"), {
+              customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
+            }).toJSON();
             const page = PageConfigSchema.parse(raw);
             this.pages.set(pageId, page);
           } catch (err) {

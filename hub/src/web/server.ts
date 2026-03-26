@@ -11,6 +11,7 @@ import { createStatusRoutes } from "./routes/status.js";
 import { createHaRoutes } from "./routes/ha.js";
 import { createAuthRoutes } from "./routes/auth.js";
 import { createPairingRoutes } from "./routes/pairing.js";
+import { createPluginInstallRoutes } from "./routes/plugins.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import type { Broadcaster } from "./broadcast.js";
 import type { AgentServer } from "../server/server.js";
@@ -43,6 +44,7 @@ export interface WebServerOptions {
   tls?: { cert: Buffer; key: Buffer };
   httpsPort?: number;
   authPasswordHash?: string;
+  pluginsDir?: string;
   tlsRedirect?: boolean;
   caCertPath?: string;
   caCert?: Buffer;
@@ -126,6 +128,10 @@ export class WebServer {
 
     if (configDir) {
       this.app.route("/api/config", createConfigRoutes(configDir));
+    }
+
+    if (this.opts.pluginsDir) {
+      this.app.route("/api/plugins", createPluginInstallRoutes(this.opts.pluginsDir));
     }
 
     if (store) {
