@@ -3,6 +3,7 @@ import { Trash2, AlertTriangle, Info } from "lucide-react";
 import { Icon } from "@iconify/react";
 import ReactCodeMirror from "@uiw/react-codemirror";
 import { yaml as yamlExtension } from "@codemirror/lang-yaml";
+import { useTheme } from "../hooks/useTheme.tsx";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import { cn } from "@/lib/utils";
 import type {
@@ -78,8 +79,6 @@ function msIcon(name?: string) {
   return <span className="text-sm">{name}</span>;
 }
 
-type ActionTab = "press" | "longPress";
-
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export default function ButtonConfigEditor({
@@ -89,6 +88,7 @@ export default function ButtonConfigEditor({
   onSave,
   onClear,
 }: ButtonConfigEditorProps) {
+  const { theme } = useTheme();
   const current = button ?? { pos };
 
   // --- Resolve what's assigned ---
@@ -121,7 +121,7 @@ export default function ButtonConfigEditor({
   const [icon, setIcon] = useState(current.icon ?? "");
   const [iconColor, setIconColor] = useState(current.icon_color ?? "#ffffff");
   const [background, setBackground] = useState(current.background ?? "");
-  const [activeTab, setActiveTab] = useState<ActionTab>("press");
+  const [configTab, setConfigTab] = useState<"primary" | "appearance" | "advanced">("primary");
   const [showYaml, setShowYaml] = useState(false);
   const [yamlText, setYamlText] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
@@ -146,7 +146,7 @@ export default function ButtonConfigEditor({
     setBackground(c.background ?? "");
     setLongPressAction(c.long_press_action ?? "");
     setLongPressParams(c.long_press_params ?? {});
-    setActiveTab("press");
+    setConfigTab("primary");
     setShowYaml(false);
     setYamlText(stringifyYaml(c));
     setYamlError(null);
@@ -269,30 +269,31 @@ export default function ButtonConfigEditor({
 
       {hasContent && (
         <>
-          {/* Press / Long Press tabs */}
-          <div className="flex gap-1 border-b">
-            {(["press", "longPress"] as ActionTab[]).map((t) => (
+          {/* Primary / Appearance / Advanced tabs */}
+          <div className="flex gap-1">
+            {(["primary", "appearance", "advanced"] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => setActiveTab(t)}
+                onClick={() => setConfigTab(t)}
                 className={cn(
-                  "px-3 py-1.5 text-xs transition-colors",
-                  activeTab === t
-                    ? "border-b-2 border-primary text-foreground font-medium"
+                  "text-xs font-display font-semibold uppercase tracking-wide px-3 py-1.5 rounded transition-colors",
+                  configTab === t
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {t === "press" ? "Press" : "Long Press"}
+                {t === "primary" ? "Primary" : t === "appearance" ? "Appearance" : "Advanced"}
               </button>
             ))}
           </div>
 
-          {activeTab === "press" && (
+          {/* ── Primary Tab ── */}
+          {configTab === "primary" && (
             <div className="space-y-4">
               {/* Params section */}
               {fields.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <h4 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
                     Parameters
                   </h4>
                   {fields.map((f) => (
@@ -307,6 +308,19 @@ export default function ButtonConfigEditor({
                 </div>
               )}
 
+              {/* Save */}
+              <button
+                onClick={handleSave}
+                className="w-full rounded bg-primary text-primary-foreground py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          )}
+
+          {/* ── Appearance Tab ── */}
+          {configTab === "appearance" && (
+            <div className="space-y-4">
               {/* Template variables */}
               {templateVars.length > 0 && (
                 <div>
@@ -317,93 +331,86 @@ export default function ButtonConfigEditor({
                 </div>
               )}
 
-              {/* Appearance section */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Appearance
-                </h4>
+              {/* Background */}
+              <div>
+                <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">Background</label>
+                <input
+                  type="color"
+                  value={background || "#000000"}
+                  onChange={(e) => setBackground(e.target.value)}
+                  className="w-full h-8 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
+                />
+              </div>
 
-                {/* Background */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">Background</label>
+              {/* Icon */}
+              <div>
+                <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">
+                  Icon
+                  {providesIcon && (
+                    <span className="ml-1 text-[10px] text-blue-400 font-normal normal-case tracking-normal inline-flex items-center gap-0.5">
+                      <Info className="w-3 h-3" />
+                      Dynamic — state provider controls icon
+                    </span>
+                  )}
+                </label>
+                <div className="flex gap-1">
+                  <input
+                    className="flex-1 rounded bg-surface-container-high border border-outline-variant px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    placeholder={providesIcon ? "Leave blank for dynamic icon" : "emoji or ms:icon_name"}
+                    value={icon}
+                    onChange={(e) => setIcon(e.target.value)}
+                  />
+                  <EmojiPicker value={icon} onSelect={setIcon} />
+                  <MaterialSymbolsPicker value={icon} onSelect={setIcon} />
+                  {icon.startsWith("ms:") && (
+                    <input
+                      type="color"
+                      value={iconColor}
+                      onChange={(e) => setIconColor(e.target.value)}
+                      className="w-9 h-9 shrink-0 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
+                      title="Icon color"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Label */}
+              <div>
+                <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">Label</label>
+                <div className="flex gap-1">
+                  <input
+                    className="flex-1 rounded bg-surface-container-high border border-outline-variant px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    placeholder="Button label"
+                    value={label}
+                    onFocus={() => { lastFocusedLabel.current = "label"; }}
+                    onChange={(e) => setLabel(e.target.value)}
+                  />
                   <input
                     type="color"
-                    value={background || "#000000"}
-                    onChange={(e) => setBackground(e.target.value)}
-                    className="w-full h-8 rounded border cursor-pointer p-0.5"
+                    value={labelColor}
+                    onChange={(e) => setLabelColor(e.target.value)}
+                    className="w-9 h-9 shrink-0 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
                   />
                 </div>
+              </div>
 
-                {/* Icon */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">
-                    Icon
-                    {providesIcon && (
-                      <span className="ml-1 text-[10px] text-blue-400 font-normal inline-flex items-center gap-0.5">
-                        <Info className="w-3 h-3" />
-                        Dynamic — state provider controls icon
-                      </span>
-                    )}
-                  </label>
-                  <div className="flex gap-1">
-                    <input
-                      className="flex-1 rounded border px-2 py-1 text-sm bg-background"
-                      placeholder={providesIcon ? "Leave blank for dynamic icon" : "emoji or ms:icon_name"}
-                      value={icon}
-                      onChange={(e) => setIcon(e.target.value)}
-                    />
-                    <EmojiPicker value={icon} onSelect={setIcon} />
-                    <MaterialSymbolsPicker value={icon} onSelect={setIcon} />
-                    {icon.startsWith("ms:") && (
-                      <input
-                        type="color"
-                        value={iconColor}
-                        onChange={(e) => setIconColor(e.target.value)}
-                        className="w-9 h-9 shrink-0 rounded border cursor-pointer p-0.5"
-                        title="Icon color"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Label */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">Label</label>
-                  <div className="flex gap-1">
-                    <input
-                      className="flex-1 rounded border px-2 py-1 text-sm bg-background"
-                      placeholder="Button label"
-                      value={label}
-                      onFocus={() => { lastFocusedLabel.current = "label"; }}
-                      onChange={(e) => setLabel(e.target.value)}
-                    />
-                    <input
-                      type="color"
-                      value={labelColor}
-                      onChange={(e) => setLabelColor(e.target.value)}
-                      className="w-9 h-9 shrink-0 rounded border cursor-pointer p-0.5"
-                    />
-                  </div>
-                </div>
-
-                {/* Top Label */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1">Top Label</label>
-                  <div className="flex gap-1">
-                    <input
-                      className="flex-1 rounded border px-2 py-1 text-sm bg-background"
-                      placeholder="Secondary text"
-                      value={topLabel}
-                      onFocus={() => { lastFocusedLabel.current = "topLabel"; }}
-                      onChange={(e) => setTopLabel(e.target.value)}
-                    />
-                    <input
-                      type="color"
-                      value={topLabelColor}
-                      onChange={(e) => setTopLabelColor(e.target.value)}
-                      className="w-9 h-9 shrink-0 rounded border cursor-pointer p-0.5"
-                    />
-                  </div>
+              {/* Top Label */}
+              <div>
+                <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">Top Label</label>
+                <div className="flex gap-1">
+                  <input
+                    className="flex-1 rounded bg-surface-container-high border border-outline-variant px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    placeholder="Secondary text"
+                    value={topLabel}
+                    onFocus={() => { lastFocusedLabel.current = "topLabel"; }}
+                    onChange={(e) => setTopLabel(e.target.value)}
+                  />
+                  <input
+                    type="color"
+                    value={topLabelColor}
+                    onChange={(e) => setTopLabelColor(e.target.value)}
+                    className="w-9 h-9 shrink-0 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
+                  />
                 </div>
               </div>
 
@@ -417,51 +424,90 @@ export default function ButtonConfigEditor({
             </div>
           )}
 
-          {activeTab === "longPress" && (
-            <div className="space-y-3">
-              {!longPressAction ? (
-                <p className="text-sm text-muted-foreground">
-                  No long-press action. Drag an action from the plugin browser to assign one,
-                  or type a qualified action ID below.
-                </p>
-              ) : (
-                <div className="flex items-center gap-2">
-                  {msIcon(longPressActionInfo?.action.icon)}
-                  <span className="text-sm font-medium">
-                    {longPressActionInfo?.action.name ?? longPressAction}
-                  </span>
-                  <button
-                    onClick={() => { setLongPressAction(""); setLongPressParams({}); }}
-                    className="text-xs text-destructive hover:underline ml-auto"
-                  >
-                    Remove
-                  </button>
+          {/* ── Advanced Tab ── */}
+          {configTab === "advanced" && (
+            <div className="space-y-4">
+              {/* Long Press section */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
+                  Long Press
+                </h4>
+                {!longPressAction ? (
+                  <p className="text-sm text-muted-foreground">
+                    No long-press action. Drag an action from the plugin browser to assign one,
+                    or type a qualified action ID below.
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {msIcon(longPressActionInfo?.action.icon)}
+                    <span className="text-sm font-medium">
+                      {longPressActionInfo?.action.name ?? longPressAction}
+                    </span>
+                    <button
+                      onClick={() => { setLongPressAction(""); setLongPressParams({}); }}
+                      className="text-xs text-destructive hover:underline ml-auto"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">
+                    Long Press Action
+                  </label>
+                  <input
+                    className="w-full rounded bg-surface-container-high border border-outline-variant px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    placeholder="e.g. home-assistant.turn_on"
+                    value={longPressAction}
+                    onChange={(e) => setLongPressAction(e.target.value)}
+                  />
                 </div>
-              )}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
-                  Long Press Action
-                </label>
-                <input
-                  className="w-full rounded border px-2 py-1.5 text-sm bg-background"
-                  placeholder="e.g. home-assistant.turn_on"
-                  value={longPressAction}
-                  onChange={(e) => setLongPressAction(e.target.value)}
-                />
+                {longPressActionInfo && longPressActionInfo.action.fields.length > 0 && (
+                  <div className="space-y-3">
+                    {longPressActionInfo.action.fields.map((f) => (
+                      <ParamField
+                        key={f.key}
+                        field={f}
+                        value={longPressParams[f.key]}
+                        onChange={(v) => setLongPressParams((prev) => ({ ...prev, [f.key]: v }))}
+                        catalog={catalog}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              {longPressActionInfo && longPressActionInfo.action.fields.length > 0 && (
-                <div className="space-y-3">
-                  {longPressActionInfo.action.fields.map((f) => (
-                    <ParamField
-                      key={f.key}
-                      field={f}
-                      value={longPressParams[f.key]}
-                      onChange={(v) => setLongPressParams((prev) => ({ ...prev, [f.key]: v }))}
-                      catalog={catalog}
+
+              {/* Raw YAML */}
+              <div className="border-t pt-3">
+                <button
+                  onClick={() => { setShowYaml(!showYaml); setYamlText(stringifyYaml(current)); }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showYaml ? "Hide" : "Show"} raw YAML
+                </button>
+                {showYaml && (
+                  <div className="mt-2 space-y-2">
+                    <ReactCodeMirror
+                      value={yamlText}
+                      extensions={[yamlExtension()]}
+                      onChange={setYamlText}
+                      height="200px"
+                      theme={theme === "dark" ? "dark" : "light"}
+                      className="text-xs border border-outline-variant rounded overflow-hidden"
+                      basicSetup={{ lineNumbers: true, foldGutter: false }}
                     />
-                  ))}
-                </div>
-              )}
+                    {yamlError && <p className="text-xs text-destructive">{yamlError}</p>}
+                    <button
+                      onClick={handleYamlSave}
+                      className="w-full rounded border py-1 text-xs hover:bg-muted transition-colors"
+                    >
+                      Apply YAML
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Save */}
               <button
                 onClick={handleSave}
                 className="w-full rounded bg-primary text-primary-foreground py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors"
@@ -470,35 +516,6 @@ export default function ButtonConfigEditor({
               </button>
             </div>
           )}
-
-          {/* Advanced YAML toggle */}
-          <div className="border-t pt-2">
-            <button
-              onClick={() => { setShowYaml(!showYaml); setYamlText(stringifyYaml(current)); }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showYaml ? "Hide" : "Show"} raw YAML
-            </button>
-            {showYaml && (
-              <div className="mt-2 space-y-2">
-                <ReactCodeMirror
-                  value={yamlText}
-                  extensions={[yamlExtension()]}
-                  onChange={setYamlText}
-                  height="200px"
-                  className="text-xs border rounded overflow-hidden"
-                  basicSetup={{ lineNumbers: true, foldGutter: false }}
-                />
-                {yamlError && <p className="text-xs text-destructive">{yamlError}</p>}
-                <button
-                  onClick={handleYamlSave}
-                  className="w-full rounded border py-1 text-xs hover:bg-muted transition-colors"
-                >
-                  Apply YAML
-                </button>
-              </div>
-            )}
-          </div>
         </>
       )}
     </div>

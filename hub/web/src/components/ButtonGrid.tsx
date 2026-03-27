@@ -77,12 +77,12 @@ export default function ButtonGrid({
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, col, row)}
             className={cn(
-              "aspect-square rounded border-2 flex flex-col items-center justify-center p-1 text-xs transition-all",
+              "aspect-square rounded border-2 flex flex-col items-center justify-center p-1 text-xs transition-all min-h-[44px]",
               isSelected
-                ? "border-primary bg-primary/10"
+                ? "border-primary bg-primary/10 dark:glow-primary"
                 : btn
-                  ? "border-border bg-muted hover:border-primary/50"
-                  : "border-dashed border-border hover:border-primary/50 bg-background",
+                  ? "border-outline-variant dark:border-outline bg-surface-container hover:border-primary/60"
+                  : "border-dashed border-outline-variant dark:border-outline hover:border-primary/60 bg-background",
               isDragOver && "border-primary bg-primary/20 scale-105",
             )}
           >
@@ -109,7 +109,7 @@ export default function ButtonGrid({
                     {btn.icon && (
                       <span className="text-lg leading-none">{btn.icon}</span>
                     )}
-                    <span className="truncate w-full text-center leading-tight font-medium">
+                    <span className="truncate w-full text-center leading-tight font-medium font-mono text-[10px]">
                       {btn.label ?? btn.preset ?? key}
                     </span>
                   </>

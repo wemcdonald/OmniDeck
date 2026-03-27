@@ -11,20 +11,20 @@ export default function AgentCard({ agent }: AgentCardProps) {
   const idleSec = Math.round((agent.idle_time_ms ?? 0) / 1000);
 
   return (
-    <Card>
+    <Card className="bg-surface-container rounded border border-outline-variant dark:border-outline">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{agent.hostname}</CardTitle>
-          <Badge variant={isIdle ? "secondary" : "default"}>
+          <CardTitle className="font-mono font-semibold text-base">{agent.hostname}</CardTitle>
+          <Badge variant={isIdle ? "warning" : "success"}>
             {isIdle ? "idle" : "active"}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="text-sm text-muted-foreground space-y-1">
-        <div>{agent.platform}</div>
-        <div>idle: {idleSec}s</div>
-        {agent.active_window_app && <div>{agent.active_window_app}</div>}
-        <div>v{agent.agent_version}</div>
+        <div className="font-mono text-sm">{agent.platform}</div>
+        <div className="font-mono text-sm">idle: {idleSec}s</div>
+        {agent.active_window_app && <div className="font-mono text-sm">{agent.active_window_app}</div>}
+        <div className="font-mono text-sm">v{agent.agent_version}</div>
       </CardContent>
     </Card>
   );

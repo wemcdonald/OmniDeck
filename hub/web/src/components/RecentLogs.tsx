@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface LogLine {
   ts: string;
@@ -11,9 +11,9 @@ interface LogLine {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-  info: "text-blue-500",
-  warn: "text-yellow-500",
-  error: "text-red-500",
+  info: "text-primary",
+  warn: "text-warning",
+  error: "text-destructive",
 };
 
 export default function RecentLogs() {
@@ -34,15 +34,15 @@ export default function RecentLogs() {
   }, [lines]);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Recent Logs</CardTitle>
-          <Link to="/logs" className="text-xs text-muted-foreground hover:underline">
-            View all →
-          </Link>
-        </div>
-      </CardHeader>
+    <Card className="bg-surface-container rounded border border-outline-variant dark:border-outline">
+      <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+        <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
+          Recent Activity
+        </h3>
+        <Link to="/logs" className="text-xs text-primary hover:underline">
+          View all →
+        </Link>
+      </div>
       <CardContent>
         <div className="font-mono text-xs space-y-0.5 max-h-48 overflow-y-auto">
           {lines.length === 0 && (

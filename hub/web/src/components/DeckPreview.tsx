@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function DeckPreview() {
   const [images, setImages] = useState<Record<number, string>>({});
@@ -29,10 +29,12 @@ export default function DeckPreview() {
   const keys = Object.keys(images).map(Number).sort((a, b) => a - b);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Deck Preview</CardTitle>
-      </CardHeader>
+    <Card className="bg-surface-container rounded border border-outline-variant dark:border-outline">
+      <div className="px-6 pt-6 pb-2">
+        <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
+          Deck Preview
+        </h3>
+      </div>
       <CardContent>
         {keys.length === 0 ? (
           <p className="text-sm text-muted-foreground">No deck connected</p>
@@ -42,7 +44,7 @@ export default function DeckPreview() {
               <button
                 key={key}
                 onClick={() => { void api.deck.press(key); }}
-                className="aspect-square rounded overflow-hidden hover:ring-2 ring-primary"
+                className="aspect-square rounded overflow-hidden border border-outline-variant dark:border-outline hover:ring-2 ring-primary"
                 title={`Key ${key}`}
               >
                 <img

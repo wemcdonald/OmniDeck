@@ -111,10 +111,10 @@ export function PluginZipTab({ onClose }: PluginZipTabProps) {
     <div className="space-y-4">
       {/* Drop zone */}
       <div
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+        className={`border-2 border-dashed rounded p-8 text-center cursor-pointer transition-colors ${
           dragOver
             ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-muted-foreground/50"
+            : "border-outline-variant hover:border-muted-foreground/50"
         }`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {

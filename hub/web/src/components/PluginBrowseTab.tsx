@@ -213,7 +213,7 @@ export function PluginBrowseTab({ onClose }: PluginBrowseTabProps) {
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <input
-          className="w-full rounded border px-2 py-1.5 pl-8 text-sm bg-background"
+          className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1.5 pl-8 text-sm"
           placeholder="Search plugins..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}

@@ -18,7 +18,7 @@ function CheckResultRow({ check }: { check: CheckResult }) {
     <div
       className={cn(
         "flex items-start gap-2 rounded px-2 py-1 text-xs font-mono",
-        check.passes ? "bg-green-500/10" : "bg-red-500/10"
+        check.passes ? "bg-success/10" : "bg-destructive/10"
       )}
     >
       {check.passes ? (
@@ -52,7 +52,7 @@ function CheckResultRow({ check }: { check: CheckResult }) {
 function RuleResultCard({ rule, index }: { rule: RuleResult; index: number }) {
   return (
     <div className={cn(
-      "rounded-md border p-2 space-y-1.5",
+      "rounded border border-outline-variant p-2 space-y-1.5",
       rule.passes ? "border-green-500/30" : "border-red-500/30"
     )}>
       <div className="flex items-center gap-2 text-xs">
@@ -61,15 +61,15 @@ function RuleResultCard({ rule, index }: { rule: RuleResult; index: number }) {
         ) : (
           <XCircle className="h-3.5 w-3.5 text-red-500" />
         )}
-        <span className="text-muted-foreground">
+        <span className="font-mono text-muted-foreground">
           Rule {index + 1}
         </span>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0">
           {rule.condition === "and" ? "ALL" : "ANY"}
         </Badge>
-        <span className={cn("text-xs", rule.passes ? "text-green-500" : "text-red-500")}>
-          {rule.passes ? "match" : "no match"}
-        </span>
+        <Badge variant={rule.passes ? "success" : "error"} className="text-[10px]">
+          {rule.passes ? "Pass" : "Fail"}
+        </Badge>
       </div>
       <div className="space-y-1 pl-1">
         {rule.checks.map((check, ci) => (
@@ -87,7 +87,7 @@ function ModeEvalCard({ mode }: { mode: ModeEvalResult }) {
         <div className="flex items-center gap-2">
           <CardTitle className="text-sm">{mode.name}</CardTitle>
           {mode.active ? (
-            <Badge variant="default" className="bg-green-600 text-white text-[10px]">
+            <Badge variant="success" className="text-[10px]">
               Active
             </Badge>
           ) : (
@@ -95,7 +95,7 @@ function ModeEvalCard({ mode }: { mode: ModeEvalResult }) {
               Inactive
             </Badge>
           )}
-          <span className="text-[10px] text-muted-foreground ml-auto">
+          <span className="text-[10px] font-mono text-muted-foreground ml-auto">
             priority {mode.priority}
           </span>
         </div>
@@ -170,7 +170,7 @@ export default function ModeLivePreview({ modeId }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-muted-foreground">Live Evaluation</h3>
+        <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Live Evaluation</h3>
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={refresh}>
           <RefreshCw className="h-3 w-3 mr-1" /> Refresh
         </Button>

@@ -119,9 +119,9 @@ export function PluginGitHubTab({ onClose }: PluginGitHubTabProps) {
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <label className="text-sm font-medium">GitHub URL</label>
+        <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">GitHub URL</label>
         <input
-          className="w-full rounded border px-2 py-1.5 text-sm bg-background"
+          className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1.5 text-sm"
           placeholder="https://github.com/user/repo/tree/main/my-plugin"
           value={url}
           onChange={(e) => setUrl(e.target.value)}

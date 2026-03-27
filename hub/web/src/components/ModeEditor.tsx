@@ -170,7 +170,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
         <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 w-8 p-0">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-2xl font-bold">{isNew ? "New Mode" : `Edit: ${name}`}</h2>
+        <h2 className="text-2xl font-display font-bold">{isNew ? "New Mode" : `Edit: ${name}`}</h2>
       </div>
 
       {error && (
@@ -182,14 +182,14 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
       {/* Basic info */}
       <Card size="sm">
         <CardHeader>
-          <CardTitle>Basic Info</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Basic Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {isNew && (
             <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-              <label className="text-sm text-muted-foreground">ID</label>
+              <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">ID</label>
               <input
-                className="rounded-md border bg-background px-3 py-1.5 text-sm"
+                className="rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm"
                 placeholder="gaming"
                 value={modeId}
                 onChange={(e) => setModeId(e.target.value.replace(/[^a-z0-9_-]/g, ""))}
@@ -197,28 +197,28 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
             </div>
           )}
           <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-            <label className="text-sm text-muted-foreground">Name</label>
+            <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Name</label>
             <input
-              className="rounded-md border bg-background px-3 py-1.5 text-sm"
+              className="rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm"
               placeholder="Gaming"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-            <label className="text-sm text-muted-foreground">Icon</label>
+            <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Icon</label>
             <input
-              className="rounded-md border bg-background px-3 py-1.5 text-sm"
+              className="rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm"
               placeholder="ms:sports_esports"
               value={icon}
               onChange={(e) => setIcon(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-            <label className="text-sm text-muted-foreground">Priority</label>
+            <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Priority</label>
             <input
               type="number"
-              className="rounded-md border bg-background px-3 py-1.5 text-sm w-24"
+              className="rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm font-mono w-24"
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value) || 50)}
             />
@@ -230,17 +230,17 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
       {/* Rules */}
       <Card size="sm">
         <CardHeader>
-          <CardTitle>Rules</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Rules</CardTitle>
           <p className="text-xs text-muted-foreground">Any rule matching activates this mode (top-level OR).</p>
         </CardHeader>
         <CardContent className="space-y-4">
           {rules.map((rule, ruleIdx) => (
-            <div key={ruleIdx} className="rounded-md border p-3 space-y-3">
+            <div key={ruleIdx} className="rounded bg-surface-container border border-outline-variant p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Rule {ruleIdx + 1}:</span>
                   <select
-                    className="rounded border bg-background px-2 py-1 text-xs"
+                    className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs"
                     value={rule.condition}
                     onChange={(e) => updateRule(ruleIdx, { condition: e.target.value as "and" | "or" })}
                   >
@@ -270,19 +270,19 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
                     NOT
                   </label>
                   <input
-                    className="rounded border bg-background px-2 py-1 text-xs w-48"
+                    className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs w-48"
                     placeholder="provider (e.g. os-control.active_window)"
                     value={check.provider}
                     onChange={(e) => updateCheck(ruleIdx, checkIdx, { provider: e.target.value })}
                   />
                   <input
-                    className="rounded border bg-background px-2 py-1 text-xs w-28"
+                    className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs w-28"
                     placeholder="attribute"
                     value={check.attribute}
                     onChange={(e) => updateCheck(ruleIdx, checkIdx, { attribute: e.target.value })}
                   />
                   <select
-                    className="rounded border bg-background px-2 py-1 text-xs"
+                    className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs"
                     value={getComparator(check)}
                     onChange={(e) =>
                       setCheckComparator(ruleIdx, checkIdx, e.target.value as ComparatorKey, getComparatorValue(check))
@@ -293,7 +293,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
                     ))}
                   </select>
                   <input
-                    className="rounded border bg-background px-2 py-1 text-xs w-40"
+                    className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs w-40"
                     placeholder={getComparator(check) === "in" || getComparator(check) === "not_in" ? "val1, val2, val3" : "value"}
                     value={getComparatorValue(check)}
                     onChange={(e) =>
@@ -312,13 +312,13 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
               ))}
 
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => addCheck(ruleIdx)}>
-                <Plus className="h-3 w-3 mr-1" /> Add check
+                <Plus className="h-3 w-3 mr-1" /> Add Check
               </Button>
             </div>
           ))}
 
           <Button variant="outline" size="sm" onClick={() => setRules((prev) => [...prev, emptyRule()])}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add rule
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Rule
           </Button>
         </CardContent>
       </Card>
@@ -326,14 +326,14 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
       {/* On Enter Actions */}
       <Card size="sm">
         <CardHeader>
-          <CardTitle>On Enter</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">On Enter</CardTitle>
           <p className="text-xs text-muted-foreground">Actions to run when this mode activates.</p>
         </CardHeader>
         <CardContent className="space-y-2">
           {onEnter.map((action, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <select
-                className="rounded border bg-background px-2 py-1 text-xs"
+                className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs"
                 value={action.switch_page ? "switch_page" : "trigger_action"}
                 onChange={(e) => {
                   const type = e.target.value;
@@ -352,7 +352,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
                 <option value="trigger_action">Trigger action</option>
               </select>
               <input
-                className="rounded border bg-background px-2 py-1 text-xs flex-1"
+                className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs flex-1"
                 placeholder={action.switch_page !== undefined ? "page ID" : "plugin.action"}
                 value={action.switch_page ?? action.trigger_action ?? ""}
                 onChange={(e) =>
@@ -383,7 +383,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
             className="text-xs"
             onClick={() => setOnEnter((prev) => [...prev, { switch_page: "" }])}
           >
-            <Plus className="h-3 w-3 mr-1" /> Add action
+            <Plus className="h-3 w-3 mr-1" /> Add Action
           </Button>
         </CardContent>
       </Card>
@@ -391,14 +391,14 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
       {/* On Exit Actions */}
       <Card size="sm">
         <CardHeader>
-          <CardTitle>On Exit</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">On Exit</CardTitle>
           <p className="text-xs text-muted-foreground">Actions to run when this mode deactivates.</p>
         </CardHeader>
         <CardContent className="space-y-2">
           {onExit.map((action, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <select
-                className="rounded border bg-background px-2 py-1 text-xs"
+                className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs"
                 value={action.switch_page ? "switch_page" : "trigger_action"}
                 onChange={(e) => {
                   const type = e.target.value;
@@ -417,7 +417,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
                 <option value="trigger_action">Trigger action</option>
               </select>
               <input
-                className="rounded border bg-background px-2 py-1 text-xs flex-1"
+                className="rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-xs flex-1"
                 placeholder={action.switch_page !== undefined ? "page ID" : "plugin.action"}
                 value={action.switch_page ?? action.trigger_action ?? ""}
                 onChange={(e) =>
@@ -448,7 +448,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
             className="text-xs"
             onClick={() => setOnExit((prev) => [...prev, { switch_page: "" }])}
           >
-            <Plus className="h-3 w-3 mr-1" /> Add action
+            <Plus className="h-3 w-3 mr-1" /> Add Action
           </Button>
         </CardContent>
       </Card>
@@ -470,7 +470,7 @@ export default function ModeEditor({ id: initialId, config, onSave, onCancel, on
         </div>
         {onDelete && (
           <Button variant="destructive" size="sm" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete mode
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
           </Button>
         )}
       </div>

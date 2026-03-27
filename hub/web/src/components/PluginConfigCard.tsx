@@ -37,11 +37,11 @@ export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCa
   }
 
   return (
-    <Card>
+    <Card className="bg-surface-container rounded border border-outline-variant">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{id}</CardTitle>
-          <Badge>configured</Badge>
+          <CardTitle className="text-base font-semibold">{id}</CardTitle>
+          <Badge variant="success">configured</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -51,7 +51,7 @@ export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCa
           <>
             {Object.entries(draft).map(([key, value]) => (
               <div key={key}>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">
                   {key}
                 </label>
                 {typeof value === "boolean" ? (
@@ -59,19 +59,19 @@ export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCa
                     type="checkbox"
                     checked={value}
                     onChange={(e) => setField(key, e.target.checked)}
-                    className="h-4 w-4 rounded border"
+                    className="h-4 w-4 rounded bg-surface-container-high border border-outline-variant"
                   />
                 ) : typeof value === "number" ? (
                   <input
                     type="number"
-                    className="w-full rounded border px-2 py-1 text-sm bg-background"
+                    className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
                     value={value}
                     onChange={(e) => setField(key, parseFloat(e.target.value))}
                   />
                 ) : (
                   <input
                     type={isSecretKey(key) ? "password" : "text"}
-                    className="w-full rounded border px-2 py-1 text-sm bg-background"
+                    className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
                     value={String(value ?? "")}
                     onChange={(e) => setField(key, e.target.value)}
                   />
@@ -99,7 +99,7 @@ export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCa
         )}
 
         {showYaml && (
-          <pre className="text-xs bg-muted rounded p-2 overflow-x-auto">
+          <pre className="text-xs font-mono bg-surface-container rounded border border-outline-variant p-2 overflow-x-auto">
             {JSON.stringify(draft, null, 2)}
           </pre>
         )}
