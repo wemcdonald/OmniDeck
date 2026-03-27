@@ -69,6 +69,16 @@ jobs:
           projectPath: agent-app
           tagName: agent-v__VERSION__
           releaseName: "OmniDeck Agent v__VERSION__"
-          releaseBody: "See the assets below to download the installer for your platform."
+          releaseBody: |
+            ## Downloads
+
+            | Platform | File |
+            |----------|------|
+            | **macOS** (Apple Silicon) | `OmniDeck.Agent_*_aarch64.dmg` |
+            | **Windows** | `OmniDeck.Agent_*_x64-setup.exe` |
+            | **Linux** (Debian/Ubuntu) | `OmniDeck.Agent_*_amd64.deb` |
+            | **Linux** (AppImage) | `OmniDeck.Agent_*_amd64.AppImage` |
+
+            Download the file for your platform from the assets below.
           releaseDraft: true
           prerelease: false

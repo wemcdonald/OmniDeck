@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Copy, Check, Download, Apple, Monitor } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Copy, Check, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,24 +58,7 @@ export default function Security() {
     loadAgents();
   };
 
-  const detectedPlatform = useMemo(() => {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("mac")) return "macOS";
-    if (ua.includes("win")) return "Windows";
-    if (ua.includes("linux")) return "Linux";
-    return null;
-  }, []);
-
-  const releaseBaseUrl = "https://github.com/wemcdonald/OmniDeck/releases/latest/download";
-  const downloads = [
-    { platform: "macOS", label: "macOS (Apple Silicon)", file: "OmniDeck.Agent_0.2.0_aarch64.dmg", icon: Apple },
-    { platform: "Windows", label: "Windows", file: "OmniDeck.Agent_0.2.0_x64-setup.exe", icon: Monitor },
-    { platform: "Linux", label: "Linux (.deb)", file: "OmniDeck.Agent_0.2.0_amd64.deb", icon: Monitor },
-    { platform: "Linux", label: "Linux (.AppImage)", file: "OmniDeck.Agent_0.2.0_amd64.AppImage", icon: Monitor },
-  ];
-
-  const primaryDownload = downloads.find((d) => d.platform === detectedPlatform) ?? downloads[0];
-  const otherDownloads = downloads.filter((d) => d !== primaryDownload);
+  const releasesUrl = "https://github.com/wemcdonald/OmniDeck/releases/latest";
 
   return (
     <div className="space-y-6">
@@ -92,35 +75,16 @@ export default function Security() {
             The agent runs in the system tray and connects to this hub.
           </p>
           <div className="flex flex-wrap gap-3">
-            <a href={`${releaseBaseUrl}/${primaryDownload.file}`}>
+            <a href={releasesUrl} target="_blank" rel="noopener noreferrer">
               <Button>
                 <Download className="h-4 w-4 mr-2" />
-                Download for {primaryDownload.label}
+                Download Agent
               </Button>
             </a>
           </div>
-          <details className="text-sm">
-            <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
-              Other platforms
-            </summary>
-            <div className="mt-2 flex flex-col gap-2">
-              {otherDownloads.map((d) => (
-                <a
-                  key={d.file}
-                  href={`${releaseBaseUrl}/${d.file}`}
-                  className="text-sm text-blue-500 hover:underline"
-                >
-                  {d.label}
-                </a>
-              ))}
-              <a
-                href="https://github.com/wemcdonald/OmniDeck/releases/latest"
-                className="text-sm text-blue-500 hover:underline"
-              >
-                All releases on GitHub
-              </a>
-            </div>
-          </details>
+          <p className="text-xs text-muted-foreground">
+            Available for macOS, Windows, and Linux. Opens the latest release on GitHub.
+          </p>
         </CardContent>
       </Card>
 
