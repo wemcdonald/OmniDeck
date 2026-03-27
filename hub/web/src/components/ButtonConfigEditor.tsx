@@ -17,6 +17,7 @@ import type {
   TemplateVariable,
 } from "../lib/api";
 import ParamField from "./ParamField";
+import AgentPicker from "./AgentPicker";
 import TemplateVariableChips from "./TemplateVariableChips";
 import EmojiPicker from "./EmojiPicker";
 import MaterialSymbolsPicker from "./MaterialSymbolsPicker";
@@ -126,6 +127,8 @@ export default function ButtonConfigEditor({
   const [yamlText, setYamlText] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
 
+  const [target, setTarget] = useState<string | undefined>(current.target);
+
   // Long-press state
   const [longPressAction, setLongPressAction] = useState(current.long_press_action ?? "");
   const [longPressParams, setLongPressParams] = useState<Record<string, unknown>>(current.long_press_params ?? {});
@@ -144,6 +147,7 @@ export default function ButtonConfigEditor({
     setIcon(c.icon ?? "");
     setIconColor(c.icon_color ?? "#ffffff");
     setBackground(c.background ?? "");
+    setTarget(c.target);
     setLongPressAction(c.long_press_action ?? "");
     setLongPressParams(c.long_press_params ?? {});
     setConfigTab("primary");
@@ -185,6 +189,8 @@ export default function ButtonConfigEditor({
     if (topLabel) { updated.top_label = topLabel; updated.top_label_color = topLabelColor; }
     if (icon) { updated.icon = icon; updated.icon_color = iconColor; }
     if (background) updated.background = background;
+
+    if (target) updated.target = target;
 
     // Long press
     if (longPressAction) {
@@ -269,6 +275,21 @@ export default function ButtonConfigEditor({
 
       {hasContent && (
         <>
+          {/* Target device selector — above tabs */}
+          {(actionId || current.preset) && (
+            <div className="space-y-1">
+              <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
+                Target Device
+              </label>
+              <AgentPicker value={target} onChange={setTarget} />
+              {!target && (
+                <p className="text-[11px] text-muted-foreground">
+                  Follows the currently focused device
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Primary / Appearance / Advanced tabs */}
           <div className="flex gap-1">
             {(["primary", "appearance", "advanced"] as const).map((t) => (
@@ -296,7 +317,7 @@ export default function ButtonConfigEditor({
                   <h4 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
                     Parameters
                   </h4>
-                  {fields.map((f) => (
+                  {fields.filter(f => f.key !== "target").map((f) => (
                     <ParamField
                       key={f.key}
                       field={f}

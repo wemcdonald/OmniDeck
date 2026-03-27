@@ -448,8 +448,15 @@ export class Hub {
       return;
     }
 
-    log.info({ pos: button.pos, action: resolved.action, params: resolved.actionParams }, `[${button.pos}] pressed → ${resolved.action}`);
-    await this.pluginHost.executeAction(resolved.action, resolved.actionParams);
+    // Inject button-level target into action params (only if not already set explicitly)
+    const actionParams = resolved.target && !(resolved.actionParams as Record<string, unknown>).target
+      ? { ...resolved.actionParams, target: resolved.target }
+      : resolved.actionParams;
+
+    log.info({ pos: button.pos, action: resolved.action, params: actionParams, target: resolved.target }, `[${button.pos}] pressed → ${resolved.action}`);
+    await this.pluginHost.executeAction(resolved.action, actionParams, {
+      targetAgent: resolved.target,
+    });
   }
 
   private findButtonByKeyIndex(
@@ -562,6 +569,7 @@ export class Hub {
     actionParams: Record<string, unknown>;
     stateProvider: string | undefined;
     stateParams: Record<string, unknown>;
+    target: string | undefined;
     icon: string | undefined;
     label: string | undefined;
     topLabel: string | undefined;
@@ -608,7 +616,7 @@ export class Hub {
       }
     }
 
-    return { action, actionParams: userParams, stateProvider, stateParams, icon, label, topLabel, background };
+    return { action, actionParams: userParams, stateProvider, stateParams, target: button.target, icon, label, topLabel, background };
   }
 
   /**
@@ -678,9 +686,14 @@ export class Hub {
     let templateVars: Record<string, string> = {};
 
     if (resolved.stateProvider) {
+      // Inject button-level target into state params (only if not already set explicitly)
+      const stateParams = resolved.target && !(resolved.stateParams as Record<string, unknown>).target
+        ? { ...resolved.stateParams, target: resolved.target }
+        : resolved.stateParams;
+
       const providerResult = this.pluginHost.resolveState(
         resolved.stateProvider,
-        resolved.stateParams,
+        stateParams,
       );
       if (providerResult) {
         // New format: { state, variables }

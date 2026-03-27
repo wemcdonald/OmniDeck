@@ -3,6 +3,7 @@ import EntityPicker from "./EntityPicker";
 import EmojiPicker from "./EmojiPicker";
 import MaterialSymbolsPicker from "./MaterialSymbolsPicker";
 import ActionListEditor from "./ActionListEditor";
+import AgentPicker from "./AgentPicker";
 import ConditionEditor from "./ConditionEditor";
 
 interface ParamFieldProps {
@@ -145,12 +146,7 @@ export default function ParamField({ field: f, value, onChange, catalog, depth }
 
       {/* Agent picker */}
       {f.fieldType === "agent" && (
-        <input
-          className="w-full rounded border px-2 py-1.5 text-sm bg-background"
-          value={strVal}
-          placeholder="Device/agent name"
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <AgentPicker value={strVal || undefined} onChange={(v) => onChange(v ?? "")} />
       )}
     </div>
   );
