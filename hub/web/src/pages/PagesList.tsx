@@ -22,10 +22,10 @@ export default function PagesList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Pages</h2>
+        <h2 className="text-2xl font-bold font-display">Pages</h2>
         <Button size="sm" onClick={handleAddPage}>
           <Plus className="w-4 h-4 mr-1" />
-          New Page
+          + New Page
         </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -36,7 +36,7 @@ export default function PagesList() {
                 <CardTitle className="text-base">{page.name ?? page.page}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground font-mono">
                   {page.buttons.length} button{page.buttons.length !== 1 ? "s" : ""}
                 </p>
               </CardContent>

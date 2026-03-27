@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { api, type PageConfig, type ButtonConfig } from "../lib/api";
 import { usePluginCatalog } from "../hooks/usePluginCatalog";
 import ButtonGrid from "../components/ButtonGrid";
 import ButtonConfigEditor from "../components/ButtonConfigEditor";
 import PluginBrowser, { type BrowserDropData } from "../components/PluginBrowser";
+import { cn } from "@/lib/utils";
+
+const BROWSER_KEY = "omnideck-editor-browser";
 
 export default function PageEditor() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +16,17 @@ export default function PageEditor() {
   const [selectedPos, setSelectedPos] = useState<[number, number] | null>(null);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const { catalog, loading: catalogLoading } = usePluginCatalog();
+  const [browserOpen, setBrowserOpen] = useState(() => {
+    const stored = localStorage.getItem(BROWSER_KEY);
+    if (stored !== null) return stored !== "false";
+    return window.innerWidth >= 768;
+  });
+
+  function toggleBrowser() {
+    const next = !browserOpen;
+    setBrowserOpen(next);
+    localStorage.setItem(BROWSER_KEY, String(next));
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -24,7 +39,6 @@ export default function PageEditor() {
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Ignore if user is typing in an input/textarea/select
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
@@ -78,7 +92,6 @@ export default function PageEditor() {
     saveButtons(newButtons);
   }
 
-  /** Handle drop from PluginBrowser onto a grid cell. */
   function handleDrop(pos: [number, number], data: BrowserDropData) {
     setSelectedPos(pos);
     const btn: ButtonConfig = { pos };
@@ -90,7 +103,6 @@ export default function PageEditor() {
     updateButton(btn);
   }
 
-  /** Handle click-to-assign from PluginBrowser (touch-friendly). */
   function handleBrowserItemClick(data: BrowserDropData) {
     if (!selectedPos) return;
     handleDrop(selectedPos, data);
@@ -102,18 +114,50 @@ export default function PageEditor() {
   const rows = 3;
 
   return (
-    <div
-      className="h-full grid"
-      style={{
-        gridTemplateColumns: "minmax(0, 1fr) 280px",
-        gridTemplateRows: selectedPos ? "minmax(0, 1fr) auto" : "1fr",
-      }}
-    >
-      {/* Top-left: Deck grid */}
-      <div className="p-4 flex flex-col gap-3 overflow-hidden min-h-0">
+    <div className="h-full flex flex-col lg:flex-row overflow-hidden -m-4 md:-m-6">
+      {/* Left panel: Plugin browser (collapsible) */}
+      <div
+        className={cn(
+          "border-b lg:border-b-0 lg:border-r transition-all duration-200 shrink-0 flex flex-col",
+          browserOpen ? "w-full lg:w-64" : "w-full lg:w-10"
+        )}
+      >
+        <div className="flex items-center justify-between px-3 py-2 border-b shrink-0">
+          {browserOpen && (
+            <h3 className="text-xs font-semibold font-display text-muted-foreground uppercase tracking-wide">
+              Plugins
+            </h3>
+          )}
+          <button
+            onClick={toggleBrowser}
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-surface-container-high transition-colors"
+            title={browserOpen ? "Collapse plugin browser" : "Expand plugin browser"}
+          >
+            {browserOpen ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+        {browserOpen && (
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0 max-h-48 lg:max-h-none">
+            {catalogLoading || !catalog ? (
+              <p className="text-xs text-muted-foreground p-3">Loading catalog...</p>
+            ) : (
+              <PluginBrowser catalog={catalog} onItemClick={handleBrowserItemClick} />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Center panel: Deck grid */}
+      <div className="flex-1 p-4 flex flex-col gap-3 overflow-auto min-w-0">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">{page.name ?? page.page}</h2>
-          <span className="text-xs text-muted-foreground">{page.buttons.length} buttons</span>
+          <h2 className="font-semibold font-display">{page.name ?? page.page}</h2>
+          <span className="text-xs text-muted-foreground font-mono">
+            {page.buttons.length} / {columns * rows}
+          </span>
         </div>
         <div className="flex-1 flex items-start min-h-0">
           <div className="w-full max-w-lg">
@@ -130,26 +174,9 @@ export default function PageEditor() {
         </div>
       </div>
 
-      {/* Top-right: Plugin browser */}
-      <div className="border-l overflow-hidden flex flex-col min-h-0">
-        <div className="px-3 py-2 border-b shrink-0">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Plugins
-          </h3>
-        </div>
-        {catalogLoading || !catalog ? (
-          <p className="text-xs text-muted-foreground p-3">Loading catalog...</p>
-        ) : (
-          <PluginBrowser catalog={catalog} onItemClick={handleBrowserItemClick} />
-        )}
-      </div>
-
-      {/* Bottom: Config editor (spans both columns) */}
+      {/* Right panel: Config editor */}
       {selectedPos && catalog && (
-        <div
-          className="col-span-2 border-t overflow-y-auto transition-all duration-200"
-          style={{ maxHeight: "50vh", minHeight: "300px" }}
-        >
+        <div className="border-t lg:border-t-0 lg:border-l w-full lg:w-80 overflow-y-auto shrink-0 max-h-[50vh] lg:max-h-none">
           <div className="p-4">
             <ButtonConfigEditor
               pos={selectedPos}

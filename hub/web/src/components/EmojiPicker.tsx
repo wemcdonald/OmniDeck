@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import EmojiPickerReact, { type EmojiClickData, Theme } from "emoji-picker-react";
+import { useTheme } from "../hooks/useTheme.tsx";
 
 interface Props {
   value?: string;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function EmojiPicker({ value, onSelect }: Props) {
+  const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -49,7 +51,7 @@ export default function EmojiPicker({ value, onSelect }: Props) {
           style={{ position: "fixed", top: pos.top, left: pos.left, transform: "translateX(-100%)", zIndex: 9999 }}
         >
           <EmojiPickerReact
-            theme={Theme.LIGHT}
+            theme={theme === "dark" ? Theme.DARK : Theme.LIGHT}
             onEmojiClick={(data: EmojiClickData) => {
               onSelect(data.emoji);
               setOpen(false);

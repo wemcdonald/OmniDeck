@@ -79,12 +79,12 @@ export default function Security() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Security</h1>
+      <h1 className="text-2xl font-bold font-display">Security</h1>
 
       {/* Install Agent */}
       <Card>
         <CardHeader>
-          <CardTitle>Install Agent</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Install Agent</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -127,7 +127,7 @@ export default function Security() {
       {/* Agent Pairing */}
       <Card>
         <CardHeader>
-          <CardTitle>Agent Pairing</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Agent Pairing</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {pairingCode ? (
@@ -156,7 +156,7 @@ export default function Security() {
               </div>
             </div>
           ) : (
-            <Button onClick={generateCode}>Pair New Agent</Button>
+            <Button onClick={generateCode}>Generate Code</Button>
           )}
         </CardContent>
       </Card>
@@ -164,7 +164,7 @@ export default function Security() {
       {/* Paired Agents */}
       <Card>
         <CardHeader>
-          <CardTitle>Paired Agents</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Paired Agents</CardTitle>
         </CardHeader>
         <CardContent>
           {agents.length === 0 ? (
@@ -206,7 +206,7 @@ export default function Security() {
       {/* HTTPS Setup */}
       <Card>
         <CardHeader>
-          <CardTitle>HTTPS Setup</CardTitle>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">HTTPS Setup</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">

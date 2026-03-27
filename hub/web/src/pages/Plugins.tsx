@@ -23,7 +23,7 @@ export default function Plugins() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Plugins</h2>
+        <h2 className="text-2xl font-bold font-display">Plugins</h2>
         <Button onClick={() => setInstallOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
           Install Plugin
@@ -34,7 +34,7 @@ export default function Plugins() {
           No plugins configured. Add plugins to main.yaml.
         </p>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {entries.map(([id, config]) => (
           <PluginConfigCard
             key={id}

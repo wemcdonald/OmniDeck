@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 interface LogLine {
@@ -13,11 +14,11 @@ interface LogLine {
 
 const MAX_LINES = 2000;
 
-const LEVEL_COLORS: Record<string, string> = {
-  info: "text-blue-400",
-  warn: "text-yellow-400",
-  error: "text-red-400",
-  debug: "text-gray-400",
+const LEVEL_VARIANT: Record<string, "success" | "warning" | "error" | "secondary"> = {
+  info: "success",
+  warn: "warning",
+  error: "error",
+  debug: "secondary",
 };
 
 export default function Logs() {
@@ -81,9 +82,9 @@ export default function Logs() {
   return (
     <div className="flex flex-col h-full space-y-3">
       <div className="flex items-center gap-3 flex-wrap">
-        <h2 className="text-2xl font-bold">Logs</h2>
+        <h2 className="text-2xl font-bold font-display">Logs</h2>
         <select
-          className="text-sm rounded border px-2 py-1 bg-background"
+          className="text-xs font-display rounded border px-2 py-1 bg-background"
           value={levelFilter}
           onChange={(e) => setLevelFilter(e.target.value)}
         >
@@ -94,7 +95,7 @@ export default function Logs() {
           <option value="debug">Debug</option>
         </select>
         <select
-          className="text-sm rounded border px-2 py-1 bg-background"
+          className="text-xs font-display rounded border px-2 py-1 bg-background"
           value={nameFilter}
           onChange={(e) => setNameFilter(e.target.value)}
         >
@@ -125,9 +126,9 @@ export default function Logs() {
             <span className="text-muted-foreground shrink-0 tabular-nums">
               {new Date(line.ts).toLocaleTimeString()}
             </span>
-            <span className={`shrink-0 w-10 font-semibold ${LEVEL_COLORS[line.level] ?? ""}`}>
+            <Badge variant={LEVEL_VARIANT[line.level] ?? "secondary"} className="shrink-0 w-10 justify-center font-mono">
               {line.level.toUpperCase().slice(0, 4)}
-            </span>
+            </Badge>
             <span className="text-muted-foreground shrink-0 w-20 truncate">[{line.name}]</span>
             <span>{line.msg}</span>
           </div>

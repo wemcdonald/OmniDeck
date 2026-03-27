@@ -106,7 +106,7 @@ export default function Modes() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Modes</h2>
+          <h2 className="text-2xl font-bold font-display">Modes</h2>
           <p className="text-muted-foreground text-sm mt-1">
             Inferred contexts that drive page switching, HA automations, and button behavior.
           </p>
@@ -150,7 +150,7 @@ export default function Modes() {
                   )}
                   <CardTitle>{mode.name}</CardTitle>
                   {isActive && (
-                    <Badge variant="default" className="bg-green-600 text-white text-xs">
+                    <Badge variant="success">
                       Active
                     </Badge>
                   )}
@@ -186,7 +186,7 @@ export default function Modes() {
                   </div>
                 </CardAction>
                 <CardDescription>
-                  Priority {mode.priority ?? 50} · {mode.rules.length} rule{mode.rules.length !== 1 ? "s" : ""}
+                  Priority <span className="font-mono">{mode.priority ?? 50}</span> · {mode.rules.length} rule{mode.rules.length !== 1 ? "s" : ""}
                   {mode.on_enter?.length ? ` · ${mode.on_enter.length} on-enter action${mode.on_enter.length !== 1 ? "s" : ""}` : ""}
                 </CardDescription>
               </CardHeader>
@@ -199,7 +199,7 @@ export default function Modes() {
       {sortedModes.length > 0 && (
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm">Manual Override</CardTitle>
+            <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Manual Override</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -226,7 +226,7 @@ export default function Modes() {
                 ))}
               </select>
               {override && (
-                <Badge variant="outline" className="text-xs text-amber-500 border-amber-500/30">
+                <Badge variant="warning">
                   Override active
                 </Badge>
               )}
@@ -246,7 +246,7 @@ export default function Modes() {
       {history.length > 0 && (
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm">Recent Transitions</CardTitle>
+            <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Recent Transitions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1 max-h-48 overflow-y-auto">

@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@elgato-stream-deck/node": "^7.6.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/space-grotesk": "^5.2.10",
     "@hono/node-server": "^1.19.11",
     "@iconify-json/material-symbols": "^1.2.63",
     "@iconify/utils": "^3.1.0",
