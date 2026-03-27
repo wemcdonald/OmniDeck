@@ -5,7 +5,7 @@ import AgentCard from "../components/AgentCard.tsx";
 import DeckPreview from "../components/DeckPreview.tsx";
 import PluginHealthList from "../components/PluginHealthList.tsx";
 import RecentLogs from "../components/RecentLogs.tsx";
-import { EmptyState } from "@/components/ui/empty-state";
+import { SensorReadout } from "@/components/ui/sensor-readout";
 
 interface PluginStatus {
   id: string;
@@ -17,15 +17,21 @@ interface PluginStatus {
 export default function Dashboard() {
   const [agents, setAgents] = useState<AgentState[]>([]);
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
+  const [telemetry, setTelemetry] = useState<{ rss_mb: number; heap_used_mb: number; ws_connections: number; agent_connections: number; uptime_seconds: number } | null>(null);
+  const [systemStats, setSystemStats] = useState<{ cpu_percent: number; ram_used_mb: number; ram_total_mb: number; ram_percent: number; device_ip: string; uptime: string } | null>(null);
   const { subscribe } = useWebSocket();
 
   async function load() {
-    const [a, p] = await Promise.all([
+    const [a, p, t, s] = await Promise.all([
       api.status.agents().catch(() => [] as AgentState[]),
       api.status.plugins().catch(() => [] as PluginStatus[]),
+      api.status.telemetry().catch(() => null),
+      api.status.system().catch(() => null),
     ]);
     setAgents(a);
     setPlugins(p);
+    setTelemetry(t);
+    setSystemStats(s);
   }
 
   useEffect(() => {
@@ -41,6 +47,17 @@ export default function Dashboard() {
       unsubPlugins();
     };
   }, [subscribe]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const [t, s] = await Promise.all([api.status.telemetry(), api.status.system()]);
+        setTelemetry(t);
+        setSystemStats(s);
+      } catch { /* ignore polling errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -85,13 +102,42 @@ export default function Dashboard() {
 
       {/* System Telemetry */}
       <section className="space-y-3">
-        <h3 className="text-sm font-display uppercase tracking-widest text-muted-foreground">
+        <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
           System Telemetry
         </h3>
-        <EmptyState
-          title="Telemetry"
-          description="System metrics available in a future update"
-        />
+        {systemStats === null ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <SensorReadout
+              value={systemStats.cpu_percent}
+              unit="%"
+              label="CPU"
+            />
+            <SensorReadout
+              value={systemStats.ram_used_mb}
+              unit={`/ ${systemStats.ram_total_mb} MB`}
+              label="RAM"
+            />
+            <SensorReadout
+              value={telemetry?.rss_mb ?? "—"}
+              unit="MB"
+              label="Process RSS"
+            />
+            <SensorReadout
+              value={telemetry?.ws_connections ?? 0}
+              label="WS Clients"
+            />
+            <SensorReadout
+              value={systemStats.device_ip}
+              label="Device IP"
+            />
+            <SensorReadout
+              value={systemStats.uptime}
+              label="Uptime"
+            />
+          </div>
+        )}
       </section>
 
       {/* Recent logs */}

@@ -312,6 +312,26 @@ export const api = {
     debugModes: () => request<ModeEvalResult[]>("/api/status/modes/debug"),
     modeHistory: () => request<ModeHistoryEntry[]>("/api/status/modes/history"),
     modeOverride: () => request<{ override: string | null }>("/api/status/modes/override"),
+    telemetry: () =>
+      request<{
+        rss_mb: number;
+        heap_used_mb: number;
+        heap_total_mb: number;
+        ws_connections: number;
+        agent_connections: number;
+        uptime_seconds: number;
+      }>("/api/status/telemetry"),
+    system: () =>
+      request<{
+        cpu_percent: number;
+        cpu_count: number;
+        ram_total_mb: number;
+        ram_used_mb: number;
+        ram_percent: number;
+        device_ip: string;
+        uptime: string;
+        uptime_seconds: number;
+      }>("/api/status/system"),
   },
   deck: {
     press: (key: number) =>

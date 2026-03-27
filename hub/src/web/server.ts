@@ -160,6 +160,8 @@ export class WebServer {
         }) : undefined,
         debugModes: this.opts.debugModes,
         getModeHistory: this.opts.getModeHistory,
+        getWsConnectionCount: () => broadcaster?.size ?? 0,
+        getAgentCount: () => agentServer?.getConnectedAgents()?.length ?? 0,
         getModeOverride: this.opts.getModeOverride,
       }),
     );

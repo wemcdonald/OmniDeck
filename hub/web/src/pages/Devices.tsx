@@ -2,10 +2,18 @@ import { useEffect, useState } from "react";
 import { api, type AgentState } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
+import { SensorReadout } from "@/components/ui/sensor-readout";
 
 export default function Devices() {
   const [agents, setAgents] = useState<AgentState[]>([]);
+  const [systemStats, setSystemStats] = useState<{
+    cpu_percent: number;
+    ram_percent: number;
+    ram_used_mb: number;
+    ram_total_mb: number;
+    device_ip: string;
+    uptime: string;
+  } | null>(null);
   const { subscribe } = useWebSocket();
 
   useEffect(() => {
@@ -15,6 +23,14 @@ export default function Devices() {
     });
     return unsub;
   }, [subscribe]);
+
+  useEffect(() => {
+    api.status.system().then(setSystemStats).catch(() => {});
+    const interval = setInterval(() => {
+      api.status.system().then(setSystemStats).catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -59,8 +75,19 @@ export default function Devices() {
         </table>
       </div>
 
-      <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Resource Metrics</h3>
-      <EmptyState title="Device metrics available in a future update" />
+      <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Hub Metrics</h3>
+      {systemStats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <SensorReadout value={systemStats.cpu_percent} unit="%" label="CPU" />
+          <SensorReadout
+            value={systemStats.ram_percent}
+            unit="%"
+            label={`RAM ${systemStats.ram_used_mb} / ${systemStats.ram_total_mb} MB`}
+          />
+          <SensorReadout value={systemStats.device_ip} label="IP" />
+          <SensorReadout value={systemStats.uptime} label="Uptime" />
+        </div>
+      )}
     </div>
   );
 }

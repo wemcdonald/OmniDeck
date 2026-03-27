@@ -1,3 +1,5 @@
+import { cpus, totalmem, freemem, uptime as osUptime, networkInterfaces } from "node:os";
+import { memoryUsage, uptime as processUptime } from "node:process";
 import { Hono } from "hono";
 
 interface StatusRouteDeps {
@@ -10,6 +12,8 @@ interface StatusRouteDeps {
   debugModes?(): unknown[];
   getModeHistory?(): unknown[];
   getModeOverride?(): string | null;
+  getWsConnectionCount?(): number;
+  getAgentCount?(): number;
 }
 
 export function createStatusRoutes(deps: StatusRouteDeps): Hono {
@@ -48,6 +52,74 @@ export function createStatusRoutes(deps: StatusRouteDeps): Hono {
     if (isNaN(key)) return c.json({ error: "Invalid key" }, 400);
     await deps.pressKey(key);
     return c.json({ ok: true });
+  });
+
+  // ── System telemetry (process-level) ──
+  router.get("/status/telemetry", (c) => {
+    const mem = memoryUsage();
+    return c.json({
+      rss_mb: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
+      heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024 * 10) / 10,
+      heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024 * 10) / 10,
+      ws_connections: deps.getWsConnectionCount?.() ?? 0,
+      agent_connections: deps.getAgentCount?.() ?? 0,
+      uptime_seconds: Math.floor(processUptime()),
+    });
+  });
+
+  // ── System stats (OS-level) ──
+  router.get("/status/system", (c) => {
+    const cpuInfo = cpus();
+    const cpuCount = cpuInfo.length;
+    // Calculate average CPU usage from times
+    let totalIdle = 0;
+    let totalTick = 0;
+    for (const cpu of cpuInfo) {
+      const { user, nice, sys, idle, irq } = cpu.times;
+      totalTick += user + nice + sys + idle + irq;
+      totalIdle += idle;
+    }
+    const cpuPercent = cpuCount > 0
+      ? Math.round((1 - totalIdle / totalTick) * 1000) / 10
+      : 0;
+
+    const totalMem = totalmem();
+    const freeMem = freemem();
+    const usedMem = totalMem - freeMem;
+
+    // Get primary non-internal IPv4 address
+    const nets = networkInterfaces();
+    let deviceIp = "127.0.0.1";
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] ?? []) {
+        if (net.family === "IPv4" && !net.internal) {
+          deviceIp = net.address;
+          break;
+        }
+      }
+      if (deviceIp !== "127.0.0.1") break;
+    }
+
+    const uptimeSec = Math.floor(osUptime());
+    const days = Math.floor(uptimeSec / 86400);
+    const hours = Math.floor((uptimeSec % 86400) / 3600);
+    const minutes = Math.floor((uptimeSec % 3600) / 60);
+    const uptimeStr = days > 0
+      ? `${days}d ${hours}h ${minutes}m`
+      : hours > 0
+        ? `${hours}h ${minutes}m`
+        : `${minutes}m`;
+
+    return c.json({
+      cpu_percent: cpuPercent,
+      cpu_count: cpuCount,
+      ram_total_mb: Math.round(totalMem / 1024 / 1024),
+      ram_used_mb: Math.round(usedMem / 1024 / 1024),
+      ram_percent: Math.round(usedMem / totalMem * 1000) / 10,
+      device_ip: deviceIp,
+      uptime: uptimeStr,
+      uptime_seconds: uptimeSec,
+    });
   });
 
   return router;

@@ -8,6 +8,7 @@ import { Icon } from "@iconify/react";
 import { Plus, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import ModeEditor from "../components/ModeEditor.tsx";
 import ModeLivePreview from "../components/ModeLivePreview.tsx";
+import ModeHistoryTimeline from "../components/ModeHistoryTimeline.tsx";
 
 export default function Modes() {
   const [modes, setModes] = useState<Record<string, ModeConfig>>({});
@@ -242,28 +243,15 @@ export default function Modes() {
         </div>
       )}
 
-      {/* Mode History */}
-      {history.length > 0 && (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Recent Transitions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-              {history.slice(0, 20).map((entry, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-mono text-[10px] shrink-0">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span>{entry.from ?? "none"}</span>
-                  <span>→</span>
-                  <span className="text-foreground">{entry.to ?? "none"}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Mode History Timeline */}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">Mode History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ModeHistoryTimeline history={history} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
