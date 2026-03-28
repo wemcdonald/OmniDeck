@@ -42,7 +42,7 @@ export const soundPlugin: OmniDeckPlugin = {
 
   async init(ctx: PluginContext) {
     const config = ctx.config as SoundConfig;
-    const defaultStep = config.default_step ?? 5;
+    const defaultStep = config.default_step ?? 10;
 
     function resolveTarget(params: unknown, actionCtx: { focusedAgent?: string }) {
       const p = params as Record<string, unknown>;
