@@ -50,7 +50,7 @@ export const homeAssistantPlugin: OmniDeckPlugin = {
     });
 
     // -- Register actions --
-    for (const action of createHaActions(client)) {
+    for (const action of createHaActions(client, ctx.state)) {
       ctx.registerAction(action);
     }
 

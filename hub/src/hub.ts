@@ -735,7 +735,7 @@ export class Hub {
       iconColor: effectiveButton.icon_color,
       label: resolved.label ?? effectiveButton.label,
       labelColor: effectiveButton.label_color,
-      topLabel: resolved.topLabel ?? effectiveButton.top_label,
+      topLabel: effectiveButton.top_label !== undefined ? effectiveButton.top_label : resolved.topLabel,
       topLabelColor: effectiveButton.top_label_color,
       opacity: effectiveButton.opacity,
     };
@@ -775,7 +775,9 @@ export class Hub {
       // Preset-provided label template — also interpolate
       state.label = this.interpolate(state.label, templateVars);
     }
-    if (effectiveButton.top_label) {
+    if (effectiveButton.top_label === null) {
+      state.topLabel = undefined;
+    } else if (effectiveButton.top_label) {
       state.topLabel = this.interpolate(effectiveButton.top_label, templateVars);
     } else if (state.topLabel && state.topLabel.includes("{{")) {
       state.topLabel = this.interpolate(state.topLabel, templateVars);

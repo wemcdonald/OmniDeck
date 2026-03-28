@@ -59,11 +59,11 @@ const ButtonModeOverrideSchema = z.object({
 
 export const ButtonConfigSchema = z.object({
   pos: z.tuple([z.number(), z.number()]),
-  label: z.string().optional(),
+  label: z.string().nullable().optional(),
   label_color: z.string().optional(),
-  top_label: z.string().optional(),
+  top_label: z.string().nullable().optional(),
   top_label_color: z.string().optional(),
-  icon: z.string().optional(),
+  icon: z.string().nullable().optional(),
   icon_color: z.string().optional(),
   image: z.string().optional(),
   background: z.string().optional(),

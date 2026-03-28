@@ -150,7 +150,9 @@ export class HaClient {
     if (target) {
       data.target = target;
     }
-    await this.sendCommand("call_service", data);
+    this.log.info({ domain, service, service_data: serviceData, target }, `Calling HA service: ${domain}.${service}`);
+    const result = await this.sendCommand("call_service", data);
+    this.log.info({ domain, service, result }, `HA service response: ${domain}.${service}`);
   }
 
   /** Fire a custom event on the HA event bus. */
@@ -280,9 +282,15 @@ export class HaClient {
       case "event": {
         const event = msg as HaEvent;
         if (event.event.event_type === "state_changed" && event.event.data.new_state) {
+          const entityId = event.event.data.entity_id;
           const newState = event.event.data.new_state;
+          const oldState = event.event.data.old_state;
+          this.log.debug(
+            { entityId, from: oldState?.state, to: newState.state },
+            `State changed: ${entityId}`,
+          );
           for (const cb of this.stateCallbacks) {
-            cb(event.event.data.entity_id, newState);
+            cb(entityId, newState);
           }
         }
         break;

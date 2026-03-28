@@ -2,6 +2,7 @@ import { z } from "zod";
 import { field } from "@omnideck/plugin-schema";
 import type { ActionDefinition } from "../../types.js";
 import type { HaClient } from "./client.js";
+import type { StateStore } from "../../../state/store.js";
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -101,7 +102,33 @@ const setInputSchema = z.object({
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 
-export function createHaActions(client: HaClient): ActionDefinition[] {
+export function createHaActions(client: HaClient, store?: StateStore): ActionDefinition[] {
+  /** Optimistically update the store after a service call so buttons re-render immediately. */
+  function optimisticUpdate(domain: string, service: string, entityId: string | string[] | undefined, data?: Record<string, unknown>) {
+    if (!store || !entityId || Array.isArray(entityId)) return;
+    const storeKey = `entity:${entityId}`;
+    const current = store.get("home-assistant", storeKey) as { state: string; attributes: Record<string, unknown> } | undefined;
+    if (!current) return;
+
+    if (domain === "select" && service === "select_next") {
+      const options = (current.attributes.options as string[]) ?? [];
+      const idx = options.indexOf(current.state);
+      if (idx !== -1 && options.length > 1) {
+        const next = options[(idx + 1) % options.length];
+        store.set("home-assistant", storeKey, { ...current, state: next });
+      }
+    } else if (domain === "select" && service === "select_previous") {
+      const options = (current.attributes.options as string[]) ?? [];
+      const idx = options.indexOf(current.state);
+      if (idx !== -1 && options.length > 1) {
+        const next = options[(idx - 1 + options.length) % options.length];
+        store.set("home-assistant", storeKey, { ...current, state: next });
+      }
+    } else if (domain === "select" && service === "select_option" && data?.option) {
+      store.set("home-assistant", storeKey, { ...current, state: data.option as string });
+    }
+  }
+
   return [
     // -- Generic service call --
     {
@@ -114,6 +141,7 @@ export function createHaActions(client: HaClient): ActionDefinition[] {
         const { domain, service, data, entity_id } = callServiceSchema.parse(params);
         const target = entity_id ? { entity_id } : undefined;
         await client.callService(domain, service, data, target);
+        optimisticUpdate(domain, service, entity_id, data as Record<string, unknown> | undefined);
       },
     },
 
