@@ -1,9 +1,15 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createPluginRuntime, type PluginRuntime } from "./runtime.js";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("loader");
+
+interface CacheMeta {
+  sha256: string;
+  file: string;
+  loadedAt: string;
+}
 
 interface LoaderOptions {
   config?: Record<string, unknown>;
@@ -22,10 +28,11 @@ export class PluginLoader {
   }
 
   hasCached(pluginId: string, sha256: string): boolean {
-    const metaPath = join(this.cacheDir, pluginId, "meta.json");
-    if (!existsSync(metaPath)) return false;
-    const meta = JSON.parse(readFileSync(metaPath, "utf-8")) as { sha256: string };
-    return meta.sha256 === sha256;
+    const meta = this.readMeta(pluginId);
+    if (!meta) return false;
+    // Also verify the code file still exists
+    const codePath = join(this.cacheDir, pluginId, meta.file);
+    return meta.sha256 === sha256 && existsSync(codePath);
   }
 
   async loadFromCode(
@@ -34,14 +41,19 @@ export class PluginLoader {
     sha256: string,
     opts: LoaderOptions = {},
   ): Promise<PluginRuntime> {
-    // Write to cache
     const pluginDir = join(this.cacheDir, pluginId);
     if (!existsSync(pluginDir)) mkdirSync(pluginDir, { recursive: true });
-    const codePath = join(pluginDir, "agent.mjs");
+
+    // Read old meta to clean up previous version's file after successful load
+    const oldMeta = this.readMeta(pluginId);
+
+    // Write code to a unique filename so Bun's import() cache doesn't serve stale code
+    const codeFile = `agent-${sha256.slice(0, 12)}.mjs`;
+    const codePath = join(pluginDir, codeFile);
     writeFileSync(codePath, code);
     writeFileSync(
       join(pluginDir, "meta.json"),
-      JSON.stringify({ sha256, loadedAt: new Date().toISOString() }),
+      JSON.stringify({ sha256, file: codeFile, loadedAt: new Date().toISOString() }),
     );
 
     // Build runtime
@@ -53,7 +65,7 @@ export class PluginLoader {
       onLog: opts.onLog,
     });
 
-    // Dynamic import the plugin module
+    // Dynamic import the plugin module (unique path = fresh import)
     try {
       const mod = await import(codePath);
       const init = mod.default;
@@ -62,21 +74,26 @@ export class PluginLoader {
       }
       await init(omnideck);
       this.plugins.set(pluginId, runtime);
-      log.info(`Plugin ${pluginId} loaded successfully`);
+      log.info(`Plugin ${pluginId} loaded successfully`, { sha256: sha256.slice(0, 12) });
     } catch (err) {
       log.error(`Plugin ${pluginId} failed to init`, { err: String(err) });
       throw err;
+    }
+
+    // Clean up old version's file (only one .mjs per plugin on disk)
+    if (oldMeta && oldMeta.file !== codeFile) {
+      const oldPath = join(pluginDir, oldMeta.file);
+      try { unlinkSync(oldPath); } catch { /* already gone */ }
     }
 
     return runtime;
   }
 
   async loadFromCache(pluginId: string, opts: LoaderOptions = {}): Promise<PluginRuntime> {
-    const codePath = join(this.cacheDir, pluginId, "agent.mjs");
+    const meta = this.readMeta(pluginId);
+    if (!meta) throw new Error(`No cached plugin: ${pluginId}`);
+    const codePath = join(this.cacheDir, pluginId, meta.file);
     const code = readFileSync(codePath, "utf-8");
-    const meta = JSON.parse(
-      readFileSync(join(this.cacheDir, pluginId, "meta.json"), "utf-8"),
-    ) as { sha256: string };
     return this.loadFromCode(pluginId, code, meta.sha256, opts);
   }
 
@@ -93,6 +110,7 @@ export class PluginLoader {
     if (plugin) {
       await plugin.destroy();
       this.plugins.delete(pluginId);
+      log.info(`Plugin ${pluginId} unloaded`);
     }
   }
 
@@ -101,5 +119,20 @@ export class PluginLoader {
       await plugin.destroy();
     }
     this.plugins.clear();
+  }
+
+  private readMeta(pluginId: string): CacheMeta | null {
+    const metaPath = join(this.cacheDir, pluginId, "meta.json");
+    if (!existsSync(metaPath)) return null;
+    try {
+      const raw = JSON.parse(readFileSync(metaPath, "utf-8")) as Record<string, unknown>;
+      return {
+        sha256: raw.sha256 as string,
+        file: (raw.file as string) ?? "agent.mjs", // backward compat with old meta format
+        loadedAt: (raw.loadedAt as string) ?? "",
+      };
+    } catch {
+      return null;
+    }
   }
 }

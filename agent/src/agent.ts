@@ -175,7 +175,7 @@ export class Agent {
     const { plugins } = msg.data as {
       plugins: Array<{ id: string; version: string; sha256: string }>;
     };
-    log.info(`Hub announced ${plugins.length} plugins`);
+    log.debug(`Hub announced ${plugins.length} plugins`);
 
     const statuses: Array<{
       id: string;
@@ -188,6 +188,17 @@ export class Agent {
 
     for (const plugin of plugins) {
       try {
+        // Skip if already loaded with the same version
+        if (this.loader.getPlugin(plugin.id) && this.loader.hasCached(plugin.id, plugin.sha256)) {
+          statuses.push({ id: plugin.id, version: plugin.version, status: "active" });
+          continue;
+        }
+
+        // Unload existing version before loading new version
+        if (this.loader.getPlugin(plugin.id)) {
+          await this.loader.unloadPlugin(plugin.id);
+        }
+
         if (this.loader.hasCached(plugin.id, plugin.sha256)) {
           // Load from cache
           await this.loader.loadFromCache(plugin.id, {
@@ -236,6 +247,11 @@ export class Agent {
     };
     const hostname = this.opts.hostname ?? getAgentHostname();
     try {
+      // Unload existing version before loading new code
+      if (this.loader.getPlugin(id)) {
+        await this.loader.unloadPlugin(id);
+      }
+
       await this.loader.loadFromCode(id, code, sha256, {
         hostname,
         onStateUpdate: (pId, key, value) => {

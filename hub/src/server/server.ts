@@ -243,12 +243,13 @@ export class AgentServer {
           if (connState.agentId && this.pairing) {
             this.pairing.updateLastSeen(connState.agentId);
           }
+          // Send plugin manifest only on first connect
+          if (this.registry) {
+            const plugins = this.registry.getDistributionList(state.platform);
+            ws.send(JSON.stringify(createMessage("plugin_manifest", { plugins })));
+          }
         }
         for (const cb of this.stateCallbacks) cb(state.hostname, state);
-        if (this.registry) {
-          const plugins = this.registry.getDistributionList(state.platform);
-          ws.send(JSON.stringify(createMessage("plugin_manifest", { plugins })));
-        }
         break;
       }
       case "plugin_download_request": {
@@ -264,7 +265,7 @@ export class AgentServer {
         break;
       }
       case "plugin_status": {
-        log.info({ data: msg.data }, "Plugin status received");
+        log.debug({ data: msg.data }, "Plugin status received");
         break;
       }
       case "plugin_log": {
