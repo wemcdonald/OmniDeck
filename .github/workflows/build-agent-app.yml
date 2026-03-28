@@ -77,7 +77,7 @@ jobs:
             | **macOS** (Apple Silicon) | `OmniDeck.Agent_*_aarch64.dmg` |
             | **Windows** | `OmniDeck.Agent_*_x64-setup.exe` |
             | **Linux** (Debian/Ubuntu) | `OmniDeck.Agent_*_amd64.deb` |
-            | **Linux** (AppImage) | `OmniDeck.Agent_*_amd64.AppImage` |
+            | **Linux** (RPM) | `OmniDeck.Agent_*_x86_64.rpm` |
 
             Download the file for your platform from the assets below.
           releaseDraft: true
