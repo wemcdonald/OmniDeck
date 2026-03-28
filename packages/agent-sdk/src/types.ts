@@ -18,6 +18,24 @@ export interface ExecResult {
 /** Handle for managed intervals */
 export type IntervalHandle = symbol;
 
+/** FFI type identifiers for native library calls */
+export type FfiType = "void" | "bool" | "i8" | "i16" | "i32" | "i64"
+  | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "ptr";
+
+/** Describes a native function signature */
+export interface FfiSymbol {
+  args: FfiType[];
+  returns: FfiType;
+}
+
+/** Handle to an opened native library */
+export interface FfiLibrary {
+  /** Call a loaded symbol. */
+  call(name: string, ...args: unknown[]): unknown;
+  /** Close the library handle. */
+  close(): void;
+}
+
 /** Logger interface */
 export interface OmniDeckLogger {
   info(msg: string, data?: Record<string, unknown>): void;
@@ -45,8 +63,16 @@ export interface OmniDeck {
   /** Run a shell command. Uses platform-appropriate shell. */
   exec(command: string, args?: string[]): Promise<ExecResult>;
 
+  /** Open a native library via FFI. Uses Bun's FFI under the hood. */
+  readonly ffi: {
+    open(path: string, symbols: Record<string, FfiSymbol>): FfiLibrary;
+  };
+
   /** Current platform */
   readonly platform: "darwin" | "windows" | "linux";
+
+  /** Per-plugin persistent data directory (for caching compiled helpers, etc.) */
+  readonly dataDir: string;
 
   /** Agent hostname */
   readonly hostname: string;

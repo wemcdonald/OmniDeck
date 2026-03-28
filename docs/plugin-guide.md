@@ -402,6 +402,37 @@ export default function init(omnideck: OmniDeck) {
 
 Agent plugins are bundled by the hub (esbuild) and distributed to agents over WebSocket. Agents never run `npm install`.
 
+### Native Libraries (FFI)
+
+Agent plugins can call native platform libraries directly using `omnideck.ffi.open()`. This uses Bun's FFI under the hood and runs in the agent process — no child process spawning, no accessibility permission issues.
+
+```typescript
+// Example: macOS MediaRemote.framework for media playback control
+if (omnideck.platform === "darwin") {
+  const lib = omnideck.ffi.open(
+    "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote",
+    {
+      MRMediaRemoteSendCommand: { args: ["i32", "ptr"], returns: "bool" },
+    },
+  );
+
+  omnideck.onAction("play_pause", async () => {
+    lib.call("MRMediaRemoteSendCommand", 2, null);  // 2 = toggle play/pause
+    return { success: true };
+  });
+
+  omnideck.onDestroy(() => lib.close());
+}
+```
+
+**Available FFI types:** `void`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `ptr`
+
+**Tips:**
+- Always gate FFI calls behind `omnideck.platform` checks — libraries are platform-specific
+- Use `omnideck.onDestroy()` to close library handles on plugin unload
+- Pass `null` for null pointer arguments (e.g., optional `NSDictionary *` params)
+- FFI calls are synchronous — they block the event loop briefly, which is fine for simple function calls
+
 ### Manifest
 
 ```yaml

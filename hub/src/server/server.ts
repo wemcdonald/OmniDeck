@@ -10,6 +10,7 @@ import {
   type PairResponseData,
   type AuthenticateData,
   type AuthenticateResponseData,
+  type PluginLogData,
 } from "./protocol.js";
 import type { PairingManager } from "./pairing.js";
 import { createLogger } from "../logger.js";
@@ -61,6 +62,7 @@ export class AgentServer {
   private httpsServer: ReturnType<typeof createHttpsServer> | null = null;
   private agents = new Map<string, ConnectedAgent>();
   private pendingCommands = new Map<string, PendingCommand>();
+  private agentLoggers = new Map<string, ReturnType<typeof createLogger>>();
   private connectionStates = new Map<WebSocket, ConnectionState>();
   private port: number;
   private registry: PluginRegistryLike | undefined;
@@ -263,6 +265,22 @@ export class AgentServer {
       }
       case "plugin_status": {
         log.info({ data: msg.data }, "Plugin status received");
+        break;
+      }
+      case "plugin_log": {
+        const d = msg.data as PluginLogData;
+        const key = `agent:${d.hostname}:${d.pluginId}`;
+        let agentLogger = this.agentLoggers.get(key);
+        if (!agentLogger) {
+          agentLogger = createLogger(key);
+          this.agentLoggers.set(key, agentLogger);
+        }
+        const logData = d.data ? { ...d.data } : {};
+        switch (d.level) {
+          case "warn": agentLogger.warn(logData, d.msg); break;
+          case "error": agentLogger.error(logData, d.msg); break;
+          default: agentLogger.info(logData, d.msg); break;
+        }
         break;
       }
       case "command_response": {

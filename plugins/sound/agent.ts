@@ -176,6 +176,48 @@ export default function init(omnideck: OmniDeck) {
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
   });
 
+  // --- Media Keys ---
+  // macOS: MediaRemote.framework via FFI (same API as Control Center)
+  // Linux: playerctl
+  // Windows: PowerShell SendKeys
+
+  // MRMediaRemoteCommand: togglePlayPause=2, nextTrack=4, previousTrack=5
+  const MR_PLAY_PAUSE = 2, MR_NEXT = 4, MR_PREVIOUS = 5;
+
+  let mrLib: { call(name: string, ...args: unknown[]): unknown } | undefined;
+  if (omnideck.platform === "darwin") {
+    try {
+      mrLib = omnideck.ffi.open(
+        "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote",
+        { MRMediaRemoteSendCommand: { args: ["i32", "ptr"], returns: "bool" } },
+      );
+    } catch (err) {
+      omnideck.log.warn("MediaRemote FFI not available, media keys disabled", { err: String(err) });
+    }
+  }
+
+  async function handleMediaKey(darwinCmd: number, linuxArg: string, windowsVk: number) {
+    if (omnideck.platform === "darwin") {
+      if (!mrLib) return { success: false, error: "MediaRemote not available" };
+      mrLib.call("MRMediaRemoteSendCommand", darwinCmd, null);
+      return { success: true };
+    }
+    if (omnideck.platform === "linux") {
+      const r = await omnideck.exec("playerctl", [linuxArg]);
+      return { success: r.exitCode === 0, error: r.stderr || undefined };
+    }
+    if (omnideck.platform === "windows") {
+      const r = await omnideck.exec("powershell", ["-Command",
+        `(New-Object -ComObject WScript.Shell).SendKeys([char]${windowsVk})`]);
+      return { success: r.exitCode === 0, error: r.stderr || undefined };
+    }
+    return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
+  }
+
+  omnideck.onAction("media_play_pause", () => handleMediaKey(MR_PLAY_PAUSE, "play-pause", 179));
+  omnideck.onAction("media_next", () => handleMediaKey(MR_NEXT, "next", 176));
+  omnideck.onAction("media_previous", () => handleMediaKey(MR_PREVIOUS, "previous", 177));
+
   // --- Device Switching ---
 
   omnideck.onAction("change_output_device", async (params) => {

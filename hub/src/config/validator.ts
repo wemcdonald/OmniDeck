@@ -149,6 +149,7 @@ const OrchestratorConfigSchema = z
         route_to: z.enum(["active_player", "focused", "manual"]).default("active_player"),
       })
       .optional(),
+    device_pages: z.record(z.string(), z.string()).optional(),
     discord: z.record(z.unknown()).optional(),
     cec: z.record(z.unknown()).optional(),
   })

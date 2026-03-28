@@ -55,4 +55,34 @@ export const soundPresets: ButtonPreset[] = [
       icon: "ms:volume-up",
     },
   },
+  {
+    id: "media_play_pause",
+    name: "Play / Pause",
+    description: "Toggle media playback via OS media key.",
+    icon: "ms:play-pause",
+    action: "media_play_pause",
+    defaults: {
+      icon: "ms:play-pause",
+    },
+  },
+  {
+    id: "media_next",
+    name: "Next Track",
+    description: "Skip to the next track via OS media key.",
+    icon: "ms:skip-next",
+    action: "media_next",
+    defaults: {
+      icon: "ms:skip-next",
+    },
+  },
+  {
+    id: "media_previous",
+    name: "Previous Track",
+    description: "Go to the previous track via OS media key.",
+    icon: "ms:skip-previous",
+    action: "media_previous",
+    defaults: {
+      icon: "ms:skip-previous",
+    },
+  },
 ];

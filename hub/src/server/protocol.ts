@@ -111,3 +111,12 @@ export interface PluginConfigUpdateData {
   id: string;
   config: Record<string, unknown>;
 }
+
+/** Agent → Hub: forward plugin log entry */
+export interface PluginLogData {
+  hostname: string;
+  pluginId: string;
+  level: "info" | "warn" | "error";
+  msg: string;
+  data?: Record<string, unknown>;
+}

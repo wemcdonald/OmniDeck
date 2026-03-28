@@ -29,6 +29,9 @@ const simpleActionMeta: Record<string, { description: string; icon: string }> = 
   mic_mute: { description: "Mute microphone", icon: "ms:mic-off" },
   mic_unmute: { description: "Unmute microphone", icon: "ms:mic-off" },
   toggle_mic_mute: { description: "Toggle microphone mute", icon: "ms:mic" },
+  media_play_pause: { description: "Toggle media playback", icon: "ms:play-pause" },
+  media_next: { description: "Next track", icon: "ms:skip-next" },
+  media_previous: { description: "Previous track", icon: "ms:skip-previous" },
 };
 
 export const soundPlugin: OmniDeckPlugin = {
@@ -63,6 +66,9 @@ export const soundPlugin: OmniDeckPlugin = {
       "mic_mute",
       "mic_unmute",
       "toggle_mic_mute",
+      "media_play_pause",
+      "media_next",
+      "media_previous",
     ] as const;
 
     for (const actionId of simpleActions) {

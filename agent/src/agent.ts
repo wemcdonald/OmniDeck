@@ -1,6 +1,7 @@
 import { AgentClient } from "./ws/client.js";
 import { createMessage, type WsMessage } from "./ws/protocol.js";
 import { PluginLoader } from "./plugins/loader.js";
+import { ensureFfi } from "./primitives/ffi.js";
 import {
   detectPlatform,
   getAgentHostname,
@@ -112,6 +113,9 @@ export class Agent {
   }
 
   async start(): Promise<void> {
+    // Pre-load bun:ffi so plugins can use omnideck.ffi.open() synchronously
+    await ensureFfi().catch(() => {});
+
     await this.client.connect();
 
     // If pairing, send the pair request and DON'T start state polling yet.
@@ -193,6 +197,11 @@ export class Agent {
                 createMessage("plugin_state", { pluginId: pId, key, value }),
               );
             },
+            onLog: (pluginId, level, msg, data) => {
+              this.client.send(
+                createMessage("plugin_log", { hostname, pluginId, level, msg, data }),
+              );
+            },
           });
           statuses.push({ id: plugin.id, version: plugin.version, status: "active" });
         } else {
@@ -232,6 +241,11 @@ export class Agent {
         onStateUpdate: (pId, key, value) => {
           this.client.send(
             createMessage("plugin_state", { pluginId: pId, key, value }),
+          );
+        },
+        onLog: (pluginId, level, msg, data) => {
+          this.client.send(
+            createMessage("plugin_log", { hostname, pluginId, level, msg, data }),
           );
         },
       });

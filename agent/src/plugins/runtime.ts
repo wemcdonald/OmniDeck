@@ -1,6 +1,10 @@
 import type { OmniDeck, ActionResult, IntervalHandle, OmniDeckLogger } from "@omnideck/agent-sdk";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { execCommand } from "../primitives/exec.js";
 import { detectPlatform } from "../primitives/platform.js";
+import { ensureFfi, openLibrary } from "../primitives/ffi.js";
+import { getConfigDir } from "../config-dir.js";
 import { createLogger } from "../logger.js";
 
 type ActionHandler = (params: Record<string, unknown>) => Promise<ActionResult>;
@@ -18,6 +22,7 @@ interface RuntimeOptions {
   config: Record<string, unknown>;
   hostname: string;
   onStateUpdate: (pluginId: string, key: string, value: unknown) => void;
+  onLog?: (pluginId: string, level: string, msg: string, data?: Record<string, unknown>) => void;
 }
 
 export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck; runtime: PluginRuntime } {
@@ -29,10 +34,14 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
   let currentConfig = { ...opts.config };
 
   const pluginLog: OmniDeckLogger = {
-    info: (msg, data) => log.info(msg, data),
-    warn: (msg, data) => log.warn(msg, data),
-    error: (msg, data) => log.error(msg, data),
+    info: (msg, data) => { log.info(msg, data); opts.onLog?.(opts.pluginId, "info", msg, data); },
+    warn: (msg, data) => { log.warn(msg, data); opts.onLog?.(opts.pluginId, "warn", msg, data); },
+    error: (msg, data) => { log.error(msg, data); opts.onLog?.(opts.pluginId, "error", msg, data); },
   };
+
+  // Ensure per-plugin data directory exists
+  const dataDir = join(getConfigDir(), "data", opts.pluginId);
+  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 
   const omnideck: OmniDeck = {
     get config() {
@@ -55,8 +64,20 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
       return execCommand(command, args ?? []);
     },
 
+    get ffi() {
+      return {
+        open(path: string, symbols: Record<string, import("@omnideck/agent-sdk").FfiSymbol>) {
+          return openLibrary(path, symbols);
+        },
+      };
+    },
+
     get platform() {
       return detectPlatform();
+    },
+
+    get dataDir() {
+      return dataDir;
     },
 
     get hostname() {

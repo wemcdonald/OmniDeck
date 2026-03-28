@@ -9,6 +9,7 @@ interface LoaderOptions {
   config?: Record<string, unknown>;
   hostname?: string;
   onStateUpdate?: (pluginId: string, key: string, value: unknown) => void;
+  onLog?: (pluginId: string, level: string, msg: string, data?: Record<string, unknown>) => void;
 }
 
 export class PluginLoader {
@@ -49,6 +50,7 @@ export class PluginLoader {
       config: opts.config ?? {},
       hostname: opts.hostname ?? "unknown",
       onStateUpdate: opts.onStateUpdate ?? (() => {}),
+      onLog: opts.onLog,
     });
 
     // Dynamic import the plugin module

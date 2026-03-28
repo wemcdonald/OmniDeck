@@ -24,10 +24,24 @@ import { HubDiscovery } from "./server/discovery.js";
 import { ModeEngine } from "./modes/engine.js";
 import type { ModeDefinition, ModeCheck } from "./modes/types.js";
 import type { ResolvedState } from "./modes/evaluator.js";
+import { Orchestrator, type OrchestratorConfig } from "./orchestrator/orchestrator.js";
+import type { FullConfig } from "./config/validator.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const log = createLogger("hub");
+
+function parseDurationMs(s: string): number {
+  const match = s.match(/^(\d+)(ms|s|m)$/);
+  if (!match) return 30_000;
+  const value = parseInt(match[1], 10);
+  switch (match[2]) {
+    case "ms": return value;
+    case "s": return value * 1000;
+    case "m": return value * 60_000;
+    default: return 30_000;
+  }
+}
 
 export interface TlsConfig {
   cert: Buffer;
@@ -65,6 +79,7 @@ export class Hub {
   private broadcaster = new Broadcaster();
   private pairing: PairingManager | null = null;
   private modeEngine: ModeEngine | null = null;
+  private orchestrator: Orchestrator | null = null;
   private opts: HubOptions;
 
   constructor(opts: HubOptions) {
@@ -93,6 +108,7 @@ export class Hub {
       on_enter?: Array<Record<string, unknown>>;
       on_exit?: Array<Record<string, unknown>>;
     }>,
+    orchestratorConfig?: FullConfig["orchestrator"],
   ): Promise<void> {
     // Store pages
     for (const page of pageConfigs) {
@@ -136,13 +152,50 @@ export class Hub {
     });
     this.discovery.advertise();
 
+    // Initialize orchestrator (focus tracking, media routing)
+    if (orchestratorConfig) {
+      const focusCfg = orchestratorConfig.focus;
+      const mediaCfg = orchestratorConfig.media;
+      this.orchestrator = new Orchestrator(
+        {
+          focus: {
+            strategy: focusCfg?.strategy ?? "idle_time",
+            idle_threshold_ms: parseDurationMs(focusCfg?.idle_threshold ?? "30s"),
+            switch_page_on_focus: focusCfg?.switch_page_on_focus ?? true,
+          },
+          media: {
+            strategy: mediaCfg?.route_to ?? "active_player",
+          },
+          device_pages: orchestratorConfig.device_pages,
+        },
+        this.store,
+      );
+      log.info({ strategy: focusCfg?.strategy ?? "idle_time" }, "Orchestrator initialized");
+    }
+
     // Bridge agent state into the state store so plugins can read it
     this.agentServer.onAgentStateUpdate((hostname, state) => {
       this.store.set("os-control", `agent:${hostname}:state`, state);
       this.store.set("os-control", `agent:${hostname}:online`, true);
+      // Feed idle time to orchestrator for focus tracking
+      this.orchestrator?.handleAgentState(hostname, {
+        online: true,
+        idleTimeMs: state.idle_time_ms ?? 0,
+      });
+      // Publish focused device to store
+      const focused = this.orchestrator?.focusedDevice ?? null;
+      this.store.set("orchestrator", "focused_device", focused);
     });
     this.agentServer.onAgentConnection((hostname, connected) => {
       this.store.set("os-control", `agent:${hostname}:online`, connected);
+      if (connected) {
+        this.orchestrator?.handleAgentConnect(hostname);
+      } else {
+        this.orchestrator?.handleAgentDisconnect(hostname);
+        this.orchestrator?.handleAgentState(hostname, { online: false, idleTimeMs: 0 });
+        const focused = this.orchestrator?.focusedDevice ?? null;
+        this.store.set("orchestrator", "focused_device", focused);
+      }
     });
 
     // Initialize mode engine (if modes configured)
@@ -195,7 +248,9 @@ export class Hub {
           };
         },
         executeAction: (qualifiedId, params) =>
-          this.pluginHost.executeAction(qualifiedId, params),
+          this.pluginHost.executeAction(qualifiedId, params, {
+            focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
+          }),
       });
 
       this.modeEngine.onModeChange((from, to) => {
@@ -315,7 +370,9 @@ export class Hub {
           const action = parts.slice(2).join(":");
           const payload = value as { params?: Record<string, unknown> } | undefined;
           log.info({ pluginId, target, action, params: payload?.params }, `Dispatching ${pluginId}.${action} → ${target}`);
-          this.agentServer?.sendCommand(target, `${pluginId}.${action}`, payload?.params ?? {}).catch((err) =>
+          this.agentServer?.sendCommand(target, `${pluginId}.${action}`, payload?.params ?? {}).then((result) =>
+            log.info({ target, action, result }, `Agent response: ${pluginId}.${action}`),
+          ).catch((err) =>
             log.error({ err, target, action }, "Failed to dispatch command to agent"),
           );
         }
@@ -456,6 +513,7 @@ export class Hub {
     log.info({ pos: button.pos, action: resolved.action, params: actionParams, target: resolved.target }, `[${button.pos}] pressed → ${resolved.action}`);
     await this.pluginHost.executeAction(resolved.action, actionParams, {
       targetAgent: resolved.target,
+      focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
     });
   }
 
