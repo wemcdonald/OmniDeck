@@ -16,37 +16,46 @@ Users compose buttons from these building blocks. Presets are the easy path — 
 
 ## File Structure
 
-A plugin is a single TypeScript file that exports an `OmniDeckPlugin` object:
-
-```
-hub/src/plugins/builtin/my-plugin/
-  index.ts       # Plugin entry point
-  actions.ts     # Optional: action definitions in a separate file
-  state.ts       # Optional: state providers in a separate file
-  presets.ts     # Optional: preset definitions in a separate file
-```
-
-For external (non-builtin) plugins distributed via the plugin registry:
+An external plugin lives in the hub's `plugins/` directory:
 
 ```
 plugins/my-plugin/
-  manifest.yaml  # Plugin metadata
-  hub.ts         # Hub-side entry point
-  agent.ts       # Optional: agent-side code (runs on Mac/Windows)
+  manifest.yaml  # Plugin metadata (required)
+  hub.ts         # Hub-side entry point (actions, state providers, presets)
+  agent.ts       # Agent-side code (runs on Mac/Windows/Linux)
 ```
+
+Both `hub.ts` and `agent.ts` are optional — a plugin can be hub-only, agent-only, or both. The hub automatically loads and registers hub-side code, and bundles and distributes agent-side code to connected agents.
+
+Builtin plugins (shipped with OmniDeck) live in `hub/src/plugins/builtin/` and are imported directly in the hub source code.
 
 ## Minimal Plugin
 
 Here's the smallest possible plugin:
 
+```
+plugins/my-plugin/
+  manifest.yaml
+  hub.ts
+```
+
+**manifest.yaml:**
+```yaml
+id: my-plugin
+name: "My Plugin"
+version: "1.0.0"
+hub: hub.ts
+```
+
+**hub.ts:**
 ```typescript
-import type { OmniDeckPlugin, PluginContext } from "../../types.js";
+import type { OmniDeckPlugin, PluginContext } from "@omnideck/plugin-schema";
 
 export const myPlugin: OmniDeckPlugin = {
   id: "my-plugin",
   name: "My Plugin",
   version: "1.0.0",
-  icon: "ms:extension",  // Material Symbols icon for the plugin browser
+  icon: "ms:extension",
 
   async init(ctx: PluginContext) {
     ctx.setHealth({ status: "ok" });
@@ -66,14 +75,7 @@ export const myPlugin: OmniDeckPlugin = {
 };
 ```
 
-Register it in the hub by adding to `hub/src/hub.ts`:
-
-```typescript
-import { myPlugin } from "./plugins/builtin/my-plugin/index.js";
-
-// In the constructor:
-this.pluginHost.register(myPlugin);
-```
+Drop the plugin folder into the hub's `plugins/` directory and restart the hub. The hub automatically detects, loads, and registers it — no code changes needed.
 
 ## Actions
 
@@ -452,7 +454,7 @@ Here's a realistic hub-only plugin that polls a weather API and exposes temperat
 ```typescript
 import { z } from "zod";
 import { field } from "@omnideck/plugin-schema";
-import type { OmniDeckPlugin, PluginContext } from "../../types.js";
+import type { OmniDeckPlugin, PluginContext } from "@omnideck/plugin-schema";
 
 interface WeatherConfig {
   api_key: string;

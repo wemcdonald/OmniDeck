@@ -14,7 +14,6 @@ import { corePlugin } from "./plugins/builtin/core/index.js";
 import { soundPlugin } from "./plugins/builtin/sound/index.js";
 import { homeAssistantPlugin } from "./plugins/builtin/home-assistant/index.js";
 import { osControlPlugin } from "./plugins/builtin/os-control/index.js";
-import { monitorControlPlugin } from "./plugins/builtin/monitor-control/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
@@ -95,7 +94,6 @@ export class Hub {
     this.pluginHost.register(soundPlugin);
     this.pluginHost.register(homeAssistantPlugin);
     this.pluginHost.register(osControlPlugin);
-    this.pluginHost.register(monitorControlPlugin);
   }
 
   async start(
@@ -128,6 +126,11 @@ export class Hub {
       registry = new PluginRegistry(this.opts.pluginsDir);
       await registry.loadAll();
       log.info({ plugins: registry.getManifests().map((m) => m.id) }, "Plugin registry loaded");
+
+      // Register hub-side code from external plugins
+      for (const plugin of registry.getHubPlugins()) {
+        this.pluginHost.register(plugin);
+      }
     }
 
     // Initialize pairing manager
