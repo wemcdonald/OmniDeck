@@ -85,7 +85,7 @@ export const homeAssistantPlugin: OmniDeckPlugin = {
       try {
         const registry = await client.getEntityRegistry();
         ctx.state.set("home-assistant", "entity_registry", registry);
-        ctx.log.info({ count: registry.length }, "Cached HA entity registry");
+        ctx.log.debug({ count: registry.length }, "Cached HA entity registry");
       } catch (err) {
         ctx.log.warn({ err }, "Failed to fetch entity registry");
       }
