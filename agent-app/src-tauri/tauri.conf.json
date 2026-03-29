@@ -33,8 +33,7 @@
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "installMode": "both",
-        "perMachine": true
+        "installMode": "both"
       }
     }
   },
