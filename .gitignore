@@ -10,3 +10,7 @@ data/
 icon-cache/
 agent.toml
 .DS_Store
+
+# External plugins (symlinked from OmniDeck-plugins repo)
+plugins/monitor-control
+plugins/bettertouchtool
