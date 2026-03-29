@@ -226,31 +226,36 @@ public class DDC {
 
   // --- Actions ---
 
+  /** Find a monitor by name substring match, ID, or fall back to first. */
+  function findMonitor(params: Record<string, unknown>): MonitorInfo | undefined {
+    const monitorParam = params.monitor as string | undefined;
+    if (!monitorParam) return lastMonitors[0];
+    // Try exact ID match first
+    const byId = lastMonitors.find((m) => m.id === monitorParam);
+    if (byId) return byId;
+    // Then case-insensitive name substring match
+    const lower = monitorParam.toLowerCase();
+    return lastMonitors.find((m) => m.name.toLowerCase().includes(lower)) ?? lastMonitors[0];
+  }
+
   omnideck.onAction("set_input", async (params) => {
-    const monitorId = (params.monitor as string) ?? lastMonitors[0]?.id;
+    const mon = findMonitor(params);
     const input = params.input as number;
-    if (!monitorId) return { success: false, error: "No monitor detected" };
+    if (!mon) return { success: false, error: "No monitor detected" };
     if (input === undefined) return { success: false, error: "Missing input parameter" };
 
-    const ok = await setInput(monitorId, input);
+    const ok = await setInput(mon.id, input);
     if (ok) {
-      // Update local state immediately for responsiveness
-      const mon = lastMonitors.find((m) => m.id === monitorId);
-      if (mon) {
-        mon.currentInput = input;
-        mon.currentInputName = DEFAULT_INPUT_NAMES[input] ?? `Input ${input}`;
-        omnideck.setState("monitors", lastMonitors);
-      }
+      mon.currentInput = input;
+      mon.currentInputName = DEFAULT_INPUT_NAMES[input] ?? `Input ${input}`;
+      omnideck.setState("monitors", lastMonitors);
     }
     return { success: ok, error: ok ? undefined : "Failed to set monitor input" };
   });
 
   omnideck.onAction("next_input", async (params) => {
-    const monitorId = (params.monitor as string) ?? lastMonitors[0]?.id;
-    if (!monitorId) return { success: false, error: "No monitor detected" };
-
-    const mon = lastMonitors.find((m) => m.id === monitorId);
-    if (!mon) return { success: false, error: `Monitor ${monitorId} not found` };
+    const mon = findMonitor(params);
+    if (!mon) return { success: false, error: "No monitor detected" };
 
     // Get available inputs from params or use common defaults
     const configInputs = params.inputs as Record<string, unknown> | undefined;
@@ -267,7 +272,7 @@ public class DDC {
     const currentIdx = inputValues.indexOf(mon.currentInput);
     const nextInput = inputValues[(currentIdx + 1) % inputValues.length];
 
-    const ok = await setInput(monitorId, nextInput);
+    const ok = await setInput(mon.id, nextInput);
     if (ok) {
       mon.currentInput = nextInput;
       mon.currentInputName = DEFAULT_INPUT_NAMES[nextInput] ?? `Input ${nextInput}`;

@@ -44,6 +44,15 @@ export const monitorControlPlugin: OmniDeckPlugin = {
       return (ctx.state.get("monitor-control", `agent:${target}:monitors`) as MonitorInfo[]) ?? [];
     }
 
+    /** Find a monitor by name substring, ID, or fall back to first. */
+    function findMonitor(monitors: MonitorInfo[], monitorParam: string | undefined): MonitorInfo | undefined {
+      if (!monitorParam) return monitors[0];
+      const byId = monitors.find((m) => m.id === monitorParam);
+      if (byId) return byId;
+      const lower = monitorParam.toLowerCase();
+      return monitors.find((m) => m.name.toLowerCase().includes(lower)) ?? monitors[0];
+    }
+
     // --- Actions ---
 
     // set_input: dispatches to agent
@@ -89,8 +98,9 @@ export const monitorControlPlugin: OmniDeckPlugin = {
 
         // Optimistic update: cycle the input in the store immediately
         const monitors = getMonitors(target);
-        if (monitors.length > 0) {
-          const mon = monitors[0];
+        const monitorParam = (params as Record<string, unknown>).monitor as string | undefined;
+        const mon = findMonitor(monitors, monitorParam);
+        if (mon) {
           const p = params as Record<string, unknown>;
           const configInputs = p.inputs as Record<string, unknown> | undefined;
           let inputValues: number[];
@@ -131,16 +141,16 @@ export const monitorControlPlugin: OmniDeckPlugin = {
         const p = params as Record<string, unknown>;
         const target = (p.target as string | undefined) ?? config.default_target;
         const monitors = getMonitors(target);
+        const monitorParam = p.monitor as string | undefined;
         const configInputs = p.inputs as Record<string, Record<string, string>> | undefined;
 
-        if (monitors.length === 0) {
+        const mon = findMonitor(monitors, monitorParam);
+        if (!mon) {
           return {
             state: { icon: "ms:monitor", label: "No monitor", opacity: 0.4 },
             variables: { input_name: "", input_value: "", monitor_name: "" },
           };
         }
-
-        const mon = monitors[0];
         const inputCfg = configInputs?.[String(mon.currentInput)];
         const inputName = inputCfg?.name ?? mon.currentInputName;
         const inputIcon = inputCfg?.icon ?? "ms:monitor";
