@@ -49,6 +49,7 @@ interface AgentServerOptions {
 }
 
 type AgentStateCallback = (hostname: string, state: AgentStateData) => void;
+type PluginStateCallback = (hostname: string, pluginId: string, key: string, value: unknown) => void;
 type AgentConnectionCallback = (hostname: string, connected: boolean) => void;
 
 /** Per-connection auth state */
@@ -72,6 +73,7 @@ export class AgentServer {
   private caFingerprint: string | undefined;
   private hubName: string | undefined;
   private stateCallbacks: AgentStateCallback[] = [];
+  private pluginStateCallbacks: PluginStateCallback[] = [];
   private connectionCallbacks: AgentConnectionCallback[] = [];
 
   constructor(opts: AgentServerOptions) {
@@ -133,9 +135,21 @@ export class AgentServer {
     return this.agents.get(hostname);
   }
 
+  private getHostnameByAgentId(agentId: string): string | undefined {
+    for (const [hostname, agent] of this.agents) {
+      if (agent.agentId === agentId) return hostname;
+    }
+    return undefined;
+  }
+
   /** Register a callback for agent state updates (fired on each state_update message). */
   onAgentStateUpdate(cb: AgentStateCallback): void {
     this.stateCallbacks.push(cb);
+  }
+
+  /** Register a callback for plugin state updates from agents. */
+  onPluginState(cb: PluginStateCallback): void {
+    this.pluginStateCallbacks.push(cb);
   }
 
   /** Register a callback for agent connect/disconnect events. */
@@ -281,6 +295,14 @@ export class AgentServer {
           case "warn": agentLogger.warn(logData, d.msg); break;
           case "error": agentLogger.error(logData, d.msg); break;
           default: agentLogger.info(logData, d.msg); break;
+        }
+        break;
+      }
+      case "plugin_state": {
+        const { pluginId, key, value } = msg.data as { pluginId: string; key: string; value: unknown };
+        const hostname = connState.agentId ? this.getHostnameByAgentId(connState.agentId) : undefined;
+        if (hostname) {
+          for (const cb of this.pluginStateCallbacks) cb(hostname, pluginId, key, value);
         }
         break;
       }

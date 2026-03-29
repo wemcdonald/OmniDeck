@@ -1,0 +1,14 @@
+id: monitor-control
+name: "Monitor Control"
+version: "1.0.0"
+description: |
+  Control monitor inputs via DDC/CI. Switch between HDMI, DisplayPort, USB-C inputs.
+
+  Platform requirements:
+    - macOS (Apple Silicon): install m1ddc via `brew install m1ddc`
+    - Windows: no additional software needed (uses built-in dxva2.dll)
+    - Linux / Raspberry Pi: install ddcutil via `sudo apt install ddcutil i2c-tools`,
+      then run `sudo usermod -aG i2c $USER` and `sudo modprobe i2c-dev`.
+      On Raspberry Pi, add `dtoverlay=vc4-kms-v3d` to /boot/config.txt.
+      Ensure DDC/CI is enabled in your monitor's OSD settings.
+agent: agent.ts

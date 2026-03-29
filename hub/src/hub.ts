@@ -14,6 +14,7 @@ import { corePlugin } from "./plugins/builtin/core/index.js";
 import { soundPlugin } from "./plugins/builtin/sound/index.js";
 import { homeAssistantPlugin } from "./plugins/builtin/home-assistant/index.js";
 import { osControlPlugin } from "./plugins/builtin/os-control/index.js";
+import { monitorControlPlugin } from "./plugins/builtin/monitor-control/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
@@ -94,6 +95,7 @@ export class Hub {
     this.pluginHost.register(soundPlugin);
     this.pluginHost.register(homeAssistantPlugin);
     this.pluginHost.register(osControlPlugin);
+    this.pluginHost.register(monitorControlPlugin);
   }
 
   async start(
@@ -198,6 +200,11 @@ export class Hub {
         const focused = this.orchestrator?.focusedDevice ?? null;
         this.store.set("orchestrator", "focused_device", focused);
       }
+    });
+
+    // Bridge agent plugin state into the hub state store
+    this.agentServer.onPluginState((hostname, pluginId, key, value) => {
+      this.store.set(pluginId, `agent:${hostname}:${key}`, value);
     });
 
     // Initialize mode engine (if modes configured)
@@ -399,9 +406,19 @@ export class Hub {
       this.modeEngine.start();
     }
 
-    // Listen for key presses
+    // Listen for key presses (short press vs long press >500ms)
+    const keyDownTimes = new Map<number, number>();
+
     this.deck.onKeyDown((key) => {
-      this.handleKeyPress(key).catch((err) =>
+      keyDownTimes.set(key, Date.now());
+    });
+
+    this.deck.onKeyUp((key) => {
+      const downTime = keyDownTimes.get(key);
+      keyDownTimes.delete(key);
+      if (downTime === undefined) return;
+      const isLongPress = Date.now() - downTime >= 500;
+      this.handleKeyPress(key, isLongPress).catch((err) =>
         log.error({ err, key }, "Key press handler error"),
       );
     });
@@ -487,7 +504,7 @@ export class Hub {
     await this.handleKeyPress(keyIndex);
   }
 
-  private async handleKeyPress(keyIndex: number): Promise<void> {
+  private async handleKeyPress(keyIndex: number, isLongPress = false): Promise<void> {
     const page = this.pages.get(this.currentPageId);
     if (!page) {
       log.warn({ keyIndex, pageId: this.currentPageId }, "Key press on unknown page");
@@ -502,18 +519,28 @@ export class Hub {
 
     const effectiveButton = this.applyModeOverrides(button);
     const resolved = this.resolveButton(effectiveButton);
-    if (!resolved.action) {
+
+    // Choose between long press action and normal action
+    let action = resolved.action;
+    let actionParams = resolved.actionParams;
+
+    if (isLongPress && resolved.longPressAction) {
+      action = resolved.longPressAction;
+      actionParams = { ...resolved.actionParams, ...resolved.longPressParams };
+    }
+
+    if (!action) {
       log.info({ keyIndex, pageId: this.currentPageId }, "Key press with no action");
       return;
     }
 
     // Inject button-level target into action params (only if not already set explicitly)
-    const actionParams = resolved.target && !(resolved.actionParams as Record<string, unknown>).target
-      ? { ...resolved.actionParams, target: resolved.target }
-      : resolved.actionParams;
+    if (resolved.target && !(actionParams as Record<string, unknown>).target) {
+      actionParams = { ...actionParams, target: resolved.target };
+    }
 
-    log.info({ pos: button.pos, action: resolved.action, params: actionParams, target: resolved.target }, `[${button.pos}] pressed → ${resolved.action}`);
-    await this.pluginHost.executeAction(resolved.action, actionParams, {
+    log.info({ pos: button.pos, action, params: actionParams, target: resolved.target, isLongPress }, `[${button.pos}] ${isLongPress ? "long " : ""}pressed → ${action}`);
+    await this.pluginHost.executeAction(action, actionParams, {
       targetAgent: resolved.target,
       focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
     });
@@ -627,6 +654,8 @@ export class Hub {
   private resolveButton(button: ButtonConfig): {
     action: string | undefined;
     actionParams: Record<string, unknown>;
+    longPressAction: string | undefined;
+    longPressParams: Record<string, unknown>;
     stateProvider: string | undefined;
     stateParams: Record<string, unknown>;
     target: string | undefined;
@@ -638,6 +667,8 @@ export class Hub {
     // Start with explicit button-level values
     let action = button.action;
     const userParams: Record<string, unknown> = button.params ?? {};
+    let longPressAction = button.long_press_action;
+    let longPressParams: Record<string, unknown> = button.long_press_params ?? {};
     let stateProvider = button.state?.provider;
     let stateParams: Record<string, unknown> = button.state?.params ?? {};
     let icon = button.icon;
@@ -657,6 +688,9 @@ export class Hub {
         if (!action && preset.action) {
           action = `${pluginId}.${preset.action}`;
         }
+        if (!longPressAction && preset.longPressAction) {
+          longPressAction = `${pluginId}.${preset.longPressAction}`;
+        }
         if (!stateProvider && preset.stateProvider) {
           stateProvider = `${pluginId}.${preset.stateProvider}`;
         }
@@ -667,6 +701,11 @@ export class Hub {
         if (!topLabel && preset.defaults.topLabel) topLabel = preset.defaults.topLabel;
         if (!background && preset.defaults.background) background = preset.defaults.background;
 
+        // Long press defaults from preset
+        if (preset.longPressDefaults && Object.keys(longPressParams).length === 0) {
+          longPressParams = preset.longPressDefaults;
+        }
+
         // Forward all user params to both action and state provider
         if (!button.state?.params) {
           stateParams = userParams;
@@ -676,7 +715,7 @@ export class Hub {
       }
     }
 
-    return { action, actionParams: userParams, stateProvider, stateParams, target: button.target, icon, label, topLabel, background };
+    return { action, actionParams: userParams, longPressAction, longPressParams, stateProvider, stateParams, target: button.target, icon, label, topLabel, background };
   }
 
   /**

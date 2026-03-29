@@ -63,8 +63,10 @@ describe("Hub", () => {
         buttons: [],
       },
     ]);
-    // Simulate pressing key 0
+    // Simulate pressing key 0 (down + up = short press)
     deck.simulateKeyDown(0);
+    deck.simulateKeyUp(0);
+    await new Promise((r) => setTimeout(r, 50));
     // After the action, current page should be "media"
     const currentPage = hub.getCurrentPage();
     expect(currentPage).toBe("media");
@@ -94,7 +96,8 @@ describe("Hub", () => {
     ]);
 
     const imagesBefore = new Map(deck.images);
-    deck.simulateKeyDown(0); // navigate to media page
+    deck.simulateKeyDown(0);
+    deck.simulateKeyUp(0); // navigate to media page
 
     // Give async rendering time to complete (sharp can be slow on ARM)
     await new Promise((r) => setTimeout(r, 500));

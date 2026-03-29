@@ -54,6 +54,7 @@ describe("Hub Integration", () => {
 
     // Simulate key press on key 0 → navigate to media page
     deck.simulateKeyDown(0);
+    deck.simulateKeyUp(0);
     await new Promise((r) => setTimeout(r, 50));
     expect(hub.getCurrentPage()).toBe("media");
 
@@ -62,6 +63,7 @@ describe("Hub Integration", () => {
 
     // Simulate key press on key 0 on media → go_back to home
     deck.simulateKeyDown(0);
+    deck.simulateKeyUp(0);
     await new Promise((r) => setTimeout(r, 50));
     expect(hub.getCurrentPage()).toBe("home");
   });
