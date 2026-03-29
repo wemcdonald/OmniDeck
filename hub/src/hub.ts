@@ -13,6 +13,7 @@ import { PluginHost } from "./plugins/host.js";
 import { corePlugin } from "./plugins/builtin/core/index.js";
 import { soundPlugin } from "./plugins/builtin/sound/index.js";
 import { homeAssistantPlugin } from "./plugins/builtin/home-assistant/index.js";
+import { osControlPlugin } from "./plugins/builtin/os-control/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
 import { Broadcaster } from "./web/broadcast.js";
@@ -92,6 +93,7 @@ export class Hub {
     this.pluginHost.register(corePlugin);
     this.pluginHost.register(soundPlugin);
     this.pluginHost.register(homeAssistantPlugin);
+    this.pluginHost.register(osControlPlugin);
   }
 
   async start(
