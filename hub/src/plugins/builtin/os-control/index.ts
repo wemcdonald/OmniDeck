@@ -159,6 +159,7 @@ export const osControlPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "active_window",
       name: "Active Window",
+      description: "Currently focused window title",
       paramsSchema: targetOnlySchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
@@ -175,6 +176,7 @@ export const osControlPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "volume_level",
       name: "Volume Level",
+      description: "System volume with percentage and progress bar",
       paramsSchema: targetOnlySchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
@@ -197,6 +199,7 @@ export const osControlPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "app_running",
       name: "App Running",
+      description: "Dims button when the specified app is not the active window",
       paramsSchema: targetOnlySchema,
       resolve(params) {
         const p = params as Record<string, unknown>;
@@ -220,9 +223,11 @@ export const osControlPlugin: OmniDeckPlugin = {
     ctx.registerPreset({
       id: "app_launcher",
       name: "App Launcher",
+      description: "Launch an application on a target machine",
+      category: "System",
       action: "launch_app",
       defaults: {
-        icon: "app",
+        icon: "ms:launch",
       },
     });
 

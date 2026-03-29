@@ -160,6 +160,7 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "volume_level",
       name: "Volume Level",
+      description: "Current volume with percentage and progress bar",
       icon: "ms:volume-up",
       providesIcon: true,
       paramsSchema: targetSchema,
@@ -185,6 +186,7 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "mute_state",
       name: "Mute State",
+      description: "Audio mute status with red background when muted",
       icon: "ms:volume-up",
       providesIcon: true,
       paramsSchema: targetSchema,
@@ -202,6 +204,7 @@ export const soundPlugin: OmniDeckPlugin = {
     ctx.registerStateProvider({
       id: "mic_state",
       name: "Mic State",
+      description: "Microphone mute status with red background when muted",
       icon: "ms:mic",
       providesIcon: true,
       paramsSchema: targetSchema,
