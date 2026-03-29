@@ -15,11 +15,12 @@ import { PluginPreview } from "./PluginPreview.tsx";
 
 interface PluginBrowseTabProps {
   onClose: () => void;
+  prefetchedPlugins?: BrowsePlugin[] | null;
 }
 
-export function PluginBrowseTab({ onClose }: PluginBrowseTabProps) {
-  const [plugins, setPlugins] = useState<BrowsePlugin[]>([]);
-  const [loading, setLoading] = useState(true);
+export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabProps) {
+  const [plugins, setPlugins] = useState<BrowsePlugin[]>(prefetchedPlugins ?? []);
+  const [loading, setLoading] = useState(!prefetchedPlugins);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [installedPlugins, setInstalledPlugins] = useState<Record<string, string>>({});
@@ -56,7 +57,7 @@ export function PluginBrowseTab({ onClose }: PluginBrowseTabProps) {
   }
 
   useEffect(() => {
-    loadPlugins();
+    if (!prefetchedPlugins) loadPlugins();
     loadInstalled();
   }, []);
 

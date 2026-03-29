@@ -5,15 +5,17 @@ import { cn } from "../lib/utils.ts";
 import { PluginBrowseTab } from "./PluginBrowseTab.tsx";
 import { PluginGitHubTab } from "./PluginGitHubTab.tsx";
 import { PluginZipTab } from "./PluginZipTab.tsx";
+import type { BrowsePlugin } from "../lib/api.ts";
 
 type Tab = "browse" | "github" | "zip";
 
 interface PluginInstallModalProps {
   open: boolean;
+  prefetchedBrowse?: BrowsePlugin[] | null;
   onClose: () => void;
 }
 
-export function PluginInstallModal({ open, onClose }: PluginInstallModalProps) {
+export function PluginInstallModal({ open, prefetchedBrowse, onClose }: PluginInstallModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>("browse");
 
   if (!open) return null;
@@ -62,7 +64,7 @@ export function PluginInstallModal({ open, onClose }: PluginInstallModalProps) {
 
         {/* Tab content */}
         <div className="flex-1 overflow-auto p-4">
-          {activeTab === "browse" && <PluginBrowseTab onClose={onClose} />}
+          {activeTab === "browse" && <PluginBrowseTab onClose={onClose} prefetchedPlugins={prefetchedBrowse} />}
           {activeTab === "github" && <PluginGitHubTab onClose={onClose} />}
           {activeTab === "zip" && <PluginZipTab onClose={onClose} />}
         </div>

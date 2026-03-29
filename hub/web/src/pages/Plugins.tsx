@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { api } from "../lib/api.ts";
+import { api, type BrowsePlugin } from "../lib/api.ts";
 import PluginConfigCard from "../components/PluginConfigCard.tsx";
 import { PluginInstallModal } from "../components/PluginInstallModal.tsx";
 import { Button } from "../components/ui/button.tsx";
@@ -18,6 +18,7 @@ export default function Plugins() {
   const [statuses, setStatuses] = useState<PluginStatus[]>([]);
   const [configs, setConfigs] = useState<Record<string, Record<string, unknown>>>({});
   const [installOpen, setInstallOpen] = useState(false);
+  const [browsePlugins, setBrowsePlugins] = useState<BrowsePlugin[] | null>(null);
 
   async function load() {
     const [statusData, configData] = await Promise.all([
@@ -30,6 +31,10 @@ export default function Plugins() {
 
   useEffect(() => {
     load();
+    // Pre-fetch browse list so the install modal opens instantly
+    api.plugins.browse()
+      .then((data) => setBrowsePlugins(data.plugins))
+      .catch(() => {});
   }, []);
 
   return (
@@ -63,6 +68,7 @@ export default function Plugins() {
 
       <PluginInstallModal
         open={installOpen}
+        prefetchedBrowse={browsePlugins}
         onClose={() => {
           setInstallOpen(false);
           load();
