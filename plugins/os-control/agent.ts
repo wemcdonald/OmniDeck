@@ -46,21 +46,17 @@ export default function init(omnideck: OmniDeck) {
       const parsed = parseDarwinShortcut(keys);
       if (!parsed) return { success: false, error: `Unknown key in shortcut: ${keys}` };
 
-      // Activate target app first if specified
       const targetApp = params.app as string | undefined;
-      if (targetApp) {
-        try {
-          await omnideck.platformRequest("run_applescript", {
-            script: `tell application "${targetApp}" to activate`,
-          });
-        } catch { /* best effort */ }
-      }
-
       try {
-        const res = await omnideck.platformRequest("send_keystroke", {
+        const method = targetApp ? "send_keystroke_to_app" : "send_keystroke";
+        const reqParams: Record<string, unknown> = {
           keyCode: parsed.keyCode,
           flags: parsed.flags,
-        }) as { success?: boolean; error?: string };
+        };
+        if (targetApp) reqParams.app = targetApp;
+
+        const res = await omnideck.platformRequest(method, reqParams) as
+          { success?: boolean; error?: string };
         return { success: res.success === true, error: res.error };
       } catch (err) {
         return { success: false, error: String(err) };

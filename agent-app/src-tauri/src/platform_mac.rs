@@ -60,10 +60,56 @@ pub fn run_applescript(params: &Value) -> Value {
     }
 }
 
+/// Activate an app, wait briefly, then send a keystroke — all in one call.
+/// Avoids timing issues from separate IPC round-trips.
+/// Params: { app: "zoom.us", keyCode: u16, flags: u64 }
+/// Optionally restores the previously focused app afterward.
+pub fn send_keystroke_to_app(params: &Value) -> Value {
+    let app = match params.get("app").and_then(|v| v.as_str()) {
+        Some(a) => a,
+        None => return json!({ "error": "missing app parameter" }),
+    };
+
+    // Save current frontmost app and activate target
+    let prev_app_result = Command::new("/usr/bin/osascript")
+        .arg("-e")
+        .arg(format!(
+            "tell application \"System Events\"\n\
+               set frontApp to bundle identifier of first application process whose frontmost is true\n\
+             end tell\n\
+             tell application \"{}\" to activate\n\
+             delay 0.2\n\
+             return frontApp",
+            app
+        ))
+        .output();
+
+    let prev_app = prev_app_result
+        .as_ref()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+
+    // Send the keystroke
+    let result = send_keystroke(params);
+
+    // Restore previous app (best effort)
+    let target_bundle = app.replace("\"", "");
+    if !prev_app.is_empty() && prev_app != target_bundle {
+        let _ = Command::new("/usr/bin/osascript")
+            .arg("-e")
+            .arg(format!("tell application id \"{}\" to activate", prev_app))
+            .spawn(); // fire-and-forget
+    }
+
+    result
+}
+
 /// Dispatch a platform request to the appropriate handler.
 pub fn handle_request(method: &str, params: &Value) -> Value {
     match method {
         "send_keystroke" => send_keystroke(params),
+        "send_keystroke_to_app" => send_keystroke_to_app(params),
         "run_applescript" => run_applescript(params),
         _ => json!({ "error": format!("unknown platform method: {}", method) }),
     }
