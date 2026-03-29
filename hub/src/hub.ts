@@ -127,9 +127,10 @@ export class Hub {
       await registry.loadAll();
       log.info({ plugins: registry.getManifests().map((m) => m.id) }, "Plugin registry loaded");
 
-      // Register hub-side code from external plugins
+      // Register and initialize hub-side code from external plugins
       for (const plugin of registry.getHubPlugins()) {
         this.pluginHost.register(plugin);
+        await this.pluginHost.initPlugin(plugin.id, pluginConfigs[plugin.id] ?? {});
       }
     }
 
