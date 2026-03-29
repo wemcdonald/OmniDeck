@@ -147,8 +147,8 @@ export const monitorControlPlugin: OmniDeckPlugin = {
         const mon = findMonitor(monitors, monitorParam);
         if (!mon) {
           return {
-            state: { icon: "ms:monitor", label: "No monitor", opacity: 0.4 },
-            variables: { input_name: "", input_value: "", monitor_name: "" },
+            state: { icon: "ms:monitor", label: "---" },
+            variables: { input_name: "---", input_value: "", monitor_name: "" },
           };
         }
         const inputCfg = configInputs?.[String(mon.currentInput)];
@@ -182,6 +182,7 @@ export const monitorControlPlugin: OmniDeckPlugin = {
       defaults: {
         icon: "ms:monitor",
         label: "{{input_name}}",
+        background: "#1e293b",
       },
     });
 

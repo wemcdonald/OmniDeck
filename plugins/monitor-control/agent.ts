@@ -26,11 +26,11 @@ export default function init(omnideck: OmniDeck) {
     if (list.exitCode !== 0) return [];
 
     const monitors: MonitorInfo[] = [];
-    // m1ddc display list outputs lines like: "1 - LG HDR 4K (UUID)"
+    // m1ddc display list outputs lines like: "[1] ROG XG27UQ (UUID)"
     const lines = list.stdout.trim().split("\n").filter(Boolean);
 
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(/^(\d+)\s*-\s*(.+?)(?:\s*\(.*\))?$/);
+    for (const line of lines) {
+      const match = line.match(/^\[(\d+)\]\s+(.+?)\s+\(/);
       if (!match) continue;
       const id = match[1];
       const name = match[2].trim();
@@ -44,7 +44,7 @@ export default function init(omnideck: OmniDeck) {
         name,
         currentInput,
         currentInputName: DEFAULT_INPUT_NAMES[currentInput] ?? `Input ${currentInput}`,
-        inputs: [], // m1ddc doesn't easily enumerate available inputs
+        inputs: [],
       });
     }
     return monitors;

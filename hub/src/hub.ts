@@ -586,6 +586,7 @@ export class Hub {
 
     // Render each button
     const columns = page.columns ?? this.deck.keyColumns;
+    log.debug({ buttonCount: page.buttons.length, columns, keyCount: this.deck.keyCount }, "Rendering page");
     for (const button of page.buttons) {
       const [col, row] = button.pos;
       const keyIndex = row * columns + col;
