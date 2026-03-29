@@ -6,6 +6,10 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface PluginConfigCardProps {
   id: string;
+  name?: string;
+  version?: string;
+  icon?: string;
+  health?: { status: string; message?: string };
   config: Record<string, unknown>;
   onSaved(): void;
 }
@@ -15,7 +19,18 @@ function isSecretKey(key: string): boolean {
   return lower.includes("token") || lower.includes("secret") || lower.includes("password");
 }
 
-export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCardProps) {
+function healthBadge(health?: { status: string }) {
+  if (!health) return <Badge variant="secondary">loaded</Badge>;
+  switch (health.status) {
+    case "ok": return <Badge variant="success">ok</Badge>;
+    case "misconfigured": return <Badge variant="warning">misconfigured</Badge>;
+    case "error": return <Badge variant="destructive">error</Badge>;
+    case "degraded": return <Badge variant="warning">degraded</Badge>;
+    default: return <Badge variant="secondary">{health.status}</Badge>;
+  }
+}
+
+export default function PluginConfigCard({ id, name, version, icon, health, config, onSaved }: PluginConfigCardProps) {
   const [draft, setDraft] = useState<Record<string, unknown>>({ ...config });
   const [saving, setSaving] = useState(false);
   const [showYaml, setShowYaml] = useState(false);
@@ -40,8 +55,11 @@ export default function PluginConfigCard({ id, config, onSaved }: PluginConfigCa
     <Card className="bg-surface-container rounded border border-outline-variant">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">{id}</CardTitle>
-          <Badge variant="success">configured</Badge>
+          <CardTitle className="text-base font-semibold">{name ?? id}</CardTitle>
+          <div className="flex items-center gap-2">
+            {version && <span className="text-xs text-muted-foreground">v{version}</span>}
+            {healthBadge(health)}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

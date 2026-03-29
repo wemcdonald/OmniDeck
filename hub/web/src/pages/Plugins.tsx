@@ -5,20 +5,32 @@ import PluginConfigCard from "../components/PluginConfigCard.tsx";
 import { PluginInstallModal } from "../components/PluginInstallModal.tsx";
 import { Button } from "../components/ui/button.tsx";
 
+interface PluginStatus {
+  id: string;
+  name: string;
+  version: string;
+  icon?: string;
+  status: string;
+  health?: { status: string; message?: string };
+}
+
 export default function Plugins() {
-  const [plugins, setPlugins] = useState<Record<string, Record<string, unknown>>>({});
+  const [statuses, setStatuses] = useState<PluginStatus[]>([]);
+  const [configs, setConfigs] = useState<Record<string, Record<string, unknown>>>({});
   const [installOpen, setInstallOpen] = useState(false);
 
   async function load() {
-    const data = await api.plugins.list().catch(() => ({}));
-    setPlugins(data as Record<string, Record<string, unknown>>);
+    const [statusData, configData] = await Promise.all([
+      api.status.plugins().catch(() => []),
+      api.plugins.list().catch(() => ({})),
+    ]);
+    setStatuses(statusData as PluginStatus[]);
+    setConfigs(configData as Record<string, Record<string, unknown>>);
   }
 
   useEffect(() => {
     load();
   }, []);
-
-  const entries = Object.entries(plugins);
 
   return (
     <div className="space-y-4">
@@ -29,17 +41,21 @@ export default function Plugins() {
           Install Plugin
         </Button>
       </div>
-      {entries.length === 0 && (
+      {statuses.length === 0 && (
         <p className="text-muted-foreground text-sm">
-          No plugins configured. Add plugins to main.yaml.
+          No plugins loaded.
         </p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {entries.map(([id, config]) => (
+        {statuses.map((plugin) => (
           <PluginConfigCard
-            key={id}
-            id={id}
-            config={config}
+            key={plugin.id}
+            id={plugin.id}
+            name={plugin.name}
+            version={plugin.version}
+            icon={plugin.icon}
+            health={plugin.health}
+            config={configs[plugin.id] ?? {}}
             onSaved={load}
           />
         ))}
@@ -49,7 +65,7 @@ export default function Plugins() {
         open={installOpen}
         onClose={() => {
           setInstallOpen(false);
-          load(); // Refresh plugin list after modal closes
+          load();
         }}
       />
     </div>
