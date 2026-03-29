@@ -25,11 +25,14 @@ export default function init(omnideck: OmniDeck) {
     if (!app) return { success: false, error: "missing app param" };
 
     if (omnideck.platform === "darwin") {
-      const result = await omnideck.exec("osascript", [
-        "-e",
-        `tell application "${app}" to activate`,
-      ]);
-      return { success: result.exitCode === 0, error: result.stderr || undefined };
+      try {
+        await omnideck.platformRequest("run_applescript", {
+          script: `tell application "${app}" to activate`,
+        });
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
     }
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
   });
@@ -40,25 +43,28 @@ export default function init(omnideck: OmniDeck) {
     if (!keys) return { success: false, error: "missing keys param" };
 
     if (omnideck.platform === "darwin") {
-      const parts = keys.split(",").map((k: string) => k.trim());
-      const key = parts[parts.length - 1];
-      const modifiers = parts.slice(0, -1);
-      const modMap: Record<string, string> = {
-        ctrl: "control down",
-        control: "control down",
-        shift: "shift down",
-        alt: "option down",
-        option: "option down",
-        cmd: "command down",
-        command: "command down",
-      };
-      const modStr =
-        modifiers.length > 0
-          ? ` using {${modifiers.map((m: string) => modMap[m] ?? m).join(", ")}}`
-          : "";
-      const script = `tell application "System Events" to keystroke "${key}"${modStr}`;
-      const result = await omnideck.exec("osascript", ["-e", script]);
-      return { success: result.exitCode === 0, error: result.stderr || undefined };
+      const parsed = parseDarwinShortcut(keys);
+      if (!parsed) return { success: false, error: `Unknown key in shortcut: ${keys}` };
+
+      // Activate target app first if specified
+      const targetApp = params.app as string | undefined;
+      if (targetApp) {
+        try {
+          await omnideck.platformRequest("run_applescript", {
+            script: `tell application "${targetApp}" to activate`,
+          });
+        } catch { /* best effort */ }
+      }
+
+      try {
+        const res = await omnideck.platformRequest("send_keystroke", {
+          keyCode: parsed.keyCode,
+          flags: parsed.flags,
+        }) as { success?: boolean; error?: string };
+        return { success: res.success === true, error: res.error };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
     }
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
   });
@@ -115,11 +121,16 @@ export default function init(omnideck: OmniDeck) {
   // Lock the screen
   omnideck.onAction("lock", async (_params) => {
     if (omnideck.platform === "darwin") {
-      const result = await omnideck.exec("osascript", [
-        "-e",
-        `tell application "System Events" to keystroke "q" using {control down, command down}`,
-      ]);
-      return { success: result.exitCode === 0, error: result.stderr || undefined };
+      // Ctrl+Cmd+Q locks the screen
+      try {
+        const res = await omnideck.platformRequest("send_keystroke", {
+          keyCode: 12, // 'q'
+          flags: 0x40000 | 0x100000, // kCGEventFlagMaskControl | kCGEventFlagMaskCommand
+        }) as { success?: boolean; error?: string };
+        return { success: res.success === true, error: res.error };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
     }
     if (omnideck.platform === "windows") {
       const result = await omnideck.exec("rundll32.exe", ["user32.dll,LockWorkStation"]);
@@ -138,12 +149,6 @@ export default function init(omnideck: OmniDeck) {
     if (!device) return { success: false, error: "missing device param" };
 
     if (omnideck.platform === "darwin") {
-      const script = `
-        tell application "System Preferences"
-          reveal pane "com.apple.preference.sound"
-        end tell
-      `.trim();
-      // Best-effort: log the intent; full switching requires SwitchAudioSource or similar
       omnideck.log.warn("switch_audio_output: requires SwitchAudioSource CLI on macOS", {
         device,
       });
@@ -152,7 +157,6 @@ export default function init(omnideck: OmniDeck) {
         stderr: "SwitchAudioSource not found",
         exitCode: 1,
       }));
-      void script;
       return { success: result.exitCode === 0, error: result.stderr || undefined };
     }
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
@@ -178,4 +182,46 @@ export default function init(omnideck: OmniDeck) {
     }
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
   });
+}
+
+// ---------------------------------------------------------------------------
+// macOS key code helpers
+// ---------------------------------------------------------------------------
+
+const MAC_KEYCODES: Record<string, number> = {
+  a: 0, s: 1, d: 2, f: 3, h: 4, g: 5, z: 6, x: 7, c: 8, v: 9,
+  b: 11, q: 12, w: 13, e: 14, r: 15, y: 16, t: 17, "1": 18, "2": 19,
+  "3": 20, "4": 21, "6": 22, "5": 23, "=": 24, "9": 25, "7": 26, "-": 27,
+  "8": 28, "0": 29, "]": 30, o: 31, u: 32, "[": 33, i: 34, p: 35,
+  return: 36, l: 37, j: 38, "'": 39, k: 40, ";": 41, "\\": 42, ",": 43,
+  "/": 44, n: 45, m: 46, ".": 47, tab: 9, space: 49, "`": 50,
+  delete: 51, escape: 53, f1: 122, f2: 120, f3: 99, f4: 118,
+  f5: 96, f6: 97, f7: 98, f8: 100, f9: 101, f10: 109, f11: 103, f12: 111,
+  left: 123, right: 124, down: 125, up: 126,
+};
+
+const kCGEventFlagMaskShift = 0x20000;
+const kCGEventFlagMaskControl = 0x40000;
+const kCGEventFlagMaskAlternate = 0x80000;
+const kCGEventFlagMaskCommand = 0x100000;
+
+function parseDarwinShortcut(keys: string): { keyCode: number; flags: number } | null {
+  // Accept both comma-separated ("cmd,shift,a") and array format
+  const parts = (Array.isArray(keys) ? keys : keys.split(",")).map((k: string) => k.trim().toLowerCase());
+  const key = parts[parts.length - 1];
+  const modifiers = parts.slice(0, -1);
+
+  const keyCode = MAC_KEYCODES[key];
+  if (keyCode === undefined) return null;
+
+  let flags = 0;
+  for (const mod of modifiers) {
+    switch (mod) {
+      case "cmd": case "command": flags |= kCGEventFlagMaskCommand; break;
+      case "shift": flags |= kCGEventFlagMaskShift; break;
+      case "alt": case "option": flags |= kCGEventFlagMaskAlternate; break;
+      case "ctrl": case "control": flags |= kCGEventFlagMaskControl; break;
+    }
+  }
+  return { keyCode, flags };
 }
