@@ -85,7 +85,7 @@ jobs:
             | **Linux** (RPM) | `OmniDeck.Agent_*_x86_64.rpm` |
 
             Download the file for your platform from the assets below.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
 
       # Upload Windows installer as artifact for SignPath signing
