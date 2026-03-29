@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,19 +21,26 @@ function isSecretKey(key: string): boolean {
 }
 
 function healthBadge(health?: { status: string }) {
-  if (!health) return <Badge variant="secondary">loaded</Badge>;
-  switch (health.status) {
-    case "ok": return <Badge variant="success">ok</Badge>;
+  const status = health?.status ?? "ok";
+  switch (status) {
+    case "ok": return <Badge variant="success">running</Badge>;
     case "misconfigured": return <Badge variant="warning">misconfigured</Badge>;
     case "error": return <Badge variant="destructive">error</Badge>;
     case "degraded": return <Badge variant="warning">degraded</Badge>;
-    default: return <Badge variant="secondary">{health.status}</Badge>;
+    default: return <Badge variant="secondary">{status}</Badge>;
   }
 }
 
 export default function PluginConfigCard({ id, name, version, icon: _icon, health, config, onSaved }: PluginConfigCardProps) {
   const [draft, setDraft] = useState<Record<string, unknown>>({ ...config });
   const [showYaml, setShowYaml] = useState(false);
+
+  // Sync draft when config prop changes (query may resolve after initial render)
+  useEffect(() => {
+    if (Object.keys(config).length > 0) {
+      setDraft({ ...config });
+    }
+  }, [JSON.stringify(config)]);
 
   const saveMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.plugins.save(id, data),
