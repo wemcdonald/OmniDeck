@@ -56,6 +56,55 @@ function emit(event: Record<string, unknown>): void {
   process.stdout.write(JSON.stringify(event) + "\n");
 }
 
+// Platform request/response IPC: sidecar → Tauri (stdout) → Tauri (stdin) → sidecar
+let requestIdCounter = 0;
+const pendingPlatformRequests = new Map<string, {
+  resolve: (value: unknown) => void;
+  reject: (err: Error) => void;
+}>();
+
+/**
+ * Send a platform request to the Tauri host and wait for the response.
+ * Only available in managed mode. Falls back to rejection in CLI mode.
+ */
+export function platformRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
+  const id = `pr_${++requestIdCounter}`;
+  return new Promise((resolve, reject) => {
+    pendingPlatformRequests.set(id, { resolve, reject });
+    emit({ type: "platform_request", id, method, params });
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (pendingPlatformRequests.delete(id)) {
+        reject(new Error(`platformRequest "${method}" timed out`));
+      }
+    }, 10_000);
+  });
+}
+
+function startStdinListener(): void {
+  const rl = createInterface({ input: process.stdin, terminal: false });
+  rl.on("line", (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    try {
+      const msg = JSON.parse(trimmed) as Record<string, unknown>;
+      if (msg.type === "platform_response" && typeof msg.id === "string") {
+        const pending = pendingPlatformRequests.get(msg.id);
+        if (pending) {
+          pendingPlatformRequests.delete(msg.id);
+          if (msg.error) {
+            pending.reject(new Error(msg.error as string));
+          } else {
+            pending.resolve(msg.result);
+          }
+        }
+      }
+    } catch {
+      // Not JSON or unknown format — ignore
+    }
+  });
+}
+
 // ── Hub discovery ───────────────────────────────────────────────────────────
 
 interface DiscoveredHub {
@@ -130,6 +179,7 @@ function prompt(question: string): Promise<string> {
 
 async function runManaged(args: CliArgs) {
   setStderrOnly(true);
+  startStdinListener();
   const credsPath = getCredentialsPath();
 
   // Discover mode: find hubs and exit
@@ -199,6 +249,7 @@ async function runManaged(args: CliArgs) {
     hubUrl,
     auth: { agentId: creds.agent_id, token: creds.token },
     caCert: creds.ca_cert,
+    platformRequest,
     onConnected: () => {
       emit({ type: "status", state: "connected", hub: creds.hub_name, hub_url: hubUrl });
     },

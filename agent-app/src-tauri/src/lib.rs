@@ -1,5 +1,7 @@
 mod sidecar;
 mod tray;
+#[cfg(target_os = "macos")]
+mod platform_mac;
 
 use sidecar::{AgentState, SidecarManager};
 use std::sync::Arc;

@@ -23,6 +23,7 @@ interface RuntimeOptions {
   hostname: string;
   onStateUpdate: (pluginId: string, key: string, value: unknown) => void;
   onLog?: (pluginId: string, level: string, msg: string, data?: Record<string, unknown>) => void;
+  platformRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
 }
 
 export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck; runtime: PluginRuntime } {
@@ -100,6 +101,13 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
 
     get log() {
       return pluginLog;
+    },
+
+    async platformRequest(method, params) {
+      if (!opts.platformRequest) {
+        throw new Error("platformRequest is not available (not running in managed mode)");
+      }
+      return opts.platformRequest(method, params);
     },
 
     onDestroy(fn) {

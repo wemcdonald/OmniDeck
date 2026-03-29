@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandChild;
 
@@ -41,6 +41,14 @@ impl SidecarManager {
 
     pub fn state(&self) -> AgentState {
         self.state.lock().unwrap().clone()
+    }
+
+    /// Write a JSON line to the sidecar's stdin.
+    pub fn write_to_child(&self, msg: &serde_json::Value) {
+        if let Some(child) = self.child.lock().unwrap().as_mut() {
+            let line = format!("{}\n", serde_json::to_string(msg).unwrap_or_default());
+            let _ = child.write(line.as_bytes());
+        }
     }
 
     pub fn start(&self, app: &AppHandle, config_dir: &str) {
@@ -139,11 +147,53 @@ fn handle_agent_message(
             let _ = app.emit("agent-status", &AgentState::NotPaired);
             let _ = app.emit("agent-auth-failed", msg);
         }
+        "platform_request" => {
+            handle_platform_request(app, msg);
+        }
         "error" => {
             let message = msg.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
             *state.lock().unwrap() = AgentState::Error { message: message.to_string() };
             let _ = app.emit("agent-status", &AgentState::Error { message: message.to_string() });
         }
         _ => {}
+    }
+}
+
+fn handle_platform_request(app: &AppHandle, msg: &serde_json::Value) {
+    let id = msg.get("id").and_then(|i| i.as_str()).unwrap_or("");
+    let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
+    let params = msg.get("params").cloned().unwrap_or(serde_json::json!({}));
+
+    let result = dispatch_platform_method(method, &params);
+
+    // Build response
+    let response = if result.get("error").is_some() {
+        serde_json::json!({
+            "type": "platform_response",
+            "id": id,
+            "error": result["error"],
+        })
+    } else {
+        serde_json::json!({
+            "type": "platform_response",
+            "id": id,
+            "result": result,
+        })
+    };
+
+    // Write response to sidecar stdin
+    let manager = app.state::<crate::SidecarState>();
+    manager.0.write_to_child(&response);
+}
+
+fn dispatch_platform_method(method: &str, params: &serde_json::Value) -> serde_json::Value {
+    #[cfg(target_os = "macos")]
+    {
+        return crate::platform_mac::handle_request(method, params);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = params;
+        serde_json::json!({ "error": format!("platform method '{}' not supported on this OS", method) })
     }
 }

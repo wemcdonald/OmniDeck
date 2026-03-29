@@ -16,6 +16,7 @@ interface LoaderOptions {
   hostname?: string;
   onStateUpdate?: (pluginId: string, key: string, value: unknown) => void;
   onLog?: (pluginId: string, level: string, msg: string, data?: Record<string, unknown>) => void;
+  platformRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
 }
 
 export class PluginLoader {

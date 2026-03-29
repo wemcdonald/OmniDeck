@@ -84,6 +84,18 @@ export interface OmniDeck {
   /** Logging — forwarded to Hub */
   readonly log: OmniDeckLogger;
 
+  /**
+   * Send a request to the host process (Tauri app) for operations that
+   * require elevated permissions (e.g., Accessibility on macOS).
+   *
+   * Available methods:
+   * - `send_keystroke` — Post a CGEvent keyboard event (macOS). Params: `{ keyCode: number, flags: number }`
+   * - `run_applescript` — Execute an AppleScript string (macOS). Params: `{ script: string }`
+   *
+   * Returns the host's response, or throws if the host doesn't support the method.
+   */
+  platformRequest(method: string, params: Record<string, unknown>): Promise<unknown>;
+
   /** Register cleanup function called on plugin unload/reload */
   onDestroy(fn: () => void | Promise<void>): void;
 }

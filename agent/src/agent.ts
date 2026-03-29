@@ -38,6 +38,8 @@ interface AgentOptions {
   onDisconnected?: (reason: string) => void;
   /** Called when the agent is reconnecting */
   onReconnecting?: () => void;
+  /** Platform request handler (managed mode IPC to Tauri host) */
+  platformRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
 }
 
 export class Agent {
@@ -220,6 +222,7 @@ export class Agent {
                 createMessage("plugin_log", { hostname, pluginId, level, msg, data }),
               );
             },
+            platformRequest: this.opts.platformRequest,
           });
           statuses.push({ id: plugin.id, version: plugin.version, status: "active" });
         } else {
@@ -271,6 +274,7 @@ export class Agent {
             createMessage("plugin_log", { hostname, pluginId, level, msg, data }),
           );
         },
+        platformRequest: this.opts.platformRequest,
       });
       this.client.send(
         createMessage("plugin_status", {
