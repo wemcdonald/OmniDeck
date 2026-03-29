@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ModeEvalResult, type CheckResult, type RuleResult } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
@@ -12,7 +13,7 @@ function CheckResultRow({ check }: { check: CheckResult }) {
     check.actualValue === undefined ? "undefined" : JSON.stringify(check.actualValue);
 
   const expectedStr =
-    check.expectedValue === undefined ? "—" : JSON.stringify(check.expectedValue);
+    check.expectedValue === undefined ? "---" : JSON.stringify(check.expectedValue);
 
   return (
     <div
@@ -115,25 +116,18 @@ interface Props {
 }
 
 export default function ModeLivePreview({ modeId }: Props) {
-  const [results, setResults] = useState<ModeEvalResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const ws = useWebSocket();
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await api.status.debugModes();
-      setResults(data);
-    } catch {
-      // endpoint may not be available if no modes configured
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: results = [], isLoading: loading } = useQuery({
+    queryKey: ["status", "debugModes"],
+    queryFn: () => api.status.debugModes().catch(() => [] as ModeEvalResult[]),
+    refetchInterval: 3000,
+  });
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["status", "debugModes"] });
+  }, [queryClient]);
 
   // Auto-refresh on any mode change or state update
   useEffect(() => {
@@ -142,12 +136,6 @@ export default function ModeLivePreview({ modeId }: Props) {
     const unsub3 = ws.subscribe("deck:update", () => refresh());
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [ws, refresh]);
-
-  // Also poll every 3s for state changes that don't trigger WS messages
-  useEffect(() => {
-    const interval = setInterval(refresh, 3000);
-    return () => clearInterval(interval);
-  }, [refresh]);
 
   const filtered = modeId ? results.filter((r) => r.id === modeId) : results;
 

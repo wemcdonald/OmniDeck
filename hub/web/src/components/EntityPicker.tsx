@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 interface HaEntity {
   entity_id: string;
@@ -18,25 +19,22 @@ export default function EntityPicker({
   value,
   onChange,
   domain,
-  placeholder = "Select entity…",
+  placeholder = "Select entity...",
 }: EntityPickerProps) {
-  const [entities, setEntities] = useState<HaEntity[]>([]);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Fetch entities on mount / domain change
-  useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (domain) params.set("domain", domain);
-    fetch(`/api/ha/entities?${params}`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => setEntities(data as HaEntity[]))
-      .catch(() => setEntities([]))
-      .finally(() => setLoading(false));
-  }, [domain]);
+  const { data: entities = [], isLoading: loading } = useQuery({
+    queryKey: ["ha", "entities", domain ?? "all"],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (domain) params.set("domain", domain);
+      const r = await fetch(`/api/ha/entities?${params}`);
+      if (!r.ok) return [];
+      return r.json() as Promise<HaEntity[]>;
+    },
+  });
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -84,7 +82,7 @@ export default function EntityPicker({
             <input
               type="text"
               autoFocus
-              placeholder="Search entities…"
+              placeholder="Search entities..."
               className="w-full rounded border px-2 py-1 text-sm bg-background"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -92,7 +90,7 @@ export default function EntityPicker({
           </div>
           <div className="overflow-y-auto flex-1">
             {loading && (
-              <p className="text-xs text-muted-foreground p-2">Loading…</p>
+              <p className="text-xs text-muted-foreground p-2">Loading...</p>
             )}
             {!loading && filtered.length === 0 && (
               <p className="text-xs text-muted-foreground p-2">
@@ -126,7 +124,7 @@ export default function EntityPicker({
           <div className="border-t p-1.5">
             <input
               type="text"
-              placeholder="Or type entity_id manually…"
+              placeholder="Or type entity_id manually..."
               className="w-full rounded border px-2 py-1 text-xs bg-background"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && e.currentTarget.value) {

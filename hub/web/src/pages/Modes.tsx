@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ModeConfig, type ActiveModeInfo, type ModeHistoryEntry } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardAction } from "@/components/ui/card.tsx";
@@ -11,28 +12,41 @@ import ModeLivePreview from "../components/ModeLivePreview.tsx";
 import ModeHistoryTimeline from "../components/ModeHistoryTimeline.tsx";
 
 export default function Modes() {
-  const [modes, setModes] = useState<Record<string, ModeConfig>>({});
+  const queryClient = useQueryClient();
   const [activeMode, setActiveMode] = useState<ActiveModeInfo | null>(null);
-  const [history, setHistory] = useState<ModeHistoryEntry[]>([]);
   const [override, setOverride] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const ws = useWebSocket();
 
-  const load = useCallback(async () => {
-    const data = await api.modes.list().catch(() => ({}));
-    setModes(data);
-    const active = await api.status.activeMode().catch(() => null);
-    setActiveMode(active);
-    const hist = await api.status.modeHistory().catch(() => []);
-    setHistory(hist);
-    const ov = await api.status.modeOverride().catch(() => ({ override: null }));
-    setOverride(ov.override);
-  }, []);
+  const { data: modes = {} } = useQuery({
+    queryKey: ["config", "modes"],
+    queryFn: () => api.modes.list().catch(() => ({}) as Record<string, ModeConfig>),
+  });
+
+  const { data: activeModeData } = useQuery({
+    queryKey: ["status", "activeMode"],
+    queryFn: () => api.status.activeMode().catch(() => null),
+  });
+
+  const { data: history = [] } = useQuery({
+    queryKey: ["status", "modeHistory"],
+    queryFn: () => api.status.modeHistory().catch(() => [] as ModeHistoryEntry[]),
+  });
+
+  const { data: overrideData } = useQuery({
+    queryKey: ["status", "modeOverride"],
+    queryFn: () => api.status.modeOverride().catch(() => ({ override: null })),
+  });
+
+  // Sync query data to local state
+  useEffect(() => {
+    if (activeModeData !== undefined) setActiveMode(activeModeData);
+  }, [activeModeData]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (overrideData !== undefined) setOverride(overrideData?.override ?? null);
+  }, [overrideData]);
 
   // Live mode change updates via WebSocket
   useEffect(() => {
@@ -42,17 +56,33 @@ export default function Modes() {
     });
   }, [ws]);
 
+  function invalidateModes() {
+    queryClient.invalidateQueries({ queryKey: ["config", "modes"] });
+    queryClient.invalidateQueries({ queryKey: ["status", "activeMode"] });
+    queryClient.invalidateQueries({ queryKey: ["status", "modeHistory"] });
+    queryClient.invalidateQueries({ queryKey: ["status", "modeOverride"] });
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: ({ id, config }: { id: string; config: ModeConfig }) =>
+      api.modes.save(id, config),
+    onSuccess: () => invalidateModes(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.modes.delete(id),
+    onSuccess: () => invalidateModes(),
+  });
+
   async function handleSave(id: string, config: ModeConfig) {
-    await api.modes.save(id, config);
+    await saveMutation.mutateAsync({ id, config });
     setEditingId(null);
     setCreating(false);
-    await load();
   }
 
   async function handleDelete(id: string) {
-    await api.modes.delete(id);
+    await deleteMutation.mutateAsync(id);
     setEditingId(null);
-    await load();
   }
 
   async function handleReorder(id: string, direction: "up" | "down") {
@@ -62,17 +92,14 @@ export default function Modes() {
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     if (swapIdx < 0 || swapIdx >= entries.length) return;
 
-    // Swap priorities
     const [, modeA] = entries[idx];
     const [, modeB] = entries[swapIdx];
     const priA = modeA.priority ?? 50;
     const priB = modeB.priority ?? 50;
-    modeA.priority = priB;
-    modeB.priority = priA;
 
-    await api.modes.save(entries[idx][0], modeA);
-    await api.modes.save(entries[swapIdx][0], modeB);
-    await load();
+    await api.modes.save(entries[idx][0], { ...modeA, priority: priB });
+    await api.modes.save(entries[swapIdx][0], { ...modeB, priority: priA });
+    invalidateModes();
   }
 
   // Sort modes by priority
@@ -209,14 +236,9 @@ export default function Modes() {
                 value={override ?? "auto"}
                 onChange={async (e) => {
                   const val = e.target.value;
-                  // Use the set_mode action via API
                   try {
                     await fetch("/api/deck/press/0", { method: "POST" }).catch(() => {});
-                    // Directly set the override in store via a raw config write
-                    // Actually, use the modes API approach - set override via store
                     const body = val === "auto" ? null : val;
-                    // We need a simple API to set override. For now, use the action endpoint.
-                    // TODO: proper endpoint. For now set via config raw.
                     setOverride(body);
                   } catch { /* ignore */ }
                 }}

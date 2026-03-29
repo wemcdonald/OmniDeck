@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Search, RefreshCw } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type BrowsePlugin, type InstallResult } from "../lib/api.ts";
 import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
@@ -19,47 +20,55 @@ interface PluginBrowseTabProps {
 }
 
 export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabProps) {
-  const [plugins, setPlugins] = useState<BrowsePlugin[]>(prefetchedPlugins ?? []);
-  const [loading, setLoading] = useState(!prefetchedPlugins);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [installedPlugins, setInstalledPlugins] = useState<Record<string, string>>({});
 
   // Install flow state
   const [selectedPlugin, setSelectedPlugin] = useState<BrowsePlugin | null>(null);
-  const [installing, setInstalling] = useState(false);
   const [installResult, setInstallResult] = useState<InstallResult | null>(null);
 
-  async function loadPlugins() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.plugins.browse();
-      setPlugins(data.plugins);
-    } catch (err) {
-      setError("Failed to load plugins from GitHub");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const {
+    data: plugins = [],
+    isLoading: loading,
+    error: browseError,
+    refetch: refetchPlugins,
+  } = useQuery({
+    queryKey: ["plugins", "browse"],
+    queryFn: () => api.plugins.browse().then((d) => d.plugins),
+    initialData: prefetchedPlugins ?? undefined,
+  });
 
-  async function loadInstalled() {
-    try {
+  const { data: installedPlugins = {} } = useQuery({
+    queryKey: ["plugins", "installed"],
+    queryFn: async () => {
       const statuses = await api.status.plugins();
       const map: Record<string, string> = {};
       for (const s of statuses) {
         map[s.id] = s.version;
       }
-      setInstalledPlugins(map);
-    } catch {
-      // Ignore — installed list is optional enrichment
-    }
-  }
+      return map;
+    },
+  });
 
-  useEffect(() => {
-    if (!prefetchedPlugins) loadPlugins();
-    loadInstalled();
-  }, []);
+  const installMutation = useMutation({
+    mutationFn: ({ plugin, overwrite }: { plugin: BrowsePlugin; overwrite: boolean }) => {
+      const url = `https://github.com/wemcdonald/OmniDeck-plugins/tree/main/${plugin.dirName}`;
+      return api.plugins.installFromGitHub(url, overwrite);
+    },
+    onSuccess: (result) => {
+      setInstallResult(result);
+      if (result.status === "installed") {
+        queryClient.invalidateQueries({ queryKey: ["plugins"] });
+        queryClient.invalidateQueries({ queryKey: ["status", "plugins"] });
+      }
+    },
+    onError: (err) => {
+      setInstallResult({
+        status: "error",
+        errors: [(err as Error).message],
+      });
+    },
+  });
 
   const filtered = plugins.filter(
     (p) =>
@@ -67,27 +76,8 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
       (p.description ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
-  async function handleInstall(plugin: BrowsePlugin, overwrite: boolean) {
-    setInstalling(true);
-    try {
-      const url = `https://github.com/wemcdonald/OmniDeck-plugins/tree/main/${plugin.dirName}`;
-      const result = await api.plugins.installFromGitHub(url, overwrite);
-
-      if (result.status === "conflict") {
-        setInstallResult(result);
-      } else if (result.status === "installed") {
-        setInstallResult(result);
-      } else {
-        setInstallResult(result);
-      }
-    } catch (err) {
-      setInstallResult({
-        status: "error",
-        errors: [(err as Error).message],
-      });
-    } finally {
-      setInstalling(false);
-    }
+  function handleInstall(plugin: BrowsePlugin, overwrite: boolean) {
+    installMutation.mutate({ plugin, overwrite });
   }
 
   // Success state
@@ -119,7 +109,7 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
           platforms: selectedPlugin.platforms,
         }}
         installedVersion={installedPlugins[selectedPlugin.id]}
-        loading={installing}
+        loading={installMutation.isPending}
         onConfirm={(overwrite) => handleInstall(selectedPlugin, overwrite)}
         onCancel={() => setSelectedPlugin(null)}
       />
@@ -138,7 +128,7 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
           platforms: selectedPlugin.platforms,
         }}
         installedVersion={installResult.installed?.version}
-        loading={installing}
+        loading={installMutation.isPending}
         onConfirm={() => handleInstall(selectedPlugin, true)}
         onCancel={() => {
           setSelectedPlugin(null);
@@ -184,11 +174,11 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
   }
 
   // Error state
-  if (error) {
+  if (browseError) {
     return (
       <div className="text-center space-y-3 py-8">
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" onClick={loadPlugins}>
+        <p className="text-sm text-muted-foreground">Failed to load plugins from GitHub</p>
+        <Button variant="outline" onClick={() => refetchPlugins()}>
           <RefreshCw className="h-3 w-3 mr-1" /> Retry
         </Button>
       </div>
@@ -200,7 +190,7 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
     return (
       <div className="text-center space-y-3 py-8">
         <p className="text-sm text-muted-foreground">No plugins available</p>
-        <Button variant="outline" onClick={loadPlugins}>
+        <Button variant="outline" onClick={() => refetchPlugins()}>
           <RefreshCw className="h-3 w-3 mr-1" /> Retry
         </Button>
       </div>

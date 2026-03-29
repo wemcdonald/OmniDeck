@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { api, type PageConfig, type ButtonConfig } from "../lib/api";
 import { usePluginCatalog } from "../hooks/usePluginCatalog";
@@ -12,9 +13,9 @@ const BROWSER_KEY = "omnideck-editor-browser";
 
 export default function PageEditor() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState<PageConfig | null>(null);
   const [selectedPos, setSelectedPos] = useState<[number, number] | null>(null);
-  const [previews, setPreviews] = useState<Record<string, string>>({});
   const { catalog, loading: catalogLoading } = usePluginCatalog();
   const [browserOpen, setBrowserOpen] = useState(() => {
     const stored = localStorage.getItem(BROWSER_KEY);
@@ -28,13 +29,32 @@ export default function PageEditor() {
     localStorage.setItem(BROWSER_KEY, String(next));
   }
 
+  const { data: pageData } = useQuery({
+    queryKey: ["config", "page", id],
+    queryFn: () => api.pages.get(id!),
+    enabled: !!id,
+  });
+
+  const { data: previews = {} } = useQuery({
+    queryKey: ["deck", "preview", id],
+    queryFn: () => api.pages.preview(id!),
+    enabled: !!id,
+  });
+
+  // Sync page data from query to local state for optimistic editing
   useEffect(() => {
-    if (!id) return;
-    api.pages.get(id)
-      .then((p) => { setPage(p); return api.pages.preview(id); })
-      .then(setPreviews)
-      .catch(console.error);
-  }, [id]);
+    if (pageData) setPage(pageData);
+  }, [pageData]);
+
+  const saveMutation = useMutation({
+    mutationFn: ({ pageId, newPage }: { pageId: string; newPage: PageConfig }) =>
+      api.pages.save(pageId, newPage),
+    onSuccess: () => {
+      if (id) {
+        queryClient.invalidateQueries({ queryKey: ["deck", "preview", id] });
+      }
+    },
+  });
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -64,12 +84,11 @@ export default function PageEditor() {
     const newPage = { ...page, buttons: newButtons };
     setPage(newPage);
     try {
-      await api.pages.save(id, newPage);
-      api.pages.preview(id).then(setPreviews).catch(console.error);
+      saveMutation.mutate({ pageId: id, newPage });
     } catch (e) {
       alert(`Save failed: ${e}`);
     }
-  }, [page, id]);
+  }, [page, id, saveMutation]);
 
   function updateButton(updated: ButtonConfig) {
     if (!page) return;

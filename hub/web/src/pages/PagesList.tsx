@@ -1,22 +1,30 @@
-import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type PageConfig } from "../lib/api.ts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 
 export default function PagesList() {
-  const [pages, setPages] = useState<PageConfig[]>([]);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    api.pages.list().then(setPages).catch(console.error);
-  }, []);
+  const { data: pages = [] } = useQuery({
+    queryKey: ["config", "pages"],
+    queryFn: api.pages.list,
+  });
 
-  async function handleAddPage() {
+  const createMutation = useMutation({
+    mutationFn: (page: PageConfig) => api.pages.create(page),
+    onSuccess: (_data, page) => {
+      queryClient.invalidateQueries({ queryKey: ["config", "pages"] });
+      navigate(`/pages/${page.page}`);
+    },
+  });
+
+  function handleAddPage() {
     const id = `page-${Date.now()}`;
-    await api.pages.create({ page: id, name: "New Page", buttons: [] });
-    navigate(`/pages/${id}`);
+    createMutation.mutate({ page: id, name: "New Page", buttons: [] });
   }
 
   return (

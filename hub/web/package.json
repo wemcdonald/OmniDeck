@@ -17,6 +17,7 @@
     "@iconify-json/material-symbols": "^1.2.63",
     "@iconify/react": "^6.0.2",
     "@omnideck/plugin-schema": "workspace:*",
+    "@tanstack/react-query": "^5.95.2",
     "@uiw/react-codemirror": "^4.25.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

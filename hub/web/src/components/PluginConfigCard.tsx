@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "../lib/api.ts";
@@ -30,25 +31,18 @@ function healthBadge(health?: { status: string }) {
   }
 }
 
-export default function PluginConfigCard({ id, name, version, icon, health, config, onSaved }: PluginConfigCardProps) {
+export default function PluginConfigCard({ id, name, version, icon: _icon, health, config, onSaved }: PluginConfigCardProps) {
   const [draft, setDraft] = useState<Record<string, unknown>>({ ...config });
-  const [saving, setSaving] = useState(false);
   const [showYaml, setShowYaml] = useState(false);
+
+  const saveMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.plugins.save(id, data),
+    onSuccess: () => onSaved(),
+    onError: (e) => alert(`Save failed: ${e}`),
+  });
 
   function setField(key: string, value: unknown) {
     setDraft((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function save() {
-    setSaving(true);
-    try {
-      await api.plugins.save(id, draft);
-      onSaved();
-    } catch (e) {
-      alert(`Save failed: ${e}`);
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -99,11 +93,11 @@ export default function PluginConfigCard({ id, name, version, icon, health, conf
 
             <div className="flex items-center gap-2 pt-2">
               <button
-                onClick={save}
-                disabled={saving}
+                onClick={() => saveMutation.mutate(draft)}
+                disabled={saveMutation.isPending}
                 className="rounded bg-primary text-primary-foreground px-3 py-1 text-sm font-medium disabled:opacity-50"
               >
-                {saving ? "Saving…" : "Save"}
+                {saveMutation.isPending ? "Saving..." : "Save"}
               </button>
               <button
                 onClick={() => setShowYaml((v) => !v)}

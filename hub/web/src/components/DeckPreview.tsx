@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,22 +8,27 @@ export default function DeckPreview() {
   const [images, setImages] = useState<Record<number, string>>({});
   const { subscribe } = useWebSocket();
 
-  async function loadPreview() {
-    try {
-      const data = await api.status.deckPreview();
-      setImages(data);
-    } catch {
-      // hub may not have deck connected in dev
-    }
-  }
+  const { data: previewData } = useQuery({
+    queryKey: ["status", "deckPreview"],
+    queryFn: () => api.status.deckPreview().catch(() => ({}) as Record<number, string>),
+  });
 
+  // Sync query data to local state (WS overrides take priority)
   useEffect(() => {
-    loadPreview();
+    if (previewData) setImages(previewData);
+  }, [previewData]);
+
+  // WebSocket subscriptions for real-time deck updates
+  useEffect(() => {
     const unsub = subscribe("deck:update", (msg) => {
       const data = msg.data as { images: Record<number, string> };
       setImages(data.images);
     });
-    const unsubReload = subscribe("config:reloaded", () => { void loadPreview(); });
+    const unsubReload = subscribe("config:reloaded", () => {
+      // Trigger a refetch when config reloads
+      // The query will auto-refetch on its next interval or we can invalidate
+      api.status.deckPreview().then(setImages).catch(() => {});
+    });
     return () => { unsub(); unsubReload(); };
   }, [subscribe]);
 

@@ -1,35 +1,36 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Copy, Check, Download } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-interface PairedAgent {
-  agent_id: string;
-  name: string;
-  platform: string;
-  paired_at: string;
-  last_seen?: string;
-}
-
 export default function Security() {
-  const [agents, setAgents] = useState<PairedAgent[]>([]);
+  const queryClient = useQueryClient();
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [codeExpiresAt, setCodeExpiresAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [copied, setCopied] = useState(false);
 
-  const loadAgents = useCallback(async () => {
-    try {
-      setAgents(await api.pairing.listAgents());
-    } catch {
-      // pairing not configured
-    }
-  }, []);
+  const { data: agents = [] } = useQuery({
+    queryKey: ["pairing", "agents"],
+    queryFn: () => api.pairing.listAgents().catch(() => []),
+  });
 
-  useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
+  const generateCodeMutation = useMutation({
+    mutationFn: () => api.pairing.generateCode(),
+    onSuccess: ({ code, expires_at }) => {
+      setPairingCode(code);
+      setCodeExpiresAt(new Date(expires_at));
+    },
+  });
+
+  const revokeAgentMutation = useMutation({
+    mutationFn: (id: string) => api.pairing.revokeAgent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pairing", "agents"] });
+    },
+  });
 
   // Countdown timer for pairing code
   useEffect(() => {
@@ -46,17 +47,6 @@ export default function Security() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [codeExpiresAt]);
-
-  const generateCode = async () => {
-    const { code, expires_at } = await api.pairing.generateCode();
-    setPairingCode(code);
-    setCodeExpiresAt(new Date(expires_at));
-  };
-
-  const revokeAgent = async (id: string) => {
-    await api.pairing.revokeAgent(id);
-    loadAgents();
-  };
 
   const releasesUrl = "https://github.com/wemcdonald/OmniDeck/releases/latest";
 
@@ -120,7 +110,7 @@ export default function Security() {
               </div>
             </div>
           ) : (
-            <Button onClick={generateCode}>Generate Code</Button>
+            <Button onClick={() => generateCodeMutation.mutate()}>Generate Code</Button>
           )}
         </CardContent>
       </Card>
@@ -156,7 +146,7 @@ export default function Security() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => revokeAgent(agent.agent_id)}
+                    onClick={() => revokeAgentMutation.mutate(agent.agent_id)}
                   >
                     Revoke
                   </Button>

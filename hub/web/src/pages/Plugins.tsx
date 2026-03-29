@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type BrowsePlugin } from "../lib/api.ts";
 import PluginConfigCard from "../components/PluginConfigCard.tsx";
 import { PluginInstallModal } from "../components/PluginInstallModal.tsx";
@@ -15,27 +16,29 @@ interface PluginStatus {
 }
 
 export default function Plugins() {
-  const [statuses, setStatuses] = useState<PluginStatus[]>([]);
-  const [configs, setConfigs] = useState<Record<string, Record<string, unknown>>>({});
   const [installOpen, setInstallOpen] = useState(false);
-  const [browsePlugins, setBrowsePlugins] = useState<BrowsePlugin[] | null>(null);
+  const queryClient = useQueryClient();
 
-  async function load() {
-    const [statusData, configData] = await Promise.all([
-      api.status.plugins().catch(() => []),
-      api.plugins.list().catch(() => ({})),
-    ]);
-    setStatuses(statusData as PluginStatus[]);
-    setConfigs(configData as Record<string, Record<string, unknown>>);
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["status", "plugins"],
+    queryFn: () => api.status.plugins().catch(() => []) as Promise<PluginStatus[]>,
+  });
+
+  const { data: configs = {} } = useQuery({
+    queryKey: ["config", "plugins"],
+    queryFn: () => api.plugins.list().catch(() => ({})) as Promise<Record<string, Record<string, unknown>>>,
+  });
+
+  // Pre-fetch browse list so the install modal opens instantly
+  const { data: browsePlugins } = useQuery({
+    queryKey: ["plugins", "browse"],
+    queryFn: () => api.plugins.browse().then((d) => d.plugins).catch(() => [] as BrowsePlugin[]),
+  });
+
+  function handleRefresh() {
+    queryClient.invalidateQueries({ queryKey: ["status", "plugins"] });
+    queryClient.invalidateQueries({ queryKey: ["config", "plugins"] });
   }
-
-  useEffect(() => {
-    load();
-    // Pre-fetch browse list so the install modal opens instantly
-    api.plugins.browse()
-      .then((data) => setBrowsePlugins(data.plugins))
-      .catch(() => {});
-  }, []);
 
   return (
     <div className="space-y-4">
@@ -60,18 +63,18 @@ export default function Plugins() {
             version={plugin.version}
             icon={plugin.icon}
             health={plugin.health}
-            config={configs[plugin.id] ?? {}}
-            onSaved={load}
+            config={(configs as Record<string, Record<string, unknown>>)[plugin.id] ?? {}}
+            onSaved={handleRefresh}
           />
         ))}
       </div>
 
       <PluginInstallModal
         open={installOpen}
-        prefetchedBrowse={browsePlugins}
+        prefetchedBrowse={browsePlugins ?? null}
         onClose={() => {
           setInstallOpen(false);
-          load();
+          handleRefresh();
         }}
       />
     </div>

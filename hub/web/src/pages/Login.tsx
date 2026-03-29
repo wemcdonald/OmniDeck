@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,20 +12,19 @@ interface LoginProps {
 export default function Login({ onSuccess }: LoginProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const loginMutation = useMutation({
+    mutationFn: (pw: string) => api.auth.login(pw),
+    onSuccess: () => onSuccess(),
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Login failed");
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
-    try {
-      await api.auth.login(password);
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoading(false);
-    }
+    loginMutation.mutate(password);
   };
 
   return (
@@ -49,8 +49,8 @@ export default function Login({ onSuccess }: LoginProps) {
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Logging in..." : "Log in"}
+            <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+              {loginMutation.isPending ? "Logging in..." : "Log in"}
             </Button>
           </form>
         </CardContent>

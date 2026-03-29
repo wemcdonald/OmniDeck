@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api, type AgentState } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import AgentCard from "../components/AgentCard.tsx";
@@ -17,25 +18,43 @@ interface PluginStatus {
 export default function Dashboard() {
   const [agents, setAgents] = useState<AgentState[]>([]);
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
-  const [telemetry, setTelemetry] = useState<{ rss_mb: number; heap_used_mb: number; ws_connections: number; agent_connections: number; uptime_seconds: number } | null>(null);
-  const [systemStats, setSystemStats] = useState<{ cpu_percent: number; ram_used_mb: number; ram_total_mb: number; ram_percent: number; device_ip: string; uptime: string } | null>(null);
   const { subscribe } = useWebSocket();
 
-  async function load() {
-    const [a, p, t, s] = await Promise.all([
-      api.status.agents().catch(() => [] as AgentState[]),
-      api.status.plugins().catch(() => [] as PluginStatus[]),
-      api.status.telemetry().catch(() => null),
-      api.status.system().catch(() => null),
-    ]);
-    setAgents(a);
-    setPlugins(p);
-    setTelemetry(t);
-    setSystemStats(s);
-  }
+  // Initial fetch for agents & plugins (WS will keep them updated)
+  const { data: agentsData } = useQuery({
+    queryKey: ["status", "agents"],
+    queryFn: () => api.status.agents().catch(() => [] as AgentState[]),
+  });
+
+  const { data: pluginsData } = useQuery({
+    queryKey: ["status", "plugins"],
+    queryFn: () => api.status.plugins().catch(() => [] as PluginStatus[]),
+  });
+
+  // Polling queries for telemetry and system stats
+  const { data: telemetry } = useQuery({
+    queryKey: ["status", "telemetry"],
+    queryFn: () => api.status.telemetry().catch(() => null),
+    refetchInterval: 5000,
+  });
+
+  const { data: systemStats } = useQuery({
+    queryKey: ["status", "system"],
+    queryFn: () => api.status.system().catch(() => null),
+    refetchInterval: 5000,
+  });
+
+  // Sync query data to local state (WS overrides take priority)
+  useEffect(() => {
+    if (agentsData) setAgents(agentsData);
+  }, [agentsData]);
 
   useEffect(() => {
-    void load();
+    if (pluginsData) setPlugins(pluginsData);
+  }, [pluginsData]);
+
+  // WebSocket subscriptions for real-time updates
+  useEffect(() => {
     const unsubAgents = subscribe("agent:update", (msg) => {
       setAgents(msg.data as AgentState[]);
     });
@@ -47,17 +66,6 @@ export default function Dashboard() {
       unsubPlugins();
     };
   }, [subscribe]);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const [t, s] = await Promise.all([api.status.telemetry(), api.status.system()]);
-        setTelemetry(t);
-        setSystemStats(s);
-      } catch { /* ignore polling errors */ }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="space-y-6">
@@ -105,7 +113,7 @@ export default function Dashboard() {
         <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
           System Telemetry
         </h3>
-        {systemStats === null ? (
+        {systemStats === undefined || systemStats === null ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Upload } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type InstallResult } from "../lib/api.ts";
 import { Button } from "./ui/button.tsx";
 
@@ -8,27 +9,28 @@ interface PluginZipTabProps {
 }
 
 export function PluginZipTab({ onClose }: PluginZipTabProps) {
+  const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
-  const [installing, setInstalling] = useState(false);
   const [result, setResult] = useState<InstallResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleInstall(overwrite = false) {
-    if (!file) return;
-    setInstalling(true);
-    try {
-      const installResult = await api.plugins.installFromZip(file, overwrite);
+  const installMutation = useMutation({
+    mutationFn: (overwrite: boolean) => api.plugins.installFromZip(file!, overwrite),
+    onSuccess: (installResult) => {
       setResult(installResult);
-    } catch (err) {
+      if (installResult.status === "installed") {
+        queryClient.invalidateQueries({ queryKey: ["plugins"] });
+        queryClient.invalidateQueries({ queryKey: ["status", "plugins"] });
+      }
+    },
+    onError: (err) => {
       setResult({
         status: "error",
         errors: [(err as Error).message],
       });
-    } finally {
-      setInstalling(false);
-    }
-  }
+    },
+  });
 
   function handleFile(f: File) {
     if (f.size > 5 * 1024 * 1024) {
@@ -78,8 +80,8 @@ export function PluginZipTab({ onClose }: PluginZipTabProps) {
           >
             Cancel
           </Button>
-          <Button onClick={() => handleInstall(true)} disabled={installing}>
-            {installing ? "Installing..." : "Overwrite"}
+          <Button onClick={() => installMutation.mutate(true)} disabled={installMutation.isPending}>
+            {installMutation.isPending ? "Installing..." : "Overwrite"}
           </Button>
         </div>
       </div>
@@ -147,8 +149,8 @@ export function PluginZipTab({ onClose }: PluginZipTabProps) {
       </div>
 
       {file && (
-        <Button onClick={() => handleInstall()} disabled={installing}>
-          {installing ? "Installing..." : "Install Plugin"}
+        <Button onClick={() => installMutation.mutate(false)} disabled={installMutation.isPending}>
+          {installMutation.isPending ? "Installing..." : "Install Plugin"}
         </Button>
       )}
     </div>

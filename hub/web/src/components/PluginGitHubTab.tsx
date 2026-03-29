@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ValidateResult, type InstallResult } from "../lib/api.ts";
 import { Button } from "./ui/button.tsx";
 import { PluginPreview } from "./PluginPreview.tsx";
@@ -8,45 +9,52 @@ interface PluginGitHubTabProps {
 }
 
 export function PluginGitHubTab({ onClose }: PluginGitHubTabProps) {
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validated, setValidated] = useState<ValidateResult | null>(null);
-  const [installing, setInstalling] = useState(false);
   const [installResult, setInstallResult] = useState<InstallResult | null>(null);
 
-  async function handleValidate() {
-    if (!url.trim()) return;
-    setLoading(true);
-    setError(null);
-    setValidated(null);
-    try {
-      const result = await api.plugins.validateGitHub(url);
+  const validateMutation = useMutation({
+    mutationFn: (githubUrl: string) => api.plugins.validateGitHub(githubUrl),
+    onSuccess: (result) => {
       if (result.status === "error") {
         setError(result.errors?.join(", ") ?? "Validation failed");
       } else {
         setValidated(result);
       }
-    } catch (err) {
+    },
+    onError: (err) => {
       setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+  });
 
-  async function handleInstall(overwrite: boolean) {
-    setInstalling(true);
-    try {
-      const result = await api.plugins.installFromGitHub(url, overwrite);
+  const installMutation = useMutation({
+    mutationFn: (overwrite: boolean) => api.plugins.installFromGitHub(url, overwrite),
+    onSuccess: (result) => {
       setInstallResult(result);
-    } catch (err) {
+      if (result.status === "installed") {
+        queryClient.invalidateQueries({ queryKey: ["plugins"] });
+        queryClient.invalidateQueries({ queryKey: ["status", "plugins"] });
+      }
+    },
+    onError: (err) => {
       setInstallResult({
         status: "error",
         errors: [(err as Error).message],
       });
-    } finally {
-      setInstalling(false);
-    }
+    },
+  });
+
+  function handleValidate() {
+    if (!url.trim()) return;
+    setError(null);
+    setValidated(null);
+    validateMutation.mutate(url);
+  }
+
+  function handleInstall(overwrite: boolean) {
+    installMutation.mutate(overwrite);
   }
 
   // Success state
@@ -93,7 +101,7 @@ export function PluginGitHubTab({ onClose }: PluginGitHubTabProps) {
       <PluginPreview
         manifest={validated.manifest}
         installedVersion={installResult.installed?.version}
-        loading={installing}
+        loading={installMutation.isPending}
         onConfirm={() => handleInstall(true)}
         onCancel={() => {
           setInstallResult(null);
@@ -108,7 +116,7 @@ export function PluginGitHubTab({ onClose }: PluginGitHubTabProps) {
     return (
       <PluginPreview
         manifest={validated.manifest}
-        loading={installing}
+        loading={installMutation.isPending}
         onConfirm={(overwrite) => handleInstall(overwrite)}
         onCancel={() => setValidated(null)}
       />
@@ -136,8 +144,8 @@ export function PluginGitHubTab({ onClose }: PluginGitHubTabProps) {
         <div className="text-sm text-destructive">{error}</div>
       )}
 
-      <Button onClick={handleValidate} disabled={loading || !url.trim()}>
-        {loading ? "Fetching..." : "Fetch Plugin"}
+      <Button onClick={handleValidate} disabled={validateMutation.isPending || !url.trim()}>
+        {validateMutation.isPending ? "Fetching..." : "Fetch Plugin"}
       </Button>
     </div>
   );

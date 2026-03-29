@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Routes, Route } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Layout from "./components/Layout.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import PagesList from "./pages/PagesList.tsx";
@@ -13,26 +14,23 @@ import Login from "./pages/Login.tsx";
 import { api } from "./lib/api.ts";
 
 export default function App() {
-  const [authChecked, setAuthChecked] = useState(false);
-  const [needsLogin, setNeedsLogin] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
 
-  useEffect(() => {
-    api.auth
-      .status()
-      .then(({ auth_required, authenticated }) => {
-        setNeedsLogin(auth_required && !authenticated);
-        setAuthChecked(true);
-      })
-      .catch(() => {
-        // If auth status fails, assume no auth needed (backward compat)
-        setAuthChecked(true);
-      });
-  }, []);
+  const { data: authStatus, isLoading } = useQuery({
+    queryKey: ["auth", "status"],
+    queryFn: api.auth.status,
+    retry: false,
+  });
 
-  if (!authChecked) return null;
+  if (isLoading) return null;
+
+  const needsLogin =
+    !loggedIn &&
+    authStatus?.auth_required &&
+    !authStatus?.authenticated;
 
   if (needsLogin) {
-    return <Login onSuccess={() => setNeedsLogin(false)} />;
+    return <Login onSuccess={() => setLoggedIn(true)} />;
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api, type AgentState } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Badge } from "@/components/ui/badge";
@@ -6,31 +7,29 @@ import { SensorReadout } from "@/components/ui/sensor-readout";
 
 export default function Devices() {
   const [agents, setAgents] = useState<AgentState[]>([]);
-  const [systemStats, setSystemStats] = useState<{
-    cpu_percent: number;
-    ram_percent: number;
-    ram_used_mb: number;
-    ram_total_mb: number;
-    device_ip: string;
-    uptime: string;
-  } | null>(null);
   const { subscribe } = useWebSocket();
 
+  const { data: agentsData } = useQuery({
+    queryKey: ["status", "agents"],
+    queryFn: () => api.status.agents().catch(() => [] as AgentState[]),
+  });
+
+  const { data: systemStats } = useQuery({
+    queryKey: ["status", "system"],
+    queryFn: () => api.status.system().catch(() => null),
+    refetchInterval: 10000,
+  });
+
   useEffect(() => {
-    api.status.agents().then(setAgents).catch(console.error);
+    if (agentsData) setAgents(agentsData);
+  }, [agentsData]);
+
+  useEffect(() => {
     const unsub = subscribe("agent:update", (msg) => {
       setAgents(msg.data as AgentState[]);
     });
     return unsub;
   }, [subscribe]);
-
-  useEffect(() => {
-    api.status.system().then(setSystemStats).catch(() => {});
-    const interval = setInterval(() => {
-      api.status.system().then(setSystemStats).catch(() => {});
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="space-y-4">
