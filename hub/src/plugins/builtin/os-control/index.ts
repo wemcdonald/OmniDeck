@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createSocket } from "node:dgram";
 import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../types.js";
 
@@ -79,6 +80,81 @@ export const osControlPlugin: OmniDeckPlugin = {
         },
       });
     }
+
+    // -- Wake-on-LAN (runs on hub, not agent — target machine is asleep) --
+    // Can specify a target agent (looks up MAC from last state_update) or an explicit MAC.
+    const wolSchema = z.object({
+      target: field(z.string().optional(), { label: "Target", fieldType: "agent" as const }),
+      mac: field(z.string().optional(), { label: "MAC Address", placeholder: "AA:BB:CC:DD:EE:FF" }),
+      broadcast: field(z.string().optional(), { label: "Broadcast IP", placeholder: "255.255.255.255" }),
+    });
+
+    ctx.registerAction({
+      id: "wake_on_lan",
+      name: "Wake on LAN",
+      description: "Send a Wake-on-LAN magic packet to power on a machine",
+      icon: "ms:power-settings-new",
+      paramsSchema: wolSchema,
+      async execute(params, actionCtx) {
+        const { target, mac, broadcast } = wolSchema.parse(params);
+
+        // Resolve MAC: explicit param, or look up from agent's last reported state
+        let resolvedMac = mac;
+        if (!resolvedMac) {
+          const agentTarget = target ?? actionCtx.focusedAgent ?? config.default_target;
+          const agentState = ctx.state.get("os-control", `agent:${agentTarget}:state`) as
+            Record<string, unknown> | undefined;
+          const macs = agentState?.mac_addresses as string[] | undefined;
+          if (macs && macs.length > 0) resolvedMac = macs[0];
+        }
+        if (!resolvedMac) throw new Error("No MAC address — agent has not reported one yet");
+
+        const macBytes = resolvedMac.replace(/[:-]/g, "").match(/.{2}/g);
+        if (!macBytes || macBytes.length !== 6) throw new Error(`Invalid MAC: ${resolvedMac}`);
+        const macBuf = Buffer.from(macBytes.map((b) => parseInt(b, 16)));
+        const payload = Buffer.alloc(102);
+        for (let i = 0; i < 6; i++) payload[i] = 0xff;
+        for (let i = 0; i < 16; i++) macBuf.copy(payload, 6 + i * 6);
+
+        await new Promise<void>((resolve, reject) => {
+          const sock = createSocket("udp4");
+          sock.once("error", (err) => { sock.close(); reject(err); });
+          sock.bind(() => {
+            sock.setBroadcast(true);
+            sock.send(payload, 0, payload.length, 9, broadcast ?? "255.255.255.255", (err) => {
+              sock.close();
+              if (err) reject(err); else resolve();
+            });
+          });
+        });
+      },
+    });
+
+    // -- Presets --
+
+    ctx.registerPreset({
+      id: "sleep",
+      name: "Sleep",
+      description: "Put a machine to sleep",
+      action: "sleep",
+      defaults: { icon: "ms:bedtime" },
+    });
+
+    ctx.registerPreset({
+      id: "lock",
+      name: "Lock Screen",
+      description: "Lock a machine's screen",
+      action: "lock",
+      defaults: { icon: "ms:lock" },
+    });
+
+    ctx.registerPreset({
+      id: "wake_on_lan",
+      name: "Wake on LAN",
+      description: "Power on a machine via WoL magic packet",
+      action: "wake_on_lan",
+      defaults: { icon: "ms:power-settings-new" },
+    });
 
     ctx.registerStateProvider({
       id: "active_window",

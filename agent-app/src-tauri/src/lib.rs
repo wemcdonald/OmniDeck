@@ -191,7 +191,9 @@ pub fn run() {
             std::fs::create_dir_all(&config_dir).ok();
 
             // Set up system tray
+            eprintln!("[omnideck] Setting up system tray...");
             tray::setup_tray(app.handle())?;
+            eprintln!("[omnideck] System tray initialized successfully");
 
             // Listen for state changes to update tray
             let app_handle = app.handle().clone();

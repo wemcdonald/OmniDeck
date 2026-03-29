@@ -28,6 +28,7 @@ export interface AgentStateData {
   mic_volume?: number;
   is_muted?: boolean;
   mic_muted?: boolean;
+  mac_addresses?: string[];
 }
 
 export interface PairRequestData {

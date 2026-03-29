@@ -101,16 +101,32 @@ export default function init(omnideck: OmniDeck) {
       const result = await omnideck.exec("pmset", ["sleepnow"]);
       return { success: result.exitCode === 0, error: result.stderr || undefined };
     }
+    if (omnideck.platform === "windows") {
+      const result = await omnideck.exec("rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"]);
+      return { success: result.exitCode === 0, error: result.stderr || undefined };
+    }
+    if (omnideck.platform === "linux") {
+      const result = await omnideck.exec("systemctl", ["suspend"]);
+      return { success: result.exitCode === 0, error: result.stderr || undefined };
+    }
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };
   });
 
-  // Lock the screen (macOS: Ctrl+Cmd+Q via osascript)
+  // Lock the screen
   omnideck.onAction("lock", async (_params) => {
     if (omnideck.platform === "darwin") {
       const result = await omnideck.exec("osascript", [
         "-e",
         `tell application "System Events" to keystroke "q" using {control down, command down}`,
       ]);
+      return { success: result.exitCode === 0, error: result.stderr || undefined };
+    }
+    if (omnideck.platform === "windows") {
+      const result = await omnideck.exec("rundll32.exe", ["user32.dll,LockWorkStation"]);
+      return { success: result.exitCode === 0, error: result.stderr || undefined };
+    }
+    if (omnideck.platform === "linux") {
+      const result = await omnideck.exec("loginctl", ["lock-session"]);
       return { success: result.exitCode === 0, error: result.stderr || undefined };
     }
     return { success: false, error: `Unsupported platform: ${omnideck.platform}` };

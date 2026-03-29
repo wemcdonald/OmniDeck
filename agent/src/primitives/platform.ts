@@ -1,5 +1,5 @@
 import { execCommand } from "./exec.js";
-import { hostname as getHostname } from "node:os";
+import { hostname as getHostname, networkInterfaces } from "node:os";
 
 export function detectPlatform(): "darwin" | "windows" | "linux" {
   const p = process.platform;
@@ -10,6 +10,21 @@ export function detectPlatform(): "darwin" | "windows" | "linux" {
 
 export function getAgentHostname(): string {
   return process.env["OMNIDECK_HOSTNAME"] ?? getHostname();
+}
+
+/** Get all non-internal MAC addresses for this machine. */
+export function getMacAddresses(): string[] {
+  const ifaces = networkInterfaces();
+  const macs = new Set<string>();
+  for (const addrs of Object.values(ifaces)) {
+    if (!addrs) continue;
+    for (const addr of addrs) {
+      if (!addr.internal && addr.mac && addr.mac !== "00:00:00:00:00:00") {
+        macs.add(addr.mac);
+      }
+    }
+  }
+  return Array.from(macs);
 }
 
 export interface SystemState {

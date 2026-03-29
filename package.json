@@ -1,5 +1,6 @@
 {
   "name": "omnideck",
+  "license": "MIT",
   "private": true,
   "workspaces": [
     "hub",

@@ -5,6 +5,7 @@ import { ensureFfi } from "./primitives/ffi.js";
 import {
   detectPlatform,
   getAgentHostname,
+  getMacAddresses,
   pollSystemState,
 } from "./primitives/platform.js";
 import { createLogger } from "./logger.js";
@@ -137,6 +138,11 @@ export class Agent {
   }
 
   private startStatePolling(): void {
+    // Collect static info once
+    const hostname = this.opts.hostname ?? getAgentHostname();
+    const platform = detectPlatform();
+    const macAddresses = getMacAddresses();
+
     // Start periodic state streaming (default 5 s)
     const interval = this.opts.stateInterval ?? 5000;
     this.stateTimer = setInterval(() => {
@@ -144,9 +150,9 @@ export class Agent {
         const state = await pollSystemState();
         this.client.send(
           createMessage("state_update", {
-            hostname: this.opts.hostname ?? getAgentHostname(),
-            platform: detectPlatform(),
-            agent_version: "0.2.0",
+            hostname,
+            platform,
+            agent_version: "0.3.0",
             active_window_app: state.activeWindowApp,
             active_window_title: state.activeWindowTitle,
             idle_time_ms: state.idleTimeMs,
@@ -154,6 +160,7 @@ export class Agent {
             is_muted: state.isMuted,
             mic_volume: state.micVolume,
             mic_muted: state.micMuted,
+            mac_addresses: macAddresses,
           }),
         );
       })();
