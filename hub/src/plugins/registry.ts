@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse as parseYaml } from "yaml";
@@ -39,9 +39,7 @@ export class PluginRegistry {
       let isDir = entry.isDirectory();
       if (entry.isSymbolicLink()) {
         try {
-          const real = realpathSync(fullPath);
-          const stat = require("node:fs").statSync(real);
-          isDir = stat.isDirectory();
+          isDir = statSync(realpathSync(fullPath)).isDirectory();
         } catch {
           log.warn({ dir: entry.name }, "Skipping plugin with broken symlink");
           continue;
