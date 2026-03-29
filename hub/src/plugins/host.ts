@@ -32,33 +32,43 @@ export class PluginHost {
     this.plugins.set(plugin.id, plugin);
   }
 
+  private createContext(id: string, config: unknown): PluginContext {
+    return {
+      config,
+      state: this.store,
+      log: createLogger(`plugin:${id}`),
+      registerAction: (action) => {
+        this.actions.set(`${id}.${action.id}`, action);
+      },
+      registerStateProvider: (provider) => {
+        this.stateProviders.set(`${id}.${provider.id}`, provider);
+      },
+      registerPreset: (preset) => {
+        this.presets.set(`${id}.${preset.id}`, preset);
+      },
+      onOrchestratorEvent: (event, cb) => {
+        const key = `${id}:${event}`;
+        const existing = this.orchestratorListeners.get(key) ?? [];
+        existing.push(cb);
+        this.orchestratorListeners.set(key, existing);
+      },
+      setHealth: (health) => {
+        this.pluginHealth.set(id, health);
+      },
+    };
+  }
+
   async initAll(pluginConfigs: Record<string, unknown>): Promise<void> {
     for (const [id, plugin] of this.plugins) {
-      const context: PluginContext = {
-        config: pluginConfigs[id] ?? {},
-        state: this.store,
-        log: createLogger(`plugin:${id}`),
-        registerAction: (action) => {
-          this.actions.set(`${id}.${action.id}`, action);
-        },
-        registerStateProvider: (provider) => {
-          this.stateProviders.set(`${id}.${provider.id}`, provider);
-        },
-        registerPreset: (preset) => {
-          this.presets.set(`${id}.${preset.id}`, preset);
-        },
-        onOrchestratorEvent: (event, cb) => {
-          const key = `${id}:${event}`;
-          const existing = this.orchestratorListeners.get(key) ?? [];
-          existing.push(cb);
-          this.orchestratorListeners.set(key, existing);
-        },
-        setHealth: (health) => {
-          this.pluginHealth.set(id, health);
-        },
-      };
-      await plugin.init(context);
+      await plugin.init(this.createContext(id, pluginConfigs[id] ?? {}));
     }
+  }
+
+  /** Initialize a single plugin (used for hot-loading after install). */
+  async initPlugin(pluginId: string, config: unknown): Promise<void> {
+    const plugin = this.plugins.get(pluginId);
+    if (!plugin) throw new Error(`Plugin not registered: ${pluginId}`);
+    await plugin.init(this.createContext(pluginId, config));
   }
 
   async destroyAll(): Promise<void> {

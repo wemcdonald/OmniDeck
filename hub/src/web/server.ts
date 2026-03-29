@@ -45,6 +45,7 @@ export interface WebServerOptions {
   httpsPort?: number;
   authPasswordHash?: string;
   pluginsDir?: string;
+  onPluginInstalled?: (pluginId: string) => Promise<void>;
   tlsRedirect?: boolean;
   caCertPath?: string;
   caCert?: Buffer;
@@ -131,7 +132,10 @@ export class WebServer {
     }
 
     if (this.opts.pluginsDir) {
-      this.app.route("/api/plugins", createPluginInstallRoutes(this.opts.pluginsDir));
+      this.app.route("/api/plugins", createPluginInstallRoutes({
+        pluginsDir: this.opts.pluginsDir,
+        onInstalled: this.opts.onPluginInstalled,
+      }));
     }
 
     if (store) {

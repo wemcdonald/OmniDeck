@@ -288,6 +288,16 @@ export class Hub {
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,
       pluginsDir: this.opts.pluginsDir,
+      onPluginInstalled: registry ? async (pluginId: string) => {
+        await registry!.reloadPlugin(pluginId);
+        // Register hub-side plugin if it was loaded
+        const hubPlugin = registry!.getHubPlugins().find((p) => p.id === pluginId);
+        if (hubPlugin) {
+          this.pluginHost.register(hubPlugin);
+          await this.pluginHost.initPlugin(pluginId, pluginConfigs[pluginId] ?? {});
+        }
+        log.info({ pluginId }, "Plugin hot-loaded after install");
+      } : undefined,
       agentServer: this.agentServer,
       pluginHost: this.pluginHost,
       broadcaster: this.broadcaster,

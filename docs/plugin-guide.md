@@ -29,6 +29,17 @@ Both `hub.ts` and `agent.ts` are optional — a plugin can be hub-only, agent-on
 
 Builtin plugins (shipped with OmniDeck) live in `hub/src/plugins/builtin/` and are imported directly in the hub source code.
 
+## Installing Plugins
+
+**From the Web UI:** Open the OmniDeck web interface, go to the Plugins page, and click "Install Plugin". You can:
+- **Browse** curated plugins from the [OmniDeck-plugins](https://github.com/wemcdonald/OmniDeck-plugins) repository
+- **Install from GitHub** by pasting a repository URL (e.g., `https://github.com/user/repo/tree/main/my-plugin`)
+- **Upload a zip file** containing the plugin
+
+Installed plugins are immediately active — no hub restart needed.
+
+**Manually:** Drop the plugin directory into `plugins/` and restart the hub. For development, you can symlink your plugin directory instead.
+
 ## Minimal Plugin
 
 Here's the smallest possible plugin:

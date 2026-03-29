@@ -26,7 +26,13 @@ const CURATED_REPO_OWNER = "wemcdonald";
 const CURATED_REPO_NAME = "OmniDeck-plugins";
 const MAX_ZIP_SIZE = 5 * 1024 * 1024; // 5MB
 
-export function createPluginInstallRoutes(pluginsDir: string): Hono {
+interface PluginInstallDeps {
+  pluginsDir: string;
+  onInstalled?: (pluginId: string) => Promise<void>;
+}
+
+export function createPluginInstallRoutes(deps: PluginInstallDeps): Hono {
+  const { pluginsDir } = deps;
   const router = new Hono();
 
   // --- Browse curated plugins ---
@@ -116,6 +122,13 @@ export function createPluginInstallRoutes(pluginsDir: string): Hono {
         return c.json(result, 409);
       }
 
+      // Hot-reload the newly installed plugin
+      if (result.plugin?.id && deps.onInstalled) {
+        await deps.onInstalled(result.plugin.id).catch((err) =>
+          log.error({ err, pluginId: result.plugin?.id }, "Failed to hot-reload plugin after install"),
+        );
+      }
+
       return c.json(result);
     } catch (err) {
       log.error({ err }, "GitHub plugin install failed");
@@ -181,6 +194,13 @@ export function createPluginInstallRoutes(pluginsDir: string): Hono {
       }
       if (result.status === "conflict") {
         return c.json(result, 409);
+      }
+
+      // Hot-reload the newly installed plugin
+      if (result.plugin?.id && deps.onInstalled) {
+        await deps.onInstalled(result.plugin.id).catch((err) =>
+          log.error({ err, pluginId: result.plugin?.id }, "Failed to hot-reload plugin after install"),
+        );
       }
 
       return c.json(result);

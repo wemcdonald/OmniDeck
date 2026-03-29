@@ -19,7 +19,7 @@ describe("Plugin install routes", () => {
   beforeEach(() => {
     pluginsDir = mkdtempSync(join(tmpdir(), "omnideck-plugins-routes-"));
     app = new Hono();
-    app.route("/api/plugins", createPluginInstallRoutes(pluginsDir));
+    app.route("/api/plugins", createPluginInstallRoutes({ pluginsDir }));
   });
 
   afterEach(() => {
