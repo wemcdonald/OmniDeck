@@ -77,17 +77,18 @@ pub fn send_keystroke_to_app(params: &Value) -> Value {
         None => return json!({ "error": "missing app parameter" }),
     };
 
-    // Save current frontmost app and activate target (in-process AppleScript)
-    let activate_script = format!(
-        "tell application \"System Events\"\n\
-           set frontApp to bundle identifier of first application process whose frontmost is true\n\
-         end tell\n\
-         tell application \"{}\" to activate\n\
-         delay 0.2\n\
-         return frontApp",
-        app
-    );
-    let activate_result = exec_applescript_in_process(&activate_script);
+    // Save current frontmost app and activate target
+    let activate_result = run_applescript(&json!({
+        "script": format!(
+            "tell application \"System Events\"\n\
+               set frontApp to bundle identifier of first application process whose frontmost is true\n\
+             end tell\n\
+             tell application \"{}\" to activate\n\
+             delay 0.2\n\
+             return frontApp",
+            app
+        )
+    }));
     let prev_app = activate_result
         .get("result")
         .and_then(|v| v.as_str())
@@ -101,9 +102,11 @@ pub fn send_keystroke_to_app(params: &Value) -> Value {
     let target_bundle = app.replace("\"", "");
     if !prev_app.is_empty() && prev_app != target_bundle {
         let restore_script = format!("tell application id \"{}\" to activate", prev_app);
-        // Fire-and-forget on a separate thread
         std::thread::spawn(move || {
-            exec_applescript_in_process(&restore_script);
+            let _ = std::process::Command::new("/usr/bin/osascript")
+                .arg("-e")
+                .arg(&restore_script)
+                .output();
         });
     }
 
