@@ -47,12 +47,7 @@ impl SidecarManager {
     pub fn write_to_child(&self, msg: &serde_json::Value) {
         if let Some(child) = self.child.lock().unwrap().as_mut() {
             let line = format!("{}\n", serde_json::to_string(msg).unwrap_or_default());
-            match child.write(line.as_bytes()) {
-                Ok(_) => eprintln!("[tauri:ipc] stdin write OK ({} bytes)", line.len()),
-                Err(e) => eprintln!("[tauri:ipc] stdin write FAILED: {}", e),
-            }
-        } else {
-            eprintln!("[tauri:ipc] write_to_child: no child process");
+            let _ = child.write(line.as_bytes());
         }
     }
 
@@ -83,10 +78,6 @@ impl SidecarManager {
                         if line.is_empty() {
                             continue;
                         }
-                        let msg_type = serde_json::from_str::<serde_json::Value>(line)
-                            .ok()
-                            .and_then(|v| v.get("type").and_then(|t| t.as_str()).map(|s| s.to_string()));
-                        eprintln!("[tauri:stdout] received: type={}, len={}", msg_type.as_deref().unwrap_or("?"), line.len());
                         if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
                             handle_agent_message(&app_handle, &state, &msg);
                         }
@@ -173,11 +164,7 @@ fn handle_platform_request(app: &AppHandle, msg: &serde_json::Value) {
     let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
     let params = msg.get("params").cloned().unwrap_or(serde_json::json!({}));
 
-    eprintln!("[tauri:ipc] platform_request received: method={}, id={}", method, id);
-
     let result = dispatch_platform_method(method, &params);
-
-    eprintln!("[tauri:ipc] platform_request result: id={}, hasError={}", id, result.get("error").is_some());
 
     // Build response
     let response = if result.get("error").is_some() {
@@ -196,9 +183,7 @@ fn handle_platform_request(app: &AppHandle, msg: &serde_json::Value) {
 
     // Write response to sidecar stdin
     let manager = app.state::<crate::SidecarState>();
-    eprintln!("[tauri:ipc] writing platform_response to stdin: id={}", id);
     manager.0.write_to_child(&response);
-    eprintln!("[tauri:ipc] platform_response written: id={}", id);
 }
 
 fn dispatch_platform_method(method: &str, params: &serde_json::Value) -> serde_json::Value {

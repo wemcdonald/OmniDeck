@@ -104,7 +104,6 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
     },
 
     async platformRequest(method, params) {
-      process.stderr.write(`[RUNTIME] ${opts.pluginId}.platformRequest: hasFn=${typeof opts.platformRequest}\n`);
       if (!opts.platformRequest) {
         throw new Error("platformRequest is not available (not running in managed mode)");
       }
