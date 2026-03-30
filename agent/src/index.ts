@@ -69,12 +69,14 @@ const pendingPlatformRequests = new Map<string, {
  */
 export function platformRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
   const id = `pr_${++requestIdCounter}`;
+  log.info(`[ipc] platformRequest out: ${method} (${id})`);
   return new Promise((resolve, reject) => {
     pendingPlatformRequests.set(id, { resolve, reject });
     emit({ type: "platform_request", id, method, params });
     // Timeout after 10 seconds
     setTimeout(() => {
       if (pendingPlatformRequests.delete(id)) {
+        log.error(`[ipc] platformRequest TIMEOUT: ${method} (${id})`);
         reject(new Error(`platformRequest "${method}" timed out`));
       }
     }, 10_000);
@@ -82,29 +84,57 @@ export function platformRequest(method: string, params: Record<string, unknown>)
 }
 
 function startStdinListener(): void {
-  // Guard: if stdin is not readable (e.g. Tauri shell didn't pipe it), skip.
-  if (!process.stdin.readable) return;
-  process.stdin.on("error", () => {}); // Ignore stdin errors (broken pipe, etc.)
-  const rl = createInterface({ input: process.stdin, terminal: false });
-  rl.on("close", () => {}); // Don't let readline close kill the process
-  rl.on("line", (line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return;
-    try {
-      const msg = JSON.parse(trimmed) as Record<string, unknown>;
-      if (msg.type === "platform_response" && typeof msg.id === "string") {
-        const pending = pendingPlatformRequests.get(msg.id);
-        if (pending) {
-          pendingPlatformRequests.delete(msg.id);
-          if (msg.error) {
-            pending.reject(new Error(msg.error as string));
+  const stdin = process.stdin;
+  log.info(`[ipc] startStdinListener: stdin.readable=${stdin?.readable}, isTTY=${stdin?.isTTY}`);
+
+  if (!stdin || !stdin.readable) {
+    log.warn("[ipc] stdin not readable, skipping listener");
+    return;
+  }
+
+  stdin.on("error", (err) => {
+    log.error("[ipc] stdin error", { err: String(err) });
+  });
+  stdin.on("end", () => {
+    log.warn("[ipc] stdin ended");
+  });
+  stdin.on("close", () => {
+    log.warn("[ipc] stdin closed");
+  });
+
+  stdin.setEncoding("utf-8");
+  stdin.resume();
+  log.info("[ipc] stdin listener active, waiting for platform_response messages");
+
+  let buffer = "";
+  stdin.on("data", (chunk: string) => {
+    log.info(`[ipc] stdin data received: ${chunk.length} bytes`);
+    buffer += chunk;
+    let newlineIdx: number;
+    while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, newlineIdx).trim();
+      buffer = buffer.slice(newlineIdx + 1);
+      if (!line) continue;
+      log.info(`[ipc] stdin line: ${line.slice(0, 200)}`);
+      try {
+        const msg = JSON.parse(line) as Record<string, unknown>;
+        if (msg.type === "platform_response" && typeof msg.id === "string") {
+          const pending = pendingPlatformRequests.get(msg.id);
+          if (pending) {
+            pendingPlatformRequests.delete(msg.id);
+            log.info(`[ipc] platformRequest resolved: ${msg.id}, hasError=${!!msg.error}`);
+            if (msg.error) {
+              pending.reject(new Error(msg.error as string));
+            } else {
+              pending.resolve(msg.result);
+            }
           } else {
-            pending.resolve(msg.result);
+            log.warn(`[ipc] No pending request for id: ${msg.id}`);
           }
         }
+      } catch (err) {
+        log.error("[ipc] Failed to parse stdin JSON", { err: String(err), line: line.slice(0, 100) });
       }
-    } catch {
-      // Not JSON or unknown format — ignore
     }
   });
 }
