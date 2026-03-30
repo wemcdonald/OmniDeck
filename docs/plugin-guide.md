@@ -446,6 +446,68 @@ if (omnideck.platform === "darwin") {
 - Pass `null` for null pointer arguments (e.g., optional `NSDictionary *` params)
 - FFI calls are synchronous — they block the event loop briefly, which is fine for simple function calls
 
+### Platform Requests (macOS Accessibility)
+
+On macOS, operations that interact with other apps' UI (reading window titles, clicking menus, sending keystrokes) require **Accessibility permission**. These operations must run in the host app process (the OmniDeck Agent Tauri app), not in the agent sidecar.
+
+Use `omnideck.platformRequest()` instead of `omnideck.exec("osascript", ...)` or direct FFI when your code needs Accessibility:
+
+```typescript
+// ✅ Correct — runs in the host process (has Accessibility)
+const result = await omnideck.platformRequest("run_applescript", {
+  script: `tell application "System Events" to tell process "MyApp" to get name of every window`,
+}) as { result?: string; error?: string };
+
+// ❌ Wrong — runs in the sidecar (no Accessibility)
+const r = await omnideck.exec("osascript", ["-e",
+  `tell application "System Events" to tell process "MyApp" to get name of every window`,
+]);
+```
+
+**When to use `platformRequest`:**
+- AppleScript that uses `tell application "System Events"` (reading UI elements, window names, menu items)
+- Sending keyboard shortcuts to other apps
+
+**When `exec("osascript", ...)` is fine:**
+- Volume control (`set volume output volume`)
+- App activation (`tell application "X" to activate`)
+- System commands that don't touch UI elements
+
+#### Available Methods
+
+**`run_applescript`** — Execute an AppleScript string in the host process:
+
+```typescript
+const res = await omnideck.platformRequest("run_applescript", {
+  script: `tell application "System Events" to ...`,
+}) as { result?: string; error?: string };
+```
+
+**`send_keystroke`** — Post a CGEvent keyboard event:
+
+```typescript
+await omnideck.platformRequest("send_keystroke", {
+  keyCode: 0,        // macOS virtual key code (0 = 'a')
+  flags: 0x100000,   // Modifier flags (0x100000 = Cmd)
+});
+```
+
+Common modifier flags: `0x20000` (Shift), `0x40000` (Control), `0x80000` (Option), `0x100000` (Command). Combine with `|`.
+
+**`send_keystroke_to_app`** — Activate an app, send a keystroke, then restore the previous app — all in one atomic call:
+
+```typescript
+await omnideck.platformRequest("send_keystroke_to_app", {
+  app: "zoom.us",
+  keyCode: 0,
+  flags: 0x120000,  // Cmd+Shift
+});
+```
+
+This avoids timing issues from separate activate + keystroke calls. Use this when sending shortcuts to an app that isn't currently focused.
+
+**`platformRequest` on non-macOS:** Falls back to an error. Gate calls behind `omnideck.platform === "darwin"`.
+
 ### Manifest
 
 ```yaml
