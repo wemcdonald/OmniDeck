@@ -55,7 +55,7 @@ fn exec_applescript_in_process(script: &str) -> Value {
     // Run on a separate thread to avoid blocking the async event loop.
     let handle = std::thread::spawn(move || {
         let source = NSString::from_str(&script_owned);
-        let ns_script = match unsafe { NSAppleScript::initWithSource(NSAppleScript::alloc(), &source) } {
+        let ns_script = match NSAppleScript::initWithSource(NSAppleScript::alloc(), &source) {
             Some(s) => s,
             None => return json!({ "error": "failed to create NSAppleScript" }),
         };
@@ -65,7 +65,7 @@ fn exec_applescript_in_process(script: &str) -> Value {
 
         if let Some(err_dict) = error_info {
             let err_key = NSString::from_str("NSAppleScriptErrorMessage");
-            let err_msg = unsafe { err_dict.objectForKey(&err_key) };
+            let err_msg = err_dict.objectForKey(&err_key);
             let msg = err_msg
                 .map(|obj| {
                     let ns_str: &NSString = unsafe { &*(&*obj as *const _ as *const NSString) };
@@ -74,7 +74,7 @@ fn exec_applescript_in_process(script: &str) -> Value {
                 .unwrap_or_else(|| "AppleScript execution failed".to_string());
             json!({ "error": msg })
         } else {
-            let result_str = unsafe { result.stringValue() }
+            let result_str = result.stringValue()
                 .map(|s| s.to_string())
                 .unwrap_or_default();
             json!({ "result": result_str })
