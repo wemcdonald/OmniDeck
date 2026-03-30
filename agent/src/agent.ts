@@ -57,7 +57,7 @@ export class Agent {
       hubUrl: opts.hubUrl,
       hostname,
       platform: detectPlatform(),
-      agentVersion: "0.2.0",
+      agentVersion: "0.4.1",
       caCert: opts.caCert,
       auth: opts.auth,
       skipHelloOnConnect: !!opts.pairingCode,
@@ -154,7 +154,7 @@ export class Agent {
           createMessage("state_update", {
             hostname,
             platform,
-            agent_version: "0.3.0",
+            agent_version: "0.4.1",
             active_window_app: state.activeWindowApp,
             active_window_title: state.activeWindowTitle,
             idle_time_ms: state.idleTimeMs,
