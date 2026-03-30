@@ -68,7 +68,7 @@ fn exec_applescript_in_process(script: &str) -> Value {
             let err_msg = unsafe { err_dict.objectForKey(&err_key) };
             let msg = err_msg
                 .map(|obj| {
-                    let ns_str: &NSString = unsafe { &*(obj as *const _ as *const NSString) };
+                    let ns_str: &NSString = unsafe { &*(&*obj as *const _ as *const NSString) };
                     ns_str.to_string()
                 })
                 .unwrap_or_else(|| "AppleScript execution failed".to_string());
