@@ -1,7 +1,8 @@
 use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+use objc2::rc::Retained;
+use objc2_foundation::{NSAppleScript, NSDictionary, NSString};
 use serde_json::{json, Value};
-use std::process::Command;
 
 /// Post a CGEvent keyboard event. Accepts keyCode (u16) and flags (u64).
 pub fn send_keystroke(params: &Value) -> Value {
@@ -34,30 +35,53 @@ pub fn send_keystroke(params: &Value) -> Value {
     json!({ "success": true })
 }
 
-/// Execute an AppleScript string and return the result.
-/// Uses /usr/bin/osascript under the Tauri app's process (which has Accessibility).
+/// Execute an AppleScript string in-process using NSAppleScript.
+/// Runs within the Tauri app process which has Accessibility permission,
+/// so System Events access works without granting the sidecar Accessibility.
 pub fn run_applescript(params: &Value) -> Value {
     let script = match params.get("script").and_then(|v| v.as_str()) {
         Some(s) => s,
         None => return json!({ "error": "missing script parameter" }),
     };
 
-    match Command::new("/usr/bin/osascript")
-        .arg("-e")
-        .arg(script)
-        .output()
-    {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            if output.status.success() {
-                json!({ "result": stdout })
-            } else {
-                json!({ "error": stderr, "exitCode": output.status.code() })
-            }
+    exec_applescript_in_process(script)
+}
+
+/// Run an AppleScript string via NSAppleScript on a dedicated thread
+/// to avoid blocking the Tauri async runtime.
+fn exec_applescript_in_process(script: &str) -> Value {
+    let script_owned = script.to_string();
+
+    // Run on a separate thread to avoid blocking the async event loop.
+    let handle = std::thread::spawn(move || {
+        let source = NSString::from_str(&script_owned);
+        let ns_script = unsafe { NSAppleScript::initWithSource(NSAppleScript::alloc(), &source) };
+
+        let mut error_info: Option<Retained<NSDictionary>> = None;
+        let result = unsafe { ns_script.executeAndReturnError(&mut error_info) };
+
+        if let Some(err_dict) = error_info {
+            // Extract error message from the NSDictionary
+            let err_key = NSString::from_str("NSAppleScriptErrorMessage");
+            let err_msg = unsafe { err_dict.objectForKey(&err_key) };
+            let msg = err_msg
+                .map(|obj| {
+                    let ns_str: &NSString = unsafe { &*(obj as *const _ as *const NSString) };
+                    ns_str.to_string()
+                })
+                .unwrap_or_else(|| "AppleScript execution failed".to_string());
+            json!({ "error": msg })
+        } else {
+            // Get the string value of the result
+            let result_str = result
+                .map(|desc| desc.stringValue().map(|s| s.to_string()))
+                .flatten()
+                .unwrap_or_default();
+            json!({ "result": result_str })
         }
-        Err(e) => json!({ "error": format!("failed to spawn osascript: {}", e) }),
-    }
+    });
+
+    handle.join().unwrap_or_else(|_| json!({ "error": "AppleScript thread panicked" }))
 }
 
 /// Activate an app, wait briefly, then send a keystroke — all in one call.
@@ -70,25 +94,22 @@ pub fn send_keystroke_to_app(params: &Value) -> Value {
         None => return json!({ "error": "missing app parameter" }),
     };
 
-    // Save current frontmost app and activate target
-    let prev_app_result = Command::new("/usr/bin/osascript")
-        .arg("-e")
-        .arg(format!(
-            "tell application \"System Events\"\n\
-               set frontApp to bundle identifier of first application process whose frontmost is true\n\
-             end tell\n\
-             tell application \"{}\" to activate\n\
-             delay 0.2\n\
-             return frontApp",
-            app
-        ))
-        .output();
-
-    let prev_app = prev_app_result
-        .as_ref()
-        .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_default();
+    // Save current frontmost app and activate target (in-process AppleScript)
+    let activate_script = format!(
+        "tell application \"System Events\"\n\
+           set frontApp to bundle identifier of first application process whose frontmost is true\n\
+         end tell\n\
+         tell application \"{}\" to activate\n\
+         delay 0.2\n\
+         return frontApp",
+        app
+    );
+    let activate_result = exec_applescript_in_process(&activate_script);
+    let prev_app = activate_result
+        .get("result")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     // Send the keystroke
     let result = send_keystroke(params);
@@ -96,10 +117,11 @@ pub fn send_keystroke_to_app(params: &Value) -> Value {
     // Restore previous app (best effort)
     let target_bundle = app.replace("\"", "");
     if !prev_app.is_empty() && prev_app != target_bundle {
-        let _ = Command::new("/usr/bin/osascript")
-            .arg("-e")
-            .arg(format!("tell application id \"{}\" to activate", prev_app))
-            .spawn(); // fire-and-forget
+        let restore_script = format!("tell application id \"{}\" to activate", prev_app);
+        // Fire-and-forget on a separate thread
+        std::thread::spawn(move || {
+            exec_applescript_in_process(&restore_script);
+        });
     }
 
     result
