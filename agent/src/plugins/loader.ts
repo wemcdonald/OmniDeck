@@ -58,6 +58,7 @@ export class PluginLoader {
     );
 
     // Build runtime
+    log.info(`Loading plugin ${pluginId}: platformRequest=${typeof opts.platformRequest}`);
     const { omnideck, runtime } = createPluginRuntime({
       pluginId,
       config: opts.config ?? {},
