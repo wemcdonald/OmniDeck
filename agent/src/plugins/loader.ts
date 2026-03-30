@@ -64,6 +64,7 @@ export class PluginLoader {
       hostname: opts.hostname ?? "unknown",
       onStateUpdate: opts.onStateUpdate ?? (() => {}),
       onLog: opts.onLog,
+      platformRequest: opts.platformRequest,
     });
 
     // Dynamic import the plugin module (unique path = fresh import)
