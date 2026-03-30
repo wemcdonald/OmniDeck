@@ -1,6 +1,6 @@
 use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use objc2::ClassType;
+use objc2::AnyThread;
 use objc2_foundation::{NSAppleScript, NSDictionary, NSString};
 use serde_json::{json, Value};
 
