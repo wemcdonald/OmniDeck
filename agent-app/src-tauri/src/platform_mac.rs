@@ -1,7 +1,5 @@
 use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use objc2::AnyThread;
-use objc2_foundation::{NSAppleScript, NSDictionary, NSString};
 use serde_json::{json, Value};
 
 /// Post a CGEvent keyboard event. Accepts keyCode (u16) and flags (u64).
@@ -35,49 +33,34 @@ pub fn send_keystroke(params: &Value) -> Value {
     json!({ "success": true })
 }
 
-/// Execute an AppleScript string in-process using NSAppleScript.
-/// Runs within the Tauri app process which has Accessibility permission,
-/// so System Events access works without granting the sidecar Accessibility.
+/// Execute an AppleScript string and return the result.
+/// Falls back to /usr/bin/osascript since NSAppleScript requires main-thread
+/// execution for Apple Events, which conflicts with the Tauri event loop.
+/// Running osascript as a child of the Tauri app inherits its Accessibility.
 pub fn run_applescript(params: &Value) -> Value {
     let script = match params.get("script").and_then(|v| v.as_str()) {
         Some(s) => s,
         None => return json!({ "error": "missing script parameter" }),
     };
 
-    exec_applescript_in_process(script)
-}
-
-/// Run an AppleScript string via NSAppleScript on a dedicated thread
-/// to avoid blocking the Tauri async runtime.
-fn exec_applescript_in_process(script: &str) -> Value {
+    // Run on a dedicated thread to avoid blocking the async event loop.
     let script_owned = script.to_string();
-
-    // Run on a separate thread to avoid blocking the async event loop.
     let handle = std::thread::spawn(move || {
-        let source = NSString::from_str(&script_owned);
-        let ns_script = match NSAppleScript::initWithSource(NSAppleScript::alloc(), &source) {
-            Some(s) => s,
-            None => return json!({ "error": "failed to create NSAppleScript" }),
-        };
-
-        let mut error_info: Option<objc2::rc::Retained<NSDictionary<NSString, objc2::runtime::AnyObject>>> = None;
-        let result = unsafe { ns_script.executeAndReturnError(Some(&mut error_info)) };
-
-        if let Some(err_dict) = error_info {
-            let err_key = NSString::from_str("NSAppleScriptErrorMessage");
-            let err_msg = err_dict.objectForKey(&err_key);
-            let msg = err_msg
-                .map(|obj| {
-                    let ns_str: &NSString = unsafe { &*(&*obj as *const _ as *const NSString) };
-                    ns_str.to_string()
-                })
-                .unwrap_or_else(|| "AppleScript execution failed".to_string());
-            json!({ "error": msg })
-        } else {
-            let result_str = result.stringValue()
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-            json!({ "result": result_str })
+        match std::process::Command::new("/usr/bin/osascript")
+            .arg("-e")
+            .arg(&script_owned)
+            .output()
+        {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                if output.status.success() {
+                    json!({ "result": stdout })
+                } else {
+                    json!({ "error": stderr, "exitCode": output.status.code() })
+                }
+            }
+            Err(e) => json!({ "error": format!("failed to spawn osascript: {}", e) }),
         }
     });
 
