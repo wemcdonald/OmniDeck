@@ -82,7 +82,11 @@ export function platformRequest(method: string, params: Record<string, unknown>)
 }
 
 function startStdinListener(): void {
+  // Guard: if stdin is not readable (e.g. Tauri shell didn't pipe it), skip.
+  if (!process.stdin.readable) return;
+  process.stdin.on("error", () => {}); // Ignore stdin errors (broken pipe, etc.)
   const rl = createInterface({ input: process.stdin, terminal: false });
+  rl.on("close", () => {}); // Don't let readline close kill the process
   rl.on("line", (line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
