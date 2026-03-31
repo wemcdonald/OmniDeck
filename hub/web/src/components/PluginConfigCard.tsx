@@ -3,7 +3,14 @@ import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "../lib/api.ts";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Download } from "lucide-react";
+
+interface PluginDownload {
+  name: string;
+  label: string;
+  path: string;
+  description?: string;
+}
 
 interface PluginConfigCardProps {
   id: string;
@@ -11,6 +18,7 @@ interface PluginConfigCardProps {
   version?: string;
   icon?: string;
   health?: { status: string; message?: string };
+  downloads?: PluginDownload[];
   config: Record<string, unknown>;
   onSaved(): void;
 }
@@ -31,7 +39,7 @@ function healthBadge(health?: { status: string }) {
   }
 }
 
-export default function PluginConfigCard({ id, name, version, icon: _icon, health, config, onSaved }: PluginConfigCardProps) {
+export default function PluginConfigCard({ id, name, version, icon: _icon, health, downloads, config, onSaved }: PluginConfigCardProps) {
   const [draft, setDraft] = useState<Record<string, unknown>>({ ...config });
   const [showYaml, setShowYaml] = useState(false);
 
@@ -115,6 +123,25 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
               </button>
             </div>
           </>
+        )}
+
+        {downloads && downloads.length > 0 && (
+          <div className="space-y-2 pt-1">
+            {downloads.map((dl) => (
+              <div key={dl.name}>
+                <a
+                  href={`/api/plugins/${id}/download/${dl.name}`}
+                  className="inline-flex items-center gap-1.5 rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm font-medium hover:bg-surface-container-highest transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {dl.label}
+                </a>
+                {dl.description && (
+                  <p className="text-xs text-muted-foreground mt-1">{dl.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
         {showYaml && (

@@ -22,6 +22,7 @@ function isValidPlugin(obj: unknown): obj is OmniDeckPlugin {
 export class PluginRegistry {
   private pluginsDir: string;
   private manifests = new Map<string, PluginManifest>();
+  private pluginDirs = new Map<string, string>();
   private agentBundles = new Map<string, BundleResult>();
   private hubPlugins = new Map<string, OmniDeckPlugin>();
 
@@ -66,6 +67,7 @@ export class PluginRegistry {
     const manifest = PluginManifestSchema.parse(parsed);
 
     this.manifests.set(manifest.id, manifest);
+    this.pluginDirs.set(manifest.id, resolvedDir);
     log.info({ id: manifest.id, version: manifest.version }, "Plugin loaded");
 
     // Bundle agent-side code for distribution to agents
@@ -105,6 +107,7 @@ export class PluginRegistry {
 
   async reloadPlugin(id: string): Promise<void> {
     this.manifests.delete(id);
+    this.pluginDirs.delete(id);
     this.agentBundles.delete(id);
     this.hubPlugins.delete(id);
 
@@ -130,6 +133,10 @@ export class PluginRegistry {
 
   getManifest(id: string): PluginManifest | undefined {
     return this.manifests.get(id);
+  }
+
+  getPluginDir(id: string): string | undefined {
+    return this.pluginDirs.get(id);
   }
 
   getAgentBundle(id: string): BundleResult | undefined {

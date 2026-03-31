@@ -18,7 +18,7 @@ const LEVEL_COLORS: Record<string, string> = {
 
 export default function RecentLogs() {
   const [lines, setLines] = useState<LogLine[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
   useEffect(() => {
@@ -30,7 +30,8 @@ export default function RecentLogs() {
   }, [subscribe]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [lines]);
 
   return (
@@ -44,7 +45,7 @@ export default function RecentLogs() {
         </Link>
       </div>
       <CardContent>
-        <div className="font-mono text-xs space-y-0.5 max-h-48 overflow-y-auto">
+        <div ref={containerRef} className="font-mono text-xs space-y-0.5 max-h-48 overflow-y-auto">
           {lines.length === 0 && (
             <p className="text-muted-foreground">No log lines yet</p>
           )}
@@ -60,7 +61,7 @@ export default function RecentLogs() {
               <span className="truncate">{line.msg}</span>
             </div>
           ))}
-          <div ref={bottomRef} />
+          <div />
         </div>
       </CardContent>
     </Card>

@@ -17,6 +17,7 @@ import type { Broadcaster } from "./broadcast.js";
 import type { AgentServer } from "../server/server.js";
 import type { PairingManager } from "../server/pairing.js";
 import type { PluginHost } from "../plugins/host.js";
+import type { PluginRegistry } from "../plugins/registry.js";
 import type { DeckManager } from "../deck/types.js";
 import type { StateStore } from "../state/store.js";
 
@@ -45,6 +46,7 @@ export interface WebServerOptions {
   httpsPort?: number;
   authPasswordHash?: string;
   pluginsDir?: string;
+  pluginRegistry?: PluginRegistry;
   onPluginInstalled?: (pluginId: string) => Promise<void>;
   tlsRedirect?: boolean;
   caCertPath?: string;
@@ -134,6 +136,7 @@ export class WebServer {
     if (this.opts.pluginsDir) {
       this.app.route("/api/plugins", createPluginInstallRoutes({
         pluginsDir: this.opts.pluginsDir,
+        registry: this.opts.pluginRegistry,
         onInstalled: this.opts.onPluginInstalled,
       }));
     }
@@ -150,7 +153,18 @@ export class WebServer {
       "/api",
       createStatusRoutes({
         getAgents: () => agentServer?.getConnectedAgents() ?? [],
-        getPluginStatuses: () => getPluginStatuses?.() ?? [],
+        getPluginStatuses: () => {
+          const statuses = getPluginStatuses?.() ?? [];
+          const registry = this.opts.pluginRegistry;
+          if (!registry) return statuses;
+          return statuses.map((s: Record<string, unknown>) => {
+            const manifest = registry.getManifest(s.id as string);
+            if (manifest?.downloads?.length) {
+              return { ...s, downloads: manifest.downloads };
+            }
+            return s;
+          });
+        },
         getPluginCatalog: this.opts.pluginHost ? () => this.opts.pluginHost!.getPluginCatalog() : undefined,
         getDeckPreview: () => getDeckPreview?.() ?? Promise.resolve({}),
         pressKey: async (key) => {

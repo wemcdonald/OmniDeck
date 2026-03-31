@@ -23,6 +23,18 @@ export const PluginManifestSchema = z.object({
 
   /** Agent-side entry point (omit for hub-only plugins) */
   agent: z.string().optional(),
+
+  /** Downloadable assets (e.g., companion Chrome extensions) */
+  downloads: z.array(z.object({
+    /** URL-safe identifier for this download */
+    name: z.string(),
+    /** Human-readable label shown on the download button */
+    label: z.string(),
+    /** Relative path within the plugin directory (file or directory to zip) */
+    path: z.string(),
+    /** Description shown below the download button */
+    description: z.string().optional(),
+  })).optional(),
 });
 
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;

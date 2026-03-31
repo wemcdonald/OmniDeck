@@ -1,6 +1,8 @@
 import { Hono } from "hono";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { stream } from "hono/streaming";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync, statSync } from "node:fs";
+import { createReadStream } from "node:fs";
+import { join, resolve, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { createLogger } from "../../logger.js";
 import {
@@ -19,6 +21,7 @@ import {
   type BrowsePlugin,
 } from "../../plugins/installer/browse.js";
 import { execSync } from "node:child_process";
+import type { PluginRegistry } from "../../plugins/registry.js";
 
 const log = createLogger("plugin-install");
 
@@ -28,6 +31,7 @@ const MAX_ZIP_SIZE = 5 * 1024 * 1024; // 5MB
 
 interface PluginInstallDeps {
   pluginsDir: string;
+  registry?: PluginRegistry;
   onInstalled?: (pluginId: string) => Promise<void>;
 }
 
@@ -243,6 +247,72 @@ export function createPluginInstallRoutes(deps: PluginInstallDeps): Hono {
         { status: "error", errors: [`Failed to fetch: ${(err as Error).message}`] },
         502,
       );
+    }
+  });
+
+  // --- Download plugin assets (e.g., companion Chrome extensions) ---
+  router.get("/:pluginId/download/:name", async (c) => {
+    const { registry } = deps;
+    if (!registry) {
+      return c.json({ status: "error", errors: ["Plugin registry not available"] }, 500);
+    }
+
+    const pluginId = c.req.param("pluginId");
+    const downloadName = c.req.param("name");
+
+    const manifest = registry.getManifest(pluginId);
+    if (!manifest) {
+      return c.json({ status: "error", errors: ["Plugin not found"] }, 404);
+    }
+
+    const download = manifest.downloads?.find((d) => d.name === downloadName);
+    if (!download) {
+      return c.json({ status: "error", errors: ["Download not found"] }, 404);
+    }
+
+    const pluginDir = registry.getPluginDir(pluginId);
+    if (!pluginDir) {
+      return c.json({ status: "error", errors: ["Plugin directory not found"] }, 500);
+    }
+
+    // Resolve and validate the path stays within the plugin directory
+    const targetPath = resolve(pluginDir, download.path);
+    const rel = relative(pluginDir, targetPath);
+    if (rel.startsWith("..") || resolve(targetPath) !== targetPath) {
+      return c.json({ status: "error", errors: ["Invalid download path"] }, 400);
+    }
+
+    if (!existsSync(targetPath)) {
+      return c.json({ status: "error", errors: ["Download path does not exist"] }, 404);
+    }
+
+    const stat = statSync(targetPath);
+    const filename = `${pluginId}-${downloadName}.zip`;
+
+    if (stat.isDirectory()) {
+      // Zip the directory on-the-fly
+      const tmpZip = join(tmpdir(), `omnideck-download-${pluginId}-${downloadName}-${Date.now()}.zip`);
+      try {
+        execSync(`zip -r "${tmpZip}" .`, { cwd: targetPath, stdio: "pipe" });
+        const zipData = readFileSync(tmpZip);
+        const zipSize = zipData.length;
+        rmSync(tmpZip, { force: true });
+        c.header("Content-Type", "application/zip");
+        c.header("Content-Disposition", `attachment; filename="${filename}"`);
+        c.header("Content-Length", String(zipSize));
+        return c.body(zipData.buffer.slice(zipData.byteOffset, zipData.byteOffset + zipData.byteLength));
+      } catch (err) {
+        rmSync(tmpZip, { force: true });
+        log.error({ err, pluginId, downloadName }, "Failed to create zip");
+        return c.json({ status: "error", errors: ["Failed to create zip archive"] }, 500);
+      }
+    } else {
+      // Serve the file directly
+      const data = readFileSync(targetPath);
+      c.header("Content-Type", "application/octet-stream");
+      c.header("Content-Disposition", `attachment; filename="${download.path.split("/").pop()}"`);
+      c.header("Content-Length", String(data.length));
+      return c.body(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
     }
   });
 

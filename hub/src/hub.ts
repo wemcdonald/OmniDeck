@@ -289,6 +289,7 @@ export class Hub {
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,
       pluginsDir: this.opts.pluginsDir,
+      pluginRegistry: registry,
       onPluginInstalled: registry ? async (pluginId: string) => {
         await registry!.reloadPlugin(pluginId);
         // Register hub-side plugin if it was loaded

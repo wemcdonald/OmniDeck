@@ -13,6 +13,7 @@ interface PluginStatus {
   icon?: string;
   status: string;
   health?: { status: string; message?: string };
+  downloads?: Array<{ name: string; label: string; path: string; description?: string }>;
 }
 
 export default function Plugins() {
@@ -63,6 +64,7 @@ export default function Plugins() {
             version={plugin.version}
             icon={plugin.icon}
             health={plugin.health}
+            downloads={plugin.downloads}
             config={(configs as Record<string, Record<string, unknown>>)[plugin.id] ?? {}}
             onSaved={handleRefresh}
           />
