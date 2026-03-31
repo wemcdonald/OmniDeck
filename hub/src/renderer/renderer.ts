@@ -132,11 +132,11 @@ export class ButtonRenderer {
 
     // Layer 2: Icon (Buffer = image, string = emoji/text)
     if (Buffer.isBuffer(state.icon)) {
-      const iconPadding = Math.round(width * 0.15);
+      const iconPadding = state.iconFullBleed ? 0 : Math.round(width * 0.15);
       const iconSize = width - iconPadding * 2;
       const resizedIcon = await sharp(state.icon)
         .resize(iconSize, iconSize, {
-          fit: "contain",
+          fit: "cover",
           background: { r: 0, g: 0, b: 0, alpha: 0 },
         })
         .png()

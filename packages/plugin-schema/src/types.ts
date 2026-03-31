@@ -105,6 +105,8 @@ export interface ButtonStateResult {
   label?: string;
   topLabel?: string;
   icon?: string | Buffer;
+  /** If true and icon is a Buffer, renders it full-bleed (no padding). */
+  iconFullBleed?: boolean;
   iconColor?: string;
   background?: string;
   badge?: string | number;
