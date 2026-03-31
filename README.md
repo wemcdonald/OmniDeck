@@ -221,6 +221,10 @@ Raspberry Pi
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full specification.
 
+## Hardware
+
+Want to 3D-print a case that mounts the Raspberry Pi directly behind your Stream Deck? See [OmniDeck Hardware](https://github.com/wemcdonald/OmniDeck-hardware).
+
 ## Development
 
 ```bash
