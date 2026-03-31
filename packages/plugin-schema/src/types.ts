@@ -35,6 +35,8 @@ export interface PluginContext {
   onOrchestratorEvent(event: string, cb: (data: unknown) => void): void;
   /** Report plugin health/config status. Call during init or on config change. */
   setHealth(health: PluginHealth): void;
+  /** Write a default page config file if it doesn't already exist. User owns the file after creation. */
+  scaffoldPage(id: string, config: { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> }): void;
 }
 
 // ── Plugin Interface ───────────────────────────────────────────────────────

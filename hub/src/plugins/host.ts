@@ -10,6 +10,9 @@ import type {
 import { extractFields, type PluginHealth, type CatalogField } from "@omnideck/plugin-schema";
 import type { StateStore } from "../state/store.js";
 import { createLogger } from "../logger.js";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { stringify as yamlStringify } from "yaml";
 
 type OrchestratorCallback = (data: unknown) => void;
 
@@ -23,9 +26,11 @@ export class PluginHost {
   private orchestratorListeners = new Map<string, OrchestratorCallback[]>();
   private pluginHealth = new Map<string, PluginHealth>();
   private store: StateStore;
+  private configDir?: string;
 
-  constructor(store: StateStore) {
+  constructor(store: StateStore, configDir?: string) {
     this.store = store;
+    this.configDir = configDir;
   }
 
   register(plugin: OmniDeckPlugin): void {
@@ -54,6 +59,18 @@ export class PluginHost {
       },
       setHealth: (health) => {
         this.pluginHealth.set(id, health);
+      },
+      scaffoldPage: (pageId, pageConfig) => {
+        if (!this.configDir) {
+          log.warn({ pluginId: id, pageId }, "Cannot scaffold page: no config directory");
+          return;
+        }
+        const pagesDir = join(this.configDir, "pages");
+        const filePath = join(pagesDir, `${pageId}.yaml`);
+        if (existsSync(filePath)) return; // user already has this page
+        if (!existsSync(pagesDir)) mkdirSync(pagesDir, { recursive: true });
+        writeFileSync(filePath, yamlStringify(pageConfig));
+        log.info({ pluginId: id, pageId, filePath }, "Scaffolded default page");
       },
     };
   }

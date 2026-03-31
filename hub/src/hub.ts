@@ -89,7 +89,7 @@ export class Hub {
     this.renderer = new ButtonRenderer({ width: 96, height: 96 });
     this.previewRenderer = new ButtonRenderer({ width: 72, height: 72 });
     this.store = new StateStore();
-    this.pluginHost = new PluginHost(this.store);
+    this.pluginHost = new PluginHost(this.store, this.opts.configDir);
     this.pluginHost.register(corePlugin);
     this.pluginHost.register(soundPlugin);
     this.pluginHost.register(homeAssistantPlugin);
