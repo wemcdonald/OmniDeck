@@ -224,6 +224,11 @@ export class Hub {
     // Bridge agent plugin state into the hub state store
     this.agentServer.onPluginState((hostname, pluginId, key, value) => {
       this.store.set(pluginId, `agent:${hostname}:${key}`, value);
+      // Track which agent is active for each plugin (enables target-less buttons)
+      const v = value as Record<string, unknown> | null;
+      if (v && (v.connected === true || v.extensionConnected === true)) {
+        this.store.set(pluginId, "active_agent", hostname);
+      }
     });
 
     // Initialize mode engine (if modes configured)
