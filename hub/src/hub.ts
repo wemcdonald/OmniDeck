@@ -111,6 +111,7 @@ export class Hub {
       on_exit?: Array<Record<string, unknown>>;
     }>,
     orchestratorConfig?: FullConfig["orchestrator"],
+    defaultPage?: string,
   ): Promise<void> {
     // Store pages
     for (const page of pageConfigs) {
@@ -359,8 +360,10 @@ export class Hub {
     await this.deck.connect();
     this.renderer = new ButtonRenderer(this.deck.keySize);
 
-    // Set initial page
-    const firstPage = pageConfigs[0]?.page ?? "home";
+    // Set initial page — prefer configured default_page, fall back to first loaded page
+    const firstPage = defaultPage && this.pages.has(defaultPage)
+      ? defaultPage
+      : (pageConfigs[0]?.page ?? "home");
     this.store.set("omnideck-core", "current_page", firstPage);
     this.currentPageId = firstPage;
 

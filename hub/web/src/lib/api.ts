@@ -244,6 +244,14 @@ export const api = {
     delete: (id: string) =>
       request<{ ok: boolean }>(`/api/config/pages/${id}`, { method: "DELETE" }),
   },
+  deck: {
+    get: () => request<Record<string, unknown>>("/api/config/deck"),
+    setDefaultPage: (pageId: string) =>
+      request<{ ok: boolean }>("/api/config/deck", {
+        method: "PUT",
+        body: JSON.stringify({ default_page: pageId }),
+      }),
+  },
   plugins: {
     list: () => request<Record<string, unknown>>("/api/config/plugins"),
     save: (id: string, config: Record<string, unknown>) =>

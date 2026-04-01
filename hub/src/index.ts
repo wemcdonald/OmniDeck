@@ -58,7 +58,7 @@ async function main() {
     tlsRedirect: config.auth?.tls_redirect ?? false,
     httpsPort: 9443,
   });
-  await hub.start(config.pages, config.plugins, config.modes, config.orchestrator);
+  await hub.start(config.pages, config.plugins, config.modes, config.orchestrator, config.deck?.default_page);
 
   log.info("OmniDeck Hub running");
 

@@ -63,11 +63,26 @@ export function createConfigRoutes(configDir: string): Hono {
     const pagesDir = join(configDir, "pages");
     const pagePath = join(pagesDir, `${id}.yaml`);
     if (!existsSync(pagePath)) return c.json({ error: "Page not found" }, 404);
-    const remaining = existsSync(pagesDir)
-      ? readdirSync(pagesDir).filter((f) => extname(f) === ".yaml" || extname(f) === ".yml").length
-      : 0;
-    if (remaining <= 1) return c.json({ error: "Cannot delete the last page" }, 400);
+    const allFiles = existsSync(pagesDir)
+      ? readdirSync(pagesDir).filter((f) => extname(f) === ".yaml" || extname(f) === ".yml")
+      : [];
+    if (allFiles.length <= 1) return c.json({ error: "Cannot delete the last page" }, 400);
     unlinkSync(pagePath);
+    // If the deleted page was the default, update default_page to the first remaining page
+    const configPath = join(configDir, "config.yaml");
+    if (existsSync(configPath)) {
+      const raw = readFileSync(configPath, "utf-8");
+      const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+      const deck = (config.deck ?? {}) as Record<string, unknown>;
+      if (deck.default_page === id) {
+        const remaining = allFiles.filter((f) => basename(f, extname(f)) !== id);
+        if (remaining.length > 0) {
+          deck.default_page = basename(remaining[0], extname(remaining[0]));
+          config.deck = deck;
+          writeFileSync(configPath, stringifyYaml(config));
+        }
+      }
+    }
     return c.json({ ok: true });
   });
 
@@ -103,6 +118,28 @@ export function createConfigRoutes(configDir: string): Hono {
     const plugins = (config.plugins ?? {}) as Record<string, unknown>;
     plugins[pluginId] = newPluginConfig;
     config.plugins = plugins;
+    writeFileSync(configPath, stringifyYaml(config));
+    return c.json({ ok: true });
+  });
+
+  // --- Deck config (brightness, default_page, etc.) ---
+
+  function loadDeckConfig(): Record<string, unknown> {
+    const configPath = join(configDir, "config.yaml");
+    if (!existsSync(configPath)) return {};
+    const raw = readFileSync(configPath, "utf-8");
+    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+    return (config.deck ?? {}) as Record<string, unknown>;
+  }
+
+  router.get("/deck", (c) => c.json(loadDeckConfig()));
+
+  router.put("/deck", async (c) => {
+    const newDeck = await c.req.json();
+    const configPath = join(configDir, "config.yaml");
+    const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
+    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+    config.deck = { ...(config.deck as Record<string, unknown> ?? {}), ...newDeck };
     writeFileSync(configPath, stringifyYaml(config));
     return c.json({ ok: true });
   });
