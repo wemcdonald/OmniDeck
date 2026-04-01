@@ -24,6 +24,7 @@ export class PluginHost {
   private stateProviders = new Map<string, StateProviderDefinition>();
   private presets = new Map<string, ButtonPreset>();
   private orchestratorListeners = new Map<string, OrchestratorCallback[]>();
+  private pageProviders = new Map<string, () => any>();
   private pluginHealth = new Map<string, PluginHealth>();
   private store: StateStore;
   private configDir?: string;
@@ -59,6 +60,9 @@ export class PluginHost {
       },
       setHealth: (health) => {
         this.pluginHealth.set(id, health);
+      },
+      registerPageProvider: (pageId, resolve) => {
+        this.pageProviders.set(`${id}.${pageId}`, resolve);
       },
       scaffoldPage: (pageId, pageConfig) => {
         if (!this.configDir) {
@@ -189,6 +193,18 @@ export class PluginHost {
   /** Get health status for a specific plugin. */
   getHealth(pluginId: string): PluginHealth | undefined {
     return this.pluginHealth.get(pluginId);
+  }
+
+  /** Resolve a dynamic page from a plugin page provider. */
+  resolveDynamicPage(pageId: string): unknown | undefined {
+    const provider = this.pageProviders.get(pageId);
+    if (!provider) return undefined;
+    try {
+      return provider();
+    } catch (err) {
+      log.error({ pageId, err }, "Dynamic page provider failed");
+      return undefined;
+    }
   }
 
   /** Build the full plugin catalog for the frontend. */

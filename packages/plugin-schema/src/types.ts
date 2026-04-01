@@ -37,6 +37,8 @@ export interface PluginContext {
   setHealth(health: PluginHealth): void;
   /** Write a default page config file if it doesn't already exist. User owns the file after creation. */
   scaffoldPage(id: string, config: { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> }): void;
+  /** Register a dynamic page provider. The resolve function is called whenever the page needs to render. */
+  registerPageProvider(id: string, resolve: () => { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> } | undefined): void;
 }
 
 // ── Plugin Interface ───────────────────────────────────────────────────────

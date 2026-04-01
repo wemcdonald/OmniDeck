@@ -488,7 +488,7 @@ export class Hub {
   }
 
   async getDeckPreview(): Promise<Record<number, string>> {
-    const page = this.pages.get(this.currentPageId);
+    const page = this.getPage(this.currentPageId);
     if (!page) return {};
 
     const { width, height } = this.deck.keySize;
@@ -520,7 +520,7 @@ export class Hub {
   }
 
   private async handleKeyPress(keyIndex: number, isLongPress = false): Promise<void> {
-    const page = this.pages.get(this.currentPageId);
+    const page = this.getPage(this.currentPageId);
     if (!page) {
       log.warn({ keyIndex, pageId: this.currentPageId }, "Key press on unknown page");
       return;
@@ -587,8 +587,18 @@ export class Hub {
    * Full page render — clears all keys and renders from scratch.
    * Used on page switch or config reload.
    */
+  /** Resolve a page by ID — checks user-defined pages first, then plugin page providers. */
+  private getPage(pageId: string): PageConfig | undefined {
+    const staticPage = this.pages.get(pageId);
+    if (staticPage) return staticPage;
+    // Check plugin-provided dynamic pages
+    const dynamic = this.pluginHost.resolveDynamicPage(pageId) as PageConfig | undefined;
+    if (dynamic) return PageConfigSchema.parse(dynamic);
+    return undefined;
+  }
+
   private async renderCurrentPage(): Promise<void> {
-    const page = this.pages.get(this.currentPageId);
+    const page = this.getPage(this.currentPageId);
     if (!page) return;
 
     this.stateCache.clear();
@@ -624,7 +634,7 @@ export class Hub {
    * Used on entity/agent state updates.
    */
   private async renderDirtyButtons(): Promise<void> {
-    const page = this.pages.get(this.currentPageId);
+    const page = this.getPage(this.currentPageId);
     if (!page) return;
 
     const columns = page.columns ?? this.deck.keyColumns;
