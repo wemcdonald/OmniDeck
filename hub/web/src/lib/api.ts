@@ -70,6 +70,7 @@ export interface PluginCatalogEntry {
   version: string;
   icon?: string;
   health: import("@omnideck/plugin-schema").PluginHealth;
+  configFields?: import("@omnideck/plugin-schema").CatalogField[];
   presets: CatalogPreset[];
   actions: CatalogAction[];
   stateProviders: CatalogStateProvider[];

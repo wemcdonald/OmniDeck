@@ -1,15 +1,22 @@
 // Copied from hub/src/plugins/builtin/os-control/index.ts
 // Adapted for standalone plugin format: import path updated to use hub plugin types.
+import { z } from "zod";
+import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../hub/src/plugins/types.js";
 
 interface OsControlConfig {
   default_target: string;
 }
 
+const configSchema = z.object({
+  default_target: field(z.string().optional(), { label: "Default Agent", fieldType: "agent" as const }),
+});
+
 export const osControlPlugin: OmniDeckPlugin = {
   id: "os-control",
   name: "OS Control",
   version: "1.0.0",
+  configSchema,
 
   async init(ctx: PluginContext) {
     const config = ctx.config as OsControlConfig;

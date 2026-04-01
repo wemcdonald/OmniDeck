@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../types.js";
 import { createSpotifyActions } from "./actions.js";
 import { createSpotifyStateProviders } from "./state.js";
@@ -41,8 +43,16 @@ interface DevicesResponse {
 const SPOTIFY_API = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 
+const configSchema = z.object({
+  client_id: field(z.string().optional(), { label: "Client ID" }),
+  client_secret: field(z.string().optional(), { label: "Client Secret" }),
+  refresh_token: field(z.string().optional(), { label: "Refresh Token" }),
+  poll_interval: field(z.number().default(2000).optional(), { label: "Poll Interval (ms)" }),
+});
+
 export const spotifyPlugin: OmniDeckPlugin = {
   id: "spotify",
+  configSchema,
   name: "Spotify",
   version: "1.0.0",
   icon: "ms:music-note",

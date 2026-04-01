@@ -34,8 +34,14 @@ const simpleActionMeta: Record<string, { description: string; icon: string }> = 
   media_previous: { description: "Previous track", icon: "ms:skip-previous" },
 };
 
+const configSchema = z.object({
+  default_target: field(z.string().optional(), { label: "Default Agent", fieldType: "agent" as const }),
+  default_step: field(z.number().default(10).optional(), { label: "Volume Step (%)" }),
+});
+
 export const soundPlugin: OmniDeckPlugin = {
   id: "sound",
+  configSchema,
   name: "Sound",
   version: "1.0.0",
   icon: "ms:volume-up",

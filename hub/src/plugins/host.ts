@@ -219,6 +219,7 @@ export class PluginHost {
         version: plugin.version,
         icon: plugin.icon,
         health: this.pluginHealth.get(plugin.id) ?? { status: "ok" },
+        configFields: plugin.configSchema ? extractFields(plugin.configSchema as import("zod").ZodObject<any>) : undefined,
         presets: [],
         actions: [],
         stateProviders: [],
@@ -293,6 +294,7 @@ export interface PluginCatalogEntry {
   version: string;
   icon?: string;
   health: PluginHealth;
+  configFields?: CatalogField[];
   presets: CatalogPreset[];
   actions: CatalogAction[];
   stateProviders: CatalogStateProvider[];

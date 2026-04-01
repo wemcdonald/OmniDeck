@@ -33,8 +33,13 @@ const actionDescriptions: Record<string, { description: string; icon: string }> 
 
 const targetOnlySchema = z.object(targetParam);
 
+const configSchema = z.object({
+  default_target: field(z.string().optional(), { label: "Default Agent", fieldType: "agent" as const }),
+});
+
 export const osControlPlugin: OmniDeckPlugin = {
   id: "os-control",
+  configSchema,
   name: "OS Control",
   version: "1.0.0",
   icon: "ms:computer",

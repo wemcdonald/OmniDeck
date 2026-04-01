@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../types.js";
 import { HaClient } from "./client.js";
 import { createHaActions } from "./actions.js";
@@ -17,8 +19,14 @@ interface HaConfig {
 let activeClient: HaClient | null = null;
 let activePublisher: HaStatePublisher | null = null;
 
+const configSchema = z.object({
+  url: field(z.string(), { label: "WebSocket URL", placeholder: "ws://homeassistant.local:8123/api/websocket" }),
+  token: field(z.string(), { label: "Long-Lived Access Token" }),
+});
+
 export const homeAssistantPlugin: OmniDeckPlugin = {
   id: "home-assistant",
+  configSchema,
   name: "Home Assistant",
   version: "2.0.0",
   icon: "ms:home",
