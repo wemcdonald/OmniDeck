@@ -853,6 +853,15 @@ export class Hub {
       state.topLabel = this.interpolate(state.topLabel, templateVars);
     }
 
+    // If the button has meaningful config but resolved to nothing visible, show an
+    // "unavailable" indicator so the deck doesn't silently show a black button.
+    const hasConfig = !!(button.preset || button.state?.provider || button.action);
+    const hasVisibleContent = !!(state.icon || state.label || state.background || state.topLabel);
+    if (hasConfig && !hasVisibleContent) {
+      state.icon = "ms:block";
+      state.iconColor = "#374151"; // very dim gray, barely visible
+    }
+
     return state;
   }
 }
