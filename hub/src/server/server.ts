@@ -157,6 +157,12 @@ export class AgentServer {
     this.connectionCallbacks.push(cb);
   }
 
+  sendPluginConfig(hostname: string, pluginId: string, config: Record<string, unknown>): void {
+    const agent = this.agents.get(hostname);
+    if (!agent) return;
+    agent.ws.send(JSON.stringify(createMessage("plugin_config_update", { id: pluginId, config })));
+  }
+
   async sendCommand(
     hostname: string,
     command: string,

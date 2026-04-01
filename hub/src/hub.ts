@@ -199,6 +199,12 @@ export class Hub {
       this.store.set("os-control", `agent:${hostname}:online`, connected);
       if (connected) {
         this.orchestrator?.handleAgentConnect(hostname);
+        // Send plugin configs so agent-side plugins can read their config
+        for (const [pluginId, config] of Object.entries(pluginConfigs)) {
+          if (config && Object.keys(config).length > 0) {
+            this.agentServer?.sendPluginConfig(hostname, pluginId, config);
+          }
+        }
       } else {
         this.orchestrator?.handleAgentDisconnect(hostname);
         this.orchestrator?.handleAgentState(hostname, { online: false, idleTimeMs: 0 });
