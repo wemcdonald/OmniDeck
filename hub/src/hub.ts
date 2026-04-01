@@ -213,6 +213,14 @@ export class Hub {
       }
     });
 
+    // Send plugin config when a plugin becomes active on an agent (e.g. after bundle download)
+    this.agentServer.onPluginActive((hostname, pluginId) => {
+      const config = pluginConfigs[pluginId];
+      if (config && Object.keys(config).length > 0) {
+        this.agentServer?.sendPluginConfig(hostname, pluginId, config);
+      }
+    });
+
     // Bridge agent plugin state into the hub state store
     this.agentServer.onPluginState((hostname, pluginId, key, value) => {
       this.store.set(pluginId, `agent:${hostname}:${key}`, value);

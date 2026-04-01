@@ -75,6 +75,7 @@ export class AgentServer {
   private stateCallbacks: AgentStateCallback[] = [];
   private pluginStateCallbacks: PluginStateCallback[] = [];
   private connectionCallbacks: AgentConnectionCallback[] = [];
+  private pluginConfigCallbacks: Array<(hostname: string, pluginId: string) => void> = [];
 
   constructor(opts: AgentServerOptions) {
     this.port = opts.port;
@@ -153,6 +154,10 @@ export class AgentServer {
   }
 
   /** Register a callback for agent connect/disconnect events. */
+  onPluginActive(cb: (hostname: string, pluginId: string) => void): void {
+    this.pluginConfigCallbacks.push(cb);
+  }
+
   onAgentConnection(cb: AgentConnectionCallback): void {
     this.connectionCallbacks.push(cb);
   }
@@ -286,6 +291,16 @@ export class AgentServer {
       }
       case "plugin_status": {
         log.debug({ data: msg.data }, "Plugin status received");
+        // Re-send configs for newly active plugins (handles hot-reload after bundle download)
+        const statusData = msg.data as { plugins: Array<{ id: string; status: string }> };
+        const hostname = connState.agentId ? this.getHostnameByAgentId(connState.agentId) : undefined;
+        if (hostname && statusData.plugins) {
+          for (const p of statusData.plugins) {
+            if (p.status === "active") {
+              for (const cb of this.pluginConfigCallbacks) cb(hostname, p.id);
+            }
+          }
+        }
         break;
       }
       case "plugin_log": {
