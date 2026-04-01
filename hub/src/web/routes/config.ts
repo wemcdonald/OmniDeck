@@ -106,19 +106,138 @@ export function createConfigRoutes(configDir: string): Hono {
   }
 
   router.get("/plugins", (c) => {
-    return c.json(loadPlugins());
+    const plugins = loadPlugins();
+    // Also return which keys are secret references so UI can show masked inputs
+    const secretRefs: Record<string, string[]> = {};
+    try {
+      const configPath = join(configDir, "config.yaml");
+      if (existsSync(configPath)) {
+        const raw = readFileSync(configPath, "utf-8");
+        const doc = parseDocument(raw, {
+          customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
+        });
+        const pluginsNode = doc.get("plugins") as any;
+        if (pluginsNode?.items) {
+          for (const pluginItem of pluginsNode.items) {
+            const pluginId = pluginItem.key?.value ?? pluginItem.key;
+            const secretFields: string[] = [];
+            if (pluginItem.value?.items) {
+              for (const field of pluginItem.value.items) {
+                if (field.value?.tag === "!secret") {
+                  secretFields.push(String(field.key?.value ?? field.key));
+                }
+              }
+            }
+            if (secretFields.length > 0) secretRefs[String(pluginId)] = secretFields;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    return c.json({ plugins, secretRefs });
   });
 
   router.put("/plugins/:id", async (c) => {
     const pluginId = c.req.param("id");
-    const newPluginConfig = await c.req.json();
+    const newPluginConfig = await c.req.json() as Record<string, unknown>;
     const configPath = join(configDir, "config.yaml");
     const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
-    const config = (parseYaml(raw) ?? {}) as Record<string, unknown>;
+
+    // Parse with secret tags intact so we can preserve them
+    const doc = parseDocument(raw, {
+      customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
+    });
+    const config = doc.toJSON() as Record<string, unknown>;
+
+    // Build a map of which keys had !secret tags in the existing config
+    const secretKeys = new Set<string>();
+    try {
+      const pluginsNode = doc.get("plugins") as any;
+      const pluginNode = pluginsNode?.get(pluginId) as any;
+      if (pluginNode?.items) {
+        for (const item of pluginNode.items) {
+          const key = item.key?.value ?? item.key;
+          const val = item.value;
+          if (val?.tag === "!secret") {
+            secretKeys.add(String(key));
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    // For fields that had !secret tags: only update if the incoming value looks like
+    // a new real value (not the same secret key name that was shown in the UI read)
     const plugins = (config.plugins ?? {}) as Record<string, unknown>;
-    plugins[pluginId] = newPluginConfig;
-    config.plugins = plugins;
-    writeFileSync(configPath, stringifyYaml(config));
+    const existingPlugin = (plugins[pluginId] ?? {}) as Record<string, unknown>;
+    const merged: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(newPluginConfig)) {
+      if (secretKeys.has(key) && val === existingPlugin[key]) {
+        // Value unchanged — keep the !secret tag by preserving the existing raw value
+        // We do this by not including it in the merged object and letting the YAML preserve it
+        merged[key] = val;
+      } else {
+        merged[key] = val;
+      }
+    }
+
+    // Re-parse with secret preservation using YAML document manipulation
+    const rawDoc = parseDocument(raw, {
+      customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
+    });
+    const configObj = rawDoc.toJSON() as Record<string, unknown>;
+    const pluginsObj = (configObj.plugins ?? {}) as Record<string, unknown>;
+
+    // For secret keys where value is unchanged (equals the secret key name that was displayed),
+    // we reconstruct the entry preserving the !secret tag in the YAML string
+    // Simplest approach: write the merged config but re-insert !secret for unchanged secret fields
+    const finalPlugin: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(newPluginConfig)) {
+      if (secretKeys.has(key)) {
+        const existingVal = ((pluginsObj[pluginId] ?? {}) as Record<string, unknown>)[key];
+        // If value unchanged, skip (will be preserved by raw doc manipulation below)
+        if (val === existingVal) continue; // keep existing !secret in doc
+        // New value — write as plain string
+        finalPlugin[key] = val;
+      } else {
+        finalPlugin[key] = val;
+      }
+    }
+
+    // Update YAML doc in-place to preserve !secret tags for unchanged keys
+    try {
+      const pluginsNode = rawDoc.get("plugins") as any;
+      if (!pluginsNode) {
+        rawDoc.set("plugins", { [pluginId]: finalPlugin });
+      } else {
+        const pluginNode = pluginsNode.get(pluginId) as any;
+        if (!pluginNode) {
+          pluginsNode.set(pluginId, finalPlugin);
+        } else {
+          // Update each key individually — skip secret keys with unchanged values
+          for (const [key, val] of Object.entries(newPluginConfig)) {
+            if (secretKeys.has(key)) {
+              const existingVal = ((pluginsObj[pluginId] ?? {}) as Record<string, unknown>)[key];
+              if (val === existingVal) continue; // preserve !secret node
+            }
+            pluginNode.set(key, val);
+          }
+          // Remove keys no longer in the new config
+          const existingKeys = Object.keys((pluginsObj[pluginId] ?? {}) as Record<string, unknown>);
+          for (const key of existingKeys) {
+            if (!(key in newPluginConfig)) {
+              pluginNode.delete(key);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Fallback: plain write (loses !secret tags)
+      const fallbackConfig = rawDoc.toJSON() as Record<string, unknown>;
+      (fallbackConfig.plugins as Record<string, unknown>)[pluginId] = newPluginConfig;
+      writeFileSync(configPath, stringifyYaml(fallbackConfig));
+      return c.json({ ok: true });
+    }
+
+    writeFileSync(configPath, rawDoc.toString());
     return c.json({ ok: true });
   });
 

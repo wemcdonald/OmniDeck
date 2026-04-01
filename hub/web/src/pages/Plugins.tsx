@@ -25,10 +25,12 @@ export default function Plugins() {
     queryFn: () => api.status.plugins().catch(() => []) as Promise<PluginStatus[]>,
   });
 
-  const { data: configs = {} } = useQuery({
+  const { data: pluginsData } = useQuery({
     queryKey: ["config", "plugins"],
-    queryFn: () => api.plugins.list().catch(() => ({})) as Promise<Record<string, Record<string, unknown>>>,
+    queryFn: () => api.plugins.list().catch(() => ({ plugins: {}, secretRefs: {} })),
   });
+  const configs = pluginsData?.plugins ?? {};
+  const secretRefs = pluginsData?.secretRefs ?? {};
 
   const { data: catalog } = useQuery({
     queryKey: ["status", "plugin-catalog"],
@@ -73,6 +75,7 @@ export default function Plugins() {
               health={plugin.health}
               downloads={plugin.downloads}
               config={(configs as Record<string, Record<string, unknown>>)[plugin.id] ?? {}}
+              secretFields={secretRefs[plugin.id] ?? []}
               configFields={catalogEntry?.configFields}
               onSaved={handleRefresh}
             />

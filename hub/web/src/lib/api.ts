@@ -253,7 +253,7 @@ export const api = {
       }),
   },
   plugins: {
-    list: () => request<Record<string, unknown>>("/api/config/plugins"),
+    list: () => request<{ plugins: Record<string, unknown>; secretRefs: Record<string, string[]> }>("/api/config/plugins"),
     save: (id: string, config: Record<string, unknown>) =>
       request<{ ok: boolean }>(`/api/config/plugins/${id}`, {
         method: "PUT",

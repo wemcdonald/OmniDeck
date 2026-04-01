@@ -30,6 +30,8 @@ interface PluginConfigCardProps {
   downloads?: PluginDownload[];
   config: Record<string, unknown>;
   configFields?: CatalogField[];
+  /** Keys stored as !secret references — show masked and don't overwrite if blank on save */
+  secretFields?: string[];
   onSaved(): void;
 }
 
@@ -49,7 +51,8 @@ function healthBadge(health?: { status: string }) {
   }
 }
 
-export default function PluginConfigCard({ id, name, version, icon: _icon, health, downloads, config, configFields, onSaved }: PluginConfigCardProps) {
+export default function PluginConfigCard({ id, name, version, icon: _icon, health, downloads, config, configFields, secretFields = [], onSaved }: PluginConfigCardProps) {
+  const secretFieldSet = new Set(secretFields);
   const [draft, setDraft] = useState<Record<string, unknown>>({ ...config });
   const [showYaml, setShowYaml] = useState(false);
 
@@ -61,7 +64,15 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
   }, [JSON.stringify(config)]);
 
   const saveMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.plugins.save(id, data),
+    mutationFn: (data: Record<string, unknown>) => {
+      // Strip secret fields that are empty (user left them blank = keep existing !secret)
+      const filtered: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(data)) {
+        if (secretFieldSet.has(k) && (v === "" || v === null || v === undefined)) continue;
+        filtered[k] = v;
+      }
+      return api.plugins.save(id, filtered);
+    },
     onSuccess: () => onSaved(),
     onError: (e) => alert(`Save failed: ${e}`),
   });
@@ -123,12 +134,12 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
                         value={String(value ?? "#000000")}
                         onChange={(e) => setField(field.key, e.target.value)}
                       />
-                    ) : isSecretKey(field.key) ? (
+                    ) : (isSecretKey(field.key) || secretFieldSet.has(field.key)) ? (
                       <input
                         type="password"
                         className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
                         value={String(value ?? "")}
-                        placeholder={field.placeholder}
+                        placeholder={secretFieldSet.has(field.key) && value ? "••••••••" : (field.placeholder ?? "Enter value")}
                         onChange={(e) => setField(field.key, e.target.value)}
                       />
                     ) : typeof value === "boolean" ? (
