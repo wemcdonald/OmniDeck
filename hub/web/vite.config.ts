@@ -12,6 +12,29 @@ export default defineConfig({
   build: {
     outDir: "../dist/web",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@codemirror") || id.includes("@uiw/react-codemirror") || id.includes("@lezer")) {
+            return "vendor-codemirror";
+          }
+          if (id.includes("@iconify")) {
+            return "vendor-icons";
+          }
+          if (id.includes("emoji-picker-react")) {
+            return "vendor-emoji";
+          }
+          if (id.includes("react-dom") || id.includes("react-router") || id.includes("scheduler")) {
+            return "vendor-react";
+          }
+          if (id.includes("@tanstack")) {
+            return "vendor-query";
+          }
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     port: 5173,
