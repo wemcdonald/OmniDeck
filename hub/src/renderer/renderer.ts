@@ -250,15 +250,13 @@ export class ButtonRenderer {
       result = result.composite(overlays);
     }
 
-    // Layer 7: Opacity overlay (darkening)
+    // Layer 7: Opacity (darkening) — use linear brightness scaling instead of
+    // a composite overlay, which breaks on some libvips builds with Buffer icons.
     if (state.opacity !== undefined && state.opacity < 1) {
-      const alpha = Math.round((1 - state.opacity) * 255);
-      const dimOverlay = await sharp({
-        create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha } },
-      })
-        .png()
-        .toBuffer();
-      result = sharp(await result.jpeg().toBuffer()).composite([{ input: dimOverlay }]);
+      const multiplier = state.opacity;
+      result = sharp(await result.removeAlpha().toColorspace("srgb").raw().toBuffer(), {
+        raw: { width, height, channels: 3 },
+      }).linear(multiplier, 0);
     }
 
     return result.removeAlpha().toColorspace("srgb").raw().toBuffer();
