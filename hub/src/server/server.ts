@@ -268,9 +268,10 @@ export class AgentServer {
           if (connState.agentId && this.pairing) {
             this.pairing.updateLastSeen(connState.agentId);
           }
-          // Send plugin manifest only on first connect
+          // Send plugin manifest on connect (always — hub may have new bundles)
           if (this.registry) {
             const plugins = this.registry.getDistributionList(state.platform);
+            log.info({ hostname: state.hostname, pluginCount: plugins.length }, "Sending plugin manifest to agent");
             ws.send(JSON.stringify(createMessage("plugin_manifest", { plugins })));
           }
         }
@@ -282,6 +283,8 @@ export class AgentServer {
         if (this.registry) {
           const bundle = this.registry.getAgentBundle(id);
           if (bundle) {
+            const reqHostname = connState.agentId ? this.getHostnameByAgentId(connState.agentId) : "unknown";
+            log.info({ id, sha256: bundle.sha256.slice(0, 12), hostname: reqHostname }, "Sending plugin bundle to agent");
             ws.send(JSON.stringify(createMessage("plugin_download_response", { id, code: bundle.code, sha256: bundle.sha256 }, msg.id)));
           } else {
             log.warn({ id }, "Plugin bundle not found");
