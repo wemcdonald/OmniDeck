@@ -386,7 +386,9 @@ export class Hub {
     this.store.set("omnideck-core", "current_page", firstPage);
     this.currentPageId = firstPage;
 
-    // Debounced incremental render: coalesce rapid state changes
+    // Incremental render: coalesce rapid state changes with a short debounce.
+    // 16ms (~1 frame) gives a good balance: coalesces bursts (e.g. HA entity floods)
+    // while keeping interactive latency low for agent state updates.
     let renderTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleRender = () => {
       if (renderTimer) return;
@@ -395,7 +397,7 @@ export class Hub {
         this.renderDirtyButtons().catch((err) =>
           log.error({ err }, "State-driven re-render error"),
         );
-      }, 100);
+      }, 16);
     };
 
     // Listen for state changes
