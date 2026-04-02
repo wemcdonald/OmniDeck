@@ -115,6 +115,10 @@ export interface ButtonStateResult {
   badgeColor?: string;
   progress?: number;
   opacity?: number;
+  /** If true, label scrolls horizontally when it overflows the button width. */
+  scrollLabel?: boolean;
+  /** If true, topLabel scrolls horizontally when it overflows the button width. */
+  scrollTopLabel?: boolean;
 }
 
 // ── Presets ─────────────────────────────────────────────────────────────────

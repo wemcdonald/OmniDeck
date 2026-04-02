@@ -64,6 +64,49 @@ function createSvgText(
   return Buffer.from(svg);
 }
 
+function createScrollingSvgText(
+  text: string,
+  width: number,
+  height: number,
+  position: "top" | "bottom",
+  scrollTick: number,
+  color = "#ffffff",
+): Buffer {
+  const fontSize = position === "bottom" ? 12 : 11;
+  const charWidth = fontSize * 0.55;
+  const textWidth = text.length * charWidth;
+  const usableWidth = width - 4;
+
+  // If text fits, render normally (centered, no scroll)
+  if (textWidth <= usableWidth) {
+    return createSvgText(text, width, height, position, color);
+  }
+
+  const gapWidth = charWidth * 6;
+  const totalWidth = textWidth + gapWidth;
+  const pixelsPerTick = 5;
+  const offset = (scrollTick * pixelsPerTick) % totalWidth;
+
+  const y = position === "bottom" ? height - 8 : 16;
+  const clipY = y - fontSize;
+  const clipId = `sc${position[0]}`;
+  const doubled = text + "\u2003\u2003\u2003" + text; // em-spaces as gap
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <defs>
+      <clipPath id="${clipId}">
+        <rect x="2" y="${clipY}" width="${usableWidth}" height="${fontSize + 6}"/>
+      </clipPath>
+    </defs>
+    <text x="${2 - offset}" y="${y}"
+      font-family="sans-serif" font-size="${fontSize}" font-weight="bold"
+      fill="${escapeXml(color)}" clip-path="url(#${clipId})">
+      ${escapeXml(doubled)}
+    </text>
+  </svg>`;
+  return Buffer.from(svg);
+}
+
 function createBadge(
   width: number,
   height: number,
@@ -106,7 +149,7 @@ export class ButtonRenderer {
     this.size = size;
   }
 
-  async render(state: ButtonState): Promise<Buffer> {
+  async render(state: ButtonState, scrollTick = 0): Promise<Buffer> {
     const { width, height } = this.size;
 
     // Layer 1: Background
@@ -174,12 +217,20 @@ export class ButtonRenderer {
 
     // Layer 3: Label text (bottom)
     if (state.label) {
-      overlays.push({ input: createSvgText(state.label, width, height, "bottom", state.labelColor) });
+      overlays.push({
+        input: state.scrollLabel
+          ? createScrollingSvgText(state.label, width, height, "bottom", scrollTick, state.labelColor)
+          : createSvgText(state.label, width, height, "bottom", state.labelColor),
+      });
     }
 
     // Layer 4: Top label text
     if (state.topLabel) {
-      overlays.push({ input: createSvgText(state.topLabel, width, height, "top", state.topLabelColor) });
+      overlays.push({
+        input: state.scrollTopLabel
+          ? createScrollingSvgText(state.topLabel, width, height, "top", scrollTick, state.topLabelColor)
+          : createSvgText(state.topLabel, width, height, "top", state.topLabelColor),
+      });
     }
 
     // Layer 5: Badge

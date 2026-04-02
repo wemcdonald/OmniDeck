@@ -400,6 +400,12 @@ export class Hub {
       }, 16);
     };
 
+    // Global scroll tick — drives scrolling labels on all buttons.
+    setInterval(() => {
+      this.scrollTick++;
+      scheduleRender();
+    }, 400);
+
     // Listen for state changes
     this.store.onChange((pluginId, stateKey, value) => {
       if (pluginId === "omnideck-core" && stateKey === "current_page") {
@@ -501,7 +507,7 @@ export class Hub {
     for (const button of page.buttons) {
       const [col, row] = button.pos;
       const state = this.resolveButtonState(button);
-      const rawBuf = await this.previewRenderer.render(state);
+      const rawBuf = await this.previewRenderer.render(state, this.scrollTick);
       const pngBuf = await sharp(rawBuf, { raw: { width, height, channels: 3 } })
         .png()
         .toBuffer();
@@ -531,7 +537,7 @@ export class Hub {
       const keyIndex = row * columns + col;
       if (keyIndex >= this.deck.keyCount) continue;
       const state = this.resolveButtonState(button);
-      const raw = await this.renderer.render(state);
+      const raw = await this.renderer.render(state, this.scrollTick);
       const jpeg = await sharp(raw, { raw: { width, height, channels: 3 } }).jpeg().toBuffer();
       result[keyIndex] = jpeg.toString("base64");
     }
@@ -600,12 +606,20 @@ export class Hub {
 
   /** Hash a ButtonState into a string for dirty-checking. */
   private hashState(state: ButtonState): string {
-    // Fast JSON key — covers all visual properties
-    return JSON.stringify(state);
+    // Fast JSON key — covers all visual properties.
+    // Append scroll tick for scrolling buttons so they re-render each tick.
+    const base = JSON.stringify(state);
+    if (state.scrollLabel || state.scrollTopLabel) {
+      return base + `:t${this.scrollTick}`;
+    }
+    return base;
   }
 
   /** Cache of last-rendered state hash per key index. */
   private stateCache = new Map<number, string>();
+
+  /** Global scroll tick — drives all scrolling labels across all plugins. */
+  private scrollTick = 0;
 
   /**
    * Full page render — clears all keys and renders from scratch.
@@ -642,7 +656,7 @@ export class Hub {
       if (keyIndex >= this.deck.keyCount) continue;
 
       const state = this.resolveButtonState(button);
-      const image = await this.renderer.render(state);
+      const image = await this.renderer.render(state, this.scrollTick);
       await this.deck.setKeyImage(keyIndex, image);
       this.stateCache.set(keyIndex, this.hashState(state));
     }
@@ -676,7 +690,7 @@ export class Hub {
 
       // State changed — re-render this button
       this.stateCache.set(keyIndex, hash);
-      const image = await this.renderer.render(state);
+      const image = await this.renderer.render(state, this.scrollTick);
       await this.deck.setKeyImage(keyIndex, image);
       anyChanged = true;
     }
@@ -873,6 +887,11 @@ export class Hub {
     } else if (state.topLabel && state.topLabel.includes("{{")) {
       state.topLabel = this.interpolate(state.topLabel, templateVars);
     }
+
+    // Scroll flags: button config can enable, or state provider can set them.
+    // Button-level explicit flags always win.
+    if (effectiveButton.scroll_label !== undefined) state.scrollLabel = effectiveButton.scroll_label;
+    if (effectiveButton.scroll_top_label !== undefined) state.scrollTopLabel = effectiveButton.scroll_top_label;
 
     // If the button has meaningful config but resolved to nothing visible, show an
     // "unavailable" indicator so the deck doesn't silently show a black button.
