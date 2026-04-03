@@ -85,4 +85,28 @@ export const soundPresets: ButtonPreset[] = [
       icon: "ms:skip-previous",
     },
   },
+  {
+    id: "output_devices",
+    name: "Output Devices",
+    description: "Open the audio output device selection page.",
+    icon: "ms:speaker",
+    action: "open_output_devices",
+    stateProvider: "output_device",
+    defaults: {
+      icon: "ms:speaker",
+      label: "{{device}}",
+    },
+  },
+  {
+    id: "input_devices",
+    name: "Input Devices",
+    description: "Open the audio input device selection page.",
+    icon: "ms:mic-external-on",
+    action: "open_input_devices",
+    stateProvider: "input_device",
+    defaults: {
+      icon: "ms:mic-external-on",
+      label: "{{device}}",
+    },
+  },
 ];

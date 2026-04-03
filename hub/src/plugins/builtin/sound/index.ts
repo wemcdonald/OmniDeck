@@ -1,11 +1,23 @@
 import { z } from "zod";
 import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../types.js";
+import { resolveTarget as centralResolveTarget } from "../../../orchestrator/resolver.js";
 import { soundPresets } from "./presets.js";
+
+interface AudioDevice {
+  id: string;
+  name: string;
+  active: boolean;
+}
 
 interface SoundConfig {
   default_target?: string;
   default_step?: number;
+  agent_order?: string[];
+  device_filter?: {
+    output?: string[];
+    input?: string[];
+  };
 }
 
 const targetSchema = z.object({
@@ -34,9 +46,15 @@ const simpleActionMeta: Record<string, { description: string; icon: string }> = 
   media_previous: { description: "Previous track", icon: "ms:skip-previous" },
 };
 
+const deviceFilterSchema = z.object({
+  output: z.array(z.string()).optional(),
+  input: z.array(z.string()).optional(),
+}).optional();
+
 const configSchema = z.object({
   default_target: field(z.string().optional(), { label: "Default Agent", fieldType: "agent" as const }),
   default_step: field(z.number().default(10).optional(), { label: "Volume Step (%)" }),
+  device_filter: field(deviceFilterSchema, { label: "Device Filter" }),
 });
 
 export const soundPlugin: OmniDeckPlugin = {
@@ -50,9 +68,18 @@ export const soundPlugin: OmniDeckPlugin = {
     const config = ctx.config as SoundConfig;
     const defaultStep = config.default_step ?? 10;
 
-    function resolveTarget(params: unknown, actionCtx: { focusedAgent?: string }) {
+    function resolveTarget(params: unknown, actionCtx: { focusedAgent?: string; targetAgent?: string }) {
       const p = params as Record<string, unknown>;
-      return (p.target as string | undefined) ?? actionCtx.focusedAgent ?? config.default_target;
+      const explicitTarget = (p.target as string | undefined) ?? actionCtx.targetAgent;
+      const connectedRaw = ctx.state.get("orchestrator", "connected_agents") as string[] | undefined;
+      const connectedAgents = new Set(connectedRaw ?? []);
+      return centralResolveTarget({
+        pluginId: "sound",
+        explicitTarget,
+        state: ctx.state,
+        config: { agent_order: config.agent_order },
+        connectedAgents,
+      }) ?? actionCtx.focusedAgent ?? config.default_target;
     }
 
     function getAgentState(target: string | undefined) {
@@ -60,6 +87,24 @@ export const soundPlugin: OmniDeckPlugin = {
       return ctx.state.get("os-control", `agent:${target}:state`) as
         | Record<string, unknown>
         | undefined;
+    }
+
+    function getOutputDevices(target: string | undefined): AudioDevice[] {
+      if (!target) return [];
+      const devices = ctx.state.get("sound", `agent:${target}:audio_output_devices`) as AudioDevice[] | undefined;
+      return devices ?? [];
+    }
+
+    function getInputDevices(target: string | undefined): AudioDevice[] {
+      if (!target) return [];
+      const devices = ctx.state.get("sound", `agent:${target}:audio_input_devices`) as AudioDevice[] | undefined;
+      return devices ?? [];
+    }
+
+    function applyDeviceFilter(devices: AudioDevice[], filter: string[] | undefined): AudioDevice[] {
+      if (!filter || filter.length === 0) return devices;
+      const filterLower = filter.map((f) => f.toLowerCase());
+      return devices.filter((d) => filterLower.some((f) => d.name.toLowerCase().includes(f)));
     }
 
     // --- Actions ---
@@ -161,6 +206,28 @@ export const soundPlugin: OmniDeckPlugin = {
       },
     });
 
+    ctx.registerAction({
+      id: "open_output_devices",
+      name: "Output Devices",
+      description: "Open audio output device selection page",
+      icon: "ms:speaker",
+      paramsSchema: targetSchema,
+      async execute() {
+        ctx.state.set("omnideck-core", "current_page", "sound.output_devices");
+      },
+    });
+
+    ctx.registerAction({
+      id: "open_input_devices",
+      name: "Input Devices",
+      description: "Open audio input device selection page",
+      icon: "ms:mic-external-on",
+      paramsSchema: targetSchema,
+      async execute() {
+        ctx.state.set("omnideck-core", "current_page", "sound.input_devices");
+      },
+    });
+
     // --- State Providers ---
 
     ctx.registerStateProvider({
@@ -223,6 +290,104 @@ export const soundPlugin: OmniDeckPlugin = {
           ? { state: { icon: "ms:mic", background: "#ef4444" }, variables: {} }
           : { state: { icon: "ms:mic-off" }, variables: {} };
       },
+    });
+
+    ctx.registerStateProvider({
+      id: "output_device",
+      name: "Output Device",
+      description: "Current audio output device name",
+      icon: "ms:speaker",
+      providesIcon: false,
+      paramsSchema: targetSchema,
+      templateVariables: [
+        { key: "device", label: "Device Name", example: "MacBook Pro Speakers" },
+      ],
+      resolve(params) {
+        const p = params as Record<string, unknown>;
+        const target = (p.target as string | undefined) ?? config.default_target;
+        const devices = getOutputDevices(target);
+        const active = devices.find((d) => d.active);
+        return {
+          state: { label: active?.name ?? "Unknown" },
+          variables: { device: active?.name ?? "" },
+        };
+      },
+    });
+
+    ctx.registerStateProvider({
+      id: "input_device",
+      name: "Input Device",
+      description: "Current audio input device name",
+      icon: "ms:mic-external-on",
+      providesIcon: false,
+      paramsSchema: targetSchema,
+      templateVariables: [
+        { key: "device", label: "Device Name", example: "MacBook Pro Microphone" },
+      ],
+      resolve(params) {
+        const p = params as Record<string, unknown>;
+        const target = (p.target as string | undefined) ?? config.default_target;
+        const devices = getInputDevices(target);
+        const active = devices.find((d) => d.active);
+        return {
+          state: { label: active?.name ?? "Unknown" },
+          variables: { device: active?.name ?? "" },
+        };
+      },
+    });
+
+    // --- Dynamic Pages ---
+
+    // Output devices page — one button per available output device
+    ctx.registerPageProvider("output_devices", () => {
+      const target = ctx.state.get("sound", "active_agent") as string | undefined ?? config.default_target;
+      const rawDevices = getOutputDevices(target);
+      const devices = applyDeviceFilter(rawDevices, config.device_filter?.output);
+
+      const buttons: Array<Record<string, unknown>> = devices.slice(0, 14).map((device, i) => ({
+        pos: [i % 5, Math.floor(i / 5)],
+        action: "sound.change_output_device",
+        params: { device: device.id, target },
+        icon: device.active ? "ms:speaker" : "ms:speaker-outlined",
+        iconColor: device.active ? "#22c55e" : undefined,
+        label: device.name.length > 10 ? device.name.slice(0, 9) + "…" : device.name,
+        scrollLabel: true,
+      }));
+
+      buttons.push({
+        pos: [4, 2],
+        action: "omnideck-core.go_back",
+        icon: "ms:arrow-back",
+        label: "Back",
+      });
+
+      return { page: "sound.output_devices", name: "Output Devices", buttons };
+    });
+
+    // Input devices page — one button per available input device
+    ctx.registerPageProvider("input_devices", () => {
+      const target = ctx.state.get("sound", "active_agent") as string | undefined ?? config.default_target;
+      const rawDevices = getInputDevices(target);
+      const devices = applyDeviceFilter(rawDevices, config.device_filter?.input);
+
+      const buttons: Array<Record<string, unknown>> = devices.slice(0, 14).map((device, i) => ({
+        pos: [i % 5, Math.floor(i / 5)],
+        action: "sound.change_input_device",
+        params: { device: device.id, target },
+        icon: device.active ? "ms:mic" : "ms:mic-off",
+        iconColor: device.active ? "#22c55e" : undefined,
+        label: device.name.length > 10 ? device.name.slice(0, 9) + "…" : device.name,
+        scrollLabel: true,
+      }));
+
+      buttons.push({
+        pos: [4, 2],
+        action: "omnideck-core.go_back",
+        icon: "ms:arrow-back",
+        label: "Back",
+      });
+
+      return { page: "sound.input_devices", name: "Input Devices", buttons };
     });
 
     // --- Presets ---
