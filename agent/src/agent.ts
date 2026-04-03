@@ -1,5 +1,12 @@
 import { AgentClient } from "./ws/client.js";
-import { createMessage, type WsMessage } from "./ws/protocol.js";
+import {
+  createMessage,
+  type WsMessage,
+  PluginManifestSchema,
+  CommandSchema,
+  PluginConfigUpdateSchema,
+  PluginDownloadResponseSchema,
+} from "./ws/protocol.js";
 import { PluginLoader } from "./plugins/loader.js";
 import { ensureFfi } from "./primitives/ffi.js";
 import {
@@ -10,8 +17,22 @@ import {
 } from "./primitives/platform.js";
 import { createLogger } from "./logger.js";
 import { getPluginsCacheDir } from "./config-dir.js";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const log = createLogger("agent");
+
+// Read version from package.json once at startup — single source of truth
+const _pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+const AGENT_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(_pkgPath, "utf-8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 import type { PairResponseData } from "./ws/protocol.js";
 
@@ -47,6 +68,8 @@ export class Agent {
   private loader: PluginLoader;
   private opts: AgentOptions;
   private stateTimer: ReturnType<typeof setInterval> | null = null;
+  /** Plugins currently being unloaded+reloaded — commands for these are rejected. */
+  private loadingPlugins = new Set<string>();
 
   constructor(opts: AgentOptions) {
     this.opts = opts;
@@ -57,7 +80,7 @@ export class Agent {
       hubUrl: opts.hubUrl,
       hostname,
       platform: detectPlatform(),
-      agentVersion: "0.5.0",
+      agentVersion: AGENT_VERSION,
       caCert: opts.caCert,
       auth: opts.auth,
       skipHelloOnConnect: !!opts.pairingCode,
@@ -154,7 +177,7 @@ export class Agent {
           createMessage("state_update", {
             hostname,
             platform,
-            agent_version: "0.5.0",
+            agent_version: AGENT_VERSION,
             active_window_app: state.activeWindowApp,
             active_window_title: state.activeWindowTitle,
             idle_time_ms: state.idleTimeMs,
@@ -165,7 +188,9 @@ export class Agent {
             mac_addresses: macAddresses,
           }),
         );
-      })();
+      })().catch((err: unknown) => {
+        log.error("State poll error", { err: String(err) });
+      });
     }, interval);
 
     log.info("Agent running");
@@ -181,9 +206,12 @@ export class Agent {
   }
 
   private async handlePluginManifest(msg: WsMessage): Promise<void> {
-    const { plugins } = msg.data as {
-      plugins: Array<{ id: string; version: string; sha256: string }>;
-    };
+    const parsed = PluginManifestSchema.safeParse(msg.data);
+    if (!parsed.success) {
+      log.error("Invalid plugin_manifest payload", { error: parsed.error.message });
+      return;
+    }
+    const { plugins } = parsed.data;
     log.debug(`Hub announced ${plugins.length} plugins`);
 
     const statuses: Array<{
@@ -205,6 +233,7 @@ export class Agent {
 
         // Unload existing version before loading new version
         if (this.loader.getPlugin(plugin.id)) {
+          this.loadingPlugins.add(plugin.id);
           await this.loader.unloadPlugin(plugin.id);
         }
 
@@ -229,9 +258,10 @@ export class Agent {
               );
             },
           });
+          this.loadingPlugins.delete(plugin.id);
           statuses.push({ id: plugin.id, version: plugin.version, status: "active" });
         } else {
-          // Request download from hub
+          // Request download from hub (loadingPlugins cleared when download completes)
           this.client.send(
             createMessage("plugin_download_request", { id: plugin.id }),
           );
@@ -255,15 +285,17 @@ export class Agent {
   }
 
   private async handleDownloadResponse(msg: WsMessage): Promise<void> {
-    const { id, code, sha256 } = msg.data as {
-      id: string;
-      code: string;
-      sha256: string;
-    };
+    const parsed = PluginDownloadResponseSchema.safeParse(msg.data);
+    if (!parsed.success) {
+      log.error("Invalid plugin_download_response payload", { error: parsed.error.message });
+      return;
+    }
+    const { id, code, sha256 } = parsed.data;
     const hostname = this.opts.hostname ?? getAgentHostname();
     try {
       // Unload existing version before loading new code
       if (this.loader.getPlugin(id)) {
+        this.loadingPlugins.add(id);
         await this.loader.unloadPlugin(id);
       }
 
@@ -286,6 +318,7 @@ export class Agent {
           );
         },
       });
+      this.loadingPlugins.delete(id);
       this.client.send(
         createMessage("plugin_status", {
           plugins: [{ id, version: "unknown", status: "active" }],
@@ -302,10 +335,16 @@ export class Agent {
   }
 
   private async handleCommand(msg: WsMessage): Promise<void> {
-    const { command, params } = msg.data as {
-      command: string;
-      params: Record<string, unknown>;
-    };
+    const parsed = CommandSchema.safeParse(msg.data);
+    if (!parsed.success) {
+      this.client.sendResponse(
+        "command_response",
+        { success: false, error: `Invalid command payload: ${parsed.error.message}` },
+        msg.id,
+      );
+      return;
+    }
+    const { command, params } = parsed.data;
 
     // command format: "pluginId.actionId"
     const dotIdx = command.indexOf(".");
@@ -321,6 +360,17 @@ export class Agent {
     const pluginId = command.slice(0, dotIdx);
     const actionId = command.slice(dotIdx + 1);
     log.debug(`Dispatching command ${pluginId}.${actionId}`, { params });
+
+    // Reject commands targeting a plugin that is mid-reload
+    if (this.loadingPlugins.has(pluginId)) {
+      this.client.sendResponse(
+        "command_response",
+        { success: false, error: `Plugin ${pluginId} is reloading, try again shortly` },
+        msg.id,
+      );
+      return;
+    }
+
     const plugin = this.loader.getPlugin(pluginId);
 
     if (!plugin) {
@@ -359,10 +409,12 @@ export class Agent {
   }
 
   private handleConfigUpdate(msg: WsMessage): void {
-    const { id, config } = msg.data as {
-      id: string;
-      config: Record<string, unknown>;
-    };
+    const parsed = PluginConfigUpdateSchema.safeParse(msg.data);
+    if (!parsed.success) {
+      log.error("Invalid plugin_config_update payload", { error: parsed.error.message });
+      return;
+    }
+    const { id, config } = parsed.data;
     const plugin = this.loader.getPlugin(id);
     if (plugin) {
       plugin.reloadConfig(config);

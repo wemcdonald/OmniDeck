@@ -17,13 +17,27 @@ const Login = lazy(() => import("./pages/Login.tsx"));
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
 
-  const { data: authStatus, isLoading } = useQuery({
+  const { data: authStatus, isLoading, isError, refetch } = useQuery({
     queryKey: ["auth", "status"],
     queryFn: api.auth.status,
-    retry: false,
+    retry: 2,
   });
 
   if (isLoading) return null;
+
+  if (isError) {
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4 text-muted-foreground">
+        <p className="text-sm">Unable to reach the hub. Check your connection.</p>
+        <button
+          onClick={() => void refetch()}
+          className="rounded bg-primary text-primary-foreground px-4 py-2 text-sm font-medium"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const needsLogin =
     !loggedIn &&

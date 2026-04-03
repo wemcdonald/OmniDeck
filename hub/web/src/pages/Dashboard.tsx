@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, type AgentState } from "../lib/api.ts";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
@@ -19,6 +19,9 @@ export default function Dashboard() {
   const [agents, setAgents] = useState<AgentState[]>([]);
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
   const { subscribe } = useWebSocket();
+  // Track when each key was last updated via WS so query results don't clobber newer data
+  const wsAgentsAt = useRef(0);
+  const wsPluginsAt = useRef(0);
 
   // Initial fetch for agents & plugins (WS will keep them updated)
   const { data: agentsData } = useQuery({
@@ -44,21 +47,23 @@ export default function Dashboard() {
     refetchInterval: 5000,
   });
 
-  // Sync query data to local state (WS overrides take priority)
+  // Sync query data to local state only if no newer WS update has arrived
   useEffect(() => {
-    if (agentsData) setAgents(agentsData);
+    if (agentsData && wsAgentsAt.current === 0) setAgents(agentsData);
   }, [agentsData]);
 
   useEffect(() => {
-    if (pluginsData) setPlugins(pluginsData);
+    if (pluginsData && wsPluginsAt.current === 0) setPlugins(pluginsData);
   }, [pluginsData]);
 
   // WebSocket subscriptions for real-time updates
   useEffect(() => {
     const unsubAgents = subscribe("agent:update", (msg) => {
+      wsAgentsAt.current = Date.now();
       setAgents(msg.data as AgentState[]);
     });
     const unsubPlugins = subscribe("plugin:status", (msg) => {
+      wsPluginsAt.current = Date.now();
       setPlugins(msg.data as PluginStatus[]);
     });
     return () => {
@@ -93,7 +98,20 @@ export default function Dashboard() {
                 <AgentCard key={a.hostname} agent={a} />
               ))}
               {agents.length === 0 && (
-                <p className="text-muted-foreground text-sm">No agents connected</p>
+                <div className="rounded border border-dashed border-outline-variant p-4 text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">No agents connected</p>
+                  <p className="text-xs text-muted-foreground">
+                    Install the OmniDeck agent on your computer to get started.
+                  </p>
+                  <a
+                    href="https://github.com/omnideck/omnideck/releases"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block text-xs text-primary hover:underline"
+                  >
+                    Download agent →
+                  </a>
+                </div>
               )}
             </div>
           </div>
@@ -150,6 +168,65 @@ export default function Dashboard() {
 
       {/* Recent logs */}
       <RecentLogs />
+
+      {/* Config Backup / Restore */}
+      <section className="space-y-3">
+        <h3 className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground">
+          Config Backup
+        </h3>
+        <BackupRestore />
+      </section>
+    </div>
+  );
+}
+
+function BackupRestore() {
+  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
+
+  function handleExport() {
+    window.location.href = "/api/backup";
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRestoreStatus("Uploading…");
+    try {
+      const body = await file.arrayBuffer();
+      const res = await fetch("/api/backup/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/zip" },
+        body,
+      });
+      const data = await res.json() as { ok?: boolean; message?: string; error?: string };
+      if (!res.ok || data.error) {
+        setRestoreStatus(`Restore failed: ${data.error ?? "unknown error"}`);
+      } else {
+        setRestoreStatus(data.message ?? "Restored successfully.");
+      }
+    } catch (err) {
+      setRestoreStatus(`Restore failed: ${String(err)}`);
+    }
+    e.target.value = "";
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        onClick={handleExport}
+        className="rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm font-medium hover:bg-surface-container-highest transition-colors"
+      >
+        Export config
+      </button>
+      <label className="rounded bg-surface-container-high border border-outline-variant px-3 py-1.5 text-sm font-medium hover:bg-surface-container-highest transition-colors cursor-pointer">
+        Import config
+        <input type="file" accept=".zip" className="hidden" onChange={handleImport} />
+      </label>
+      {restoreStatus && (
+        <span className={`text-xs ${restoreStatus.startsWith("Restore failed") ? "text-destructive" : "text-muted-foreground"}`}>
+          {restoreStatus}
+        </span>
+      )}
     </div>
   );
 }

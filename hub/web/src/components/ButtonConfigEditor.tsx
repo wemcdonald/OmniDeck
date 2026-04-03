@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Trash2, AlertTriangle, Info } from "lucide-react";
-import { Icon } from "@iconify/react";
+import { msIcon } from "@/lib/icons";
 import ReactCodeMirror from "@uiw/react-codemirror";
 import { yaml as yamlExtension } from "@codemirror/lang-yaml";
 import { useTheme } from "../hooks/useTheme.tsx";
@@ -26,7 +26,7 @@ interface ButtonConfigEditorProps {
   pos: [number, number];
   button: ButtonConfig | undefined;
   catalog: PluginCatalog;
-  onSave(button: ButtonConfig): void;
+  onSave(button: ButtonConfig): void | Promise<void>;
   onClear(): void;
 }
 
@@ -70,14 +70,6 @@ function mergeFields(actionFields: CatalogField[], providerFields: CatalogField[
     }
   }
   return result;
-}
-
-function msIcon(name?: string) {
-  if (!name) return null;
-  if (name.startsWith("ms:")) {
-    return <Icon icon={`material-symbols:${name.slice(3)}`} className="w-4 h-4" />;
-  }
-  return <span className="text-sm">{name}</span>;
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -126,6 +118,8 @@ export default function ButtonConfigEditor({
   const [showYaml, setShowYaml] = useState(false);
   const [yamlText, setYamlText] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [target, setTarget] = useState<string | undefined>(current.target);
 
@@ -169,7 +163,7 @@ export default function ButtonConfigEditor({
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     const updated: ButtonConfig = { pos };
 
     // Preserve preset/action/state from current config
@@ -200,7 +194,15 @@ export default function ButtonConfigEditor({
       }
     }
 
-    onSave(updated);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(updated);
+    } catch (err) {
+      setSaveError(String(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleYamlSave() {
@@ -529,11 +531,15 @@ export default function ButtonConfigEditor({
               </div>
 
               {/* Save */}
+              {saveError && (
+                <p className="text-xs text-destructive">{saveError}</p>
+              )}
               <button
-                onClick={handleSave}
-                className="w-full rounded bg-primary text-primary-foreground py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors"
+                onClick={() => void handleSave()}
+                disabled={saving}
+                className="w-full rounded bg-primary text-primary-foreground py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                Save
+                {saving ? "Saving…" : "Save"}
               </button>
             </div>
           )}

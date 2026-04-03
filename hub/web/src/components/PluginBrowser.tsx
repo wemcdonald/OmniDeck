@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { Icon } from "@iconify/react";
 import { ChevronRight, AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { msIcon } from "@/lib/icons";
 import type {
   PluginCatalog,
   PluginCatalogEntry,
@@ -20,19 +20,6 @@ interface PluginBrowserProps {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function msIcon(name?: string) {
-  if (!name) return null;
-  if (name.startsWith("ms:")) {
-    return (
-      <Icon
-        icon={`material-symbols:${name.slice(3)}`}
-        className="w-4 h-4 shrink-0"
-      />
-    );
-  }
-  return <span className="text-sm shrink-0">{name}</span>;
-}
 
 function setDragData(e: React.DragEvent, data: BrowserDropData) {
   e.dataTransfer.setData("application/omnideck-browser", JSON.stringify(data));

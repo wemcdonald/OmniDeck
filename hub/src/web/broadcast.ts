@@ -18,6 +18,19 @@ export type BroadcastMessage =
         from: { id: string; name: string; icon?: string } | null;
         to: { id: string; name: string; icon?: string } | null;
       };
+    }
+  | {
+      type: "action:response";
+      data: {
+        action: string;
+        target: string;
+        success: boolean;
+        error?: string;
+      };
+    }
+  | {
+      type: "config:reload_failed";
+      data: { file: string; error: string };
     };
 
 export class Broadcaster {

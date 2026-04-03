@@ -12,7 +12,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="border-b border-border bg-background px-4 py-3 flex items-center justify-between shrink-0">
+    <header className="border-b border-border bg-background px-4 h-14 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}

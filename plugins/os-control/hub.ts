@@ -1,5 +1,4 @@
-// Copied from hub/src/plugins/builtin/os-control/index.ts
-// Adapted for standalone plugin format: import path updated to use hub plugin types.
+// Standalone os-control plugin — kept in sync with hub/src/plugins/builtin/os-control/index.ts
 import { z } from "zod";
 import { field } from "@omnideck/plugin-schema";
 import type { OmniDeckPlugin, PluginContext } from "../../hub/src/plugins/types.js";
@@ -7,6 +6,34 @@ import type { OmniDeckPlugin, PluginContext } from "../../hub/src/plugins/types.
 interface OsControlConfig {
   default_target: string;
 }
+
+const targetParam = {
+  target: field(z.string().optional(), { label: "Target", fieldType: "agent" as const }),
+};
+
+const extraFields: Record<string, Record<string, z.ZodType>> = {
+  launch_app: { app: field(z.string(), { label: "App Name" }) },
+  focus_app:  { app: field(z.string(), { label: "App Name" }) },
+  send_keystroke: { keys: field(z.array(z.string()), { label: "Keys" }) },
+  set_volume: { level: field(z.number().min(0).max(100), { label: "Volume" }) },
+  set_mic_volume: { level: field(z.number().min(0).max(100), { label: "Volume" }) },
+  switch_audio_output: { device: field(z.string(), { label: "Device Name" }) },
+  switch_audio_input:  { device: field(z.string(), { label: "Device Name" }) },
+};
+
+const actionDescriptions: Record<string, { description: string; icon: string }> = {
+  launch_app:          { description: "Launch an application", icon: "ms:launch" },
+  focus_app:           { description: "Focus an application window", icon: "ms:open-in-new" },
+  send_keystroke:      { description: "Send a keyboard shortcut", icon: "ms:keyboard" },
+  set_volume:          { description: "Set system volume", icon: "ms:volume-up" },
+  set_mic_volume:      { description: "Set microphone volume", icon: "ms:mic" },
+  sleep:               { description: "Put the system to sleep", icon: "ms:bedtime" },
+  lock:                { description: "Lock the screen", icon: "ms:lock" },
+  switch_audio_output: { description: "Switch audio output device", icon: "ms:speaker" },
+  switch_audio_input:  { description: "Switch audio input device", icon: "ms:mic-external-on" },
+};
+
+const targetOnlySchema = z.object(targetParam);
 
 const configSchema = z.object({
   default_target: field(z.string().optional(), { label: "Default Agent", fieldType: "agent" as const }),
@@ -21,6 +48,13 @@ export const osControlPlugin: OmniDeckPlugin = {
   async init(ctx: PluginContext) {
     const config = ctx.config as OsControlConfig;
 
+    // Shared target resolution — explicit param > focused agent > config default
+    function resolveTarget(params: Record<string, unknown>, actionCtx: { focusedAgent?: string }) {
+      return (params.target as string | undefined)
+        ?? actionCtx.focusedAgent
+        ?? config.default_target;
+    }
+
     const agentActions = [
       "launch_app",
       "focus_app",
@@ -34,15 +68,19 @@ export const osControlPlugin: OmniDeckPlugin = {
     ] as const;
 
     for (const actionId of agentActions) {
+      const extra = extraFields[actionId];
+      const schema = extra ? z.object({ ...extra, ...targetParam }) : targetOnlySchema;
+      const meta = actionDescriptions[actionId];
+
       ctx.registerAction({
         id: actionId,
         name: actionId.replace(/_/g, " "),
+        description: meta.description,
+        icon: meta.icon,
+        paramsSchema: schema,
         async execute(params, actionCtx) {
           const p = params as Record<string, unknown>;
-          const target =
-            (p.target as string | undefined) ??
-            actionCtx.focusedAgent ??
-            config.default_target;
+          const target = resolveTarget(p, actionCtx);
           ctx.state.set("os-control", `pending:${target}:${actionId}`, {
             params,
             timestamp: Date.now(),
@@ -104,15 +142,11 @@ export const osControlPlugin: OmniDeckPlugin = {
     ctx.registerPreset({
       id: "app_launcher",
       name: "App Launcher",
+      action: "launch_app",
+      stateProvider: "app_running",
       defaults: {
-        action: "launch_app",
         icon: "app",
-      },
-      mapParams(params) {
-        return {
-          actionParams: { app: params.app, target: params.target },
-          stateParams: { app: params.app, target: params.target },
-        };
+        label: "Launch App",
       },
     });
   },

@@ -70,13 +70,22 @@ export class PluginLoader {
     });
 
     // Dynamic import the plugin module (unique path = fresh import)
+    const INIT_TIMEOUT_MS = 10_000;
     try {
       const mod = await import(codePath);
       const init = mod.default;
       if (typeof init !== "function") {
         throw new Error(`Plugin ${pluginId} does not default-export an init function`);
       }
-      await init(omnideck);
+      await Promise.race([
+        init(omnideck),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Plugin ${pluginId} init() timed out after ${INIT_TIMEOUT_MS}ms`)),
+            INIT_TIMEOUT_MS,
+          ),
+        ),
+      ]);
       this.plugins.set(pluginId, runtime);
       log.info(`Plugin ${pluginId} loaded successfully`, { sha256: sha256.slice(0, 12) });
     } catch (err) {

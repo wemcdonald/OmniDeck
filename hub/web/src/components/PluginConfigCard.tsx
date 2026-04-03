@@ -1,36 +1,10 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { stringify as toYaml } from "yaml";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "../lib/api.ts";
 import { ChevronDown, ChevronUp, Download } from "lucide-react";
-
-function toYaml(obj: Record<string, unknown>): string {
-  const lines: string[] = [];
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === null || v === undefined) {
-      lines.push(`${k}: null`);
-    } else if (typeof v === "boolean") {
-      lines.push(`${k}: ${v}`);
-    } else if (typeof v === "number") {
-      lines.push(`${k}: ${v}`);
-    } else if (Array.isArray(v)) {
-      if (v.length === 0) {
-        lines.push(`${k}: []`);
-      } else {
-        lines.push(`${k}:`);
-        for (const item of v) {
-          lines.push(`  - ${JSON.stringify(item)}`);
-        }
-      }
-    } else {
-      const s = String(v);
-      const needsQuotes = /[:#\[\]{},|>&*!'"\\]|^\s|\s$|^(true|false|null|~)$/i.test(s) || s === "";
-      lines.push(`${k}: ${needsQuotes ? JSON.stringify(s) : s}`);
-    }
-  }
-  return lines.join("\n");
-}
 
 interface PluginDownload {
   name: string;
@@ -251,7 +225,7 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
 
         {showYaml && (
           <pre className="text-xs font-mono bg-surface-container rounded border border-outline-variant p-2 overflow-x-auto">
-            {`${id}:\n`}{toYaml(draft).split("\n").map(l => `  ${l}`).join("\n")}
+            {`${id}:\n`}{toYaml(draft, { indent: 2 }).trimEnd().split("\n").map(l => `  ${l}`).join("\n")}
           </pre>
         )}
     </div>

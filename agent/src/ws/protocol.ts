@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export interface WsMessage {
   v: 1;
   type: string;
@@ -5,6 +7,36 @@ export interface WsMessage {
   data: unknown;
   ts: string;
 }
+
+// ── Incoming message payload schemas ─────────────────────────────────────────
+
+export const PluginManifestSchema = z.object({
+  plugins: z.array(z.object({
+    id: z.string(),
+    version: z.string(),
+    sha256: z.string(),
+  })),
+});
+export type PluginManifestData = z.infer<typeof PluginManifestSchema>;
+
+export const CommandSchema = z.object({
+  command: z.string(),
+  params: z.record(z.unknown()).default({}),
+});
+export type CommandData = z.infer<typeof CommandSchema>;
+
+export const PluginConfigUpdateSchema = z.object({
+  id: z.string(),
+  config: z.record(z.unknown()),
+});
+export type PluginConfigUpdateData = z.infer<typeof PluginConfigUpdateSchema>;
+
+export const PluginDownloadResponseSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  sha256: z.string(),
+});
+export type PluginDownloadResponseData = z.infer<typeof PluginDownloadResponseSchema>;
 
 export function createMessage(type: string, data: unknown, id?: string): WsMessage {
   return { v: 1, type, id, data, ts: new Date().toISOString() };

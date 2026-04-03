@@ -376,10 +376,18 @@ export class Hub {
             const raw = parseDocument(readFileSync(filePath, "utf-8"), {
               customTags: [{ tag: "!secret", identify: () => false, resolve: (str: string) => str }],
             }).toJSON();
-            const page = PageConfigSchema.parse(raw);
-            this.pages.set(pageId, page);
+            // Validate against schema before committing — keeps existing state intact on error
+            const result = PageConfigSchema.safeParse(raw);
+            if (!result.success) {
+              const errMsg = result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+              log.warn({ filePath, error: errMsg }, "Config reload rejected — validation failed, keeping previous state");
+              this.broadcaster.send({ type: "config:reload_failed", data: { file: basename(filePath), error: errMsg } });
+              return;
+            }
+            this.pages.set(pageId, result.data);
           } catch (err) {
             log.warn({ err, filePath }, "Failed to reload page config");
+            this.broadcaster.send({ type: "config:reload_failed", data: { file: basename(filePath), error: String(err) } });
             return;
           }
         } else {
@@ -443,11 +451,19 @@ export class Hub {
           const action = parts.slice(2).join(":");
           const payload = value as { params?: Record<string, unknown> } | undefined;
           log.info({ pluginId, target, action, params: payload?.params }, `Dispatching ${pluginId}.${action} → ${target}`);
-          this.agentServer?.sendCommand(target, `${pluginId}.${action}`, payload?.params ?? {}).then((result) =>
-            log.info({ target, action, result }, `Agent response: ${pluginId}.${action}`),
-          ).catch((err) =>
-            log.error({ err, target, action }, "Failed to dispatch command to agent"),
-          );
+          this.agentServer?.sendCommand(target, `${pluginId}.${action}`, payload?.params ?? {}).then((result) => {
+            log.info({ target, action, result }, `Agent response: ${pluginId}.${action}`);
+            this.broadcaster.send({
+              type: "action:response",
+              data: { action: `${pluginId}.${action}`, target, success: true },
+            });
+          }).catch((err) => {
+            log.error({ err, target, action }, "Failed to dispatch command to agent");
+            this.broadcaster.send({
+              type: "action:response",
+              data: { action: `${pluginId}.${action}`, target, success: false, error: String(err) },
+            });
+          });
         }
         return;
       }

@@ -1,6 +1,16 @@
 import { execCommand } from "./exec.js";
 import { hostname as getHostname, networkInterfaces } from "node:os";
 
+const POLL_TIMEOUT_MS = 3_000;
+
+/** Wraps a promise so it resolves to a fallback value if it takes too long. */
+function withTimeout<T>(promise: Promise<T>, fallback: T, ms = POLL_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 export function detectPlatform(): "darwin" | "windows" | "linux" {
   const p = process.platform;
   if (p === "darwin") return "darwin";
@@ -41,15 +51,16 @@ export async function pollSystemState(): Promise<SystemState> {
   const platform = detectPlatform();
 
   if (platform === "darwin") {
+    const fallback = { stdout: "", stderr: "", exitCode: 1 };
     const [activeApp, idleTime, volume, muted, micVolume] = await Promise.all([
-      execCommand("osascript", [
+      withTimeout(execCommand("osascript", [
         "-e",
         'tell application "System Events" to get name of first application process whose frontmost is true',
-      ]),
-      execCommand("ioreg", ["-c", "IOHIDSystem"]),
-      execCommand("osascript", ["-e", "output volume of (get volume settings)"]),
-      execCommand("osascript", ["-e", "output muted of (get volume settings)"]),
-      execCommand("osascript", ["-e", "input volume of (get volume settings)"]),
+      ]), fallback),
+      withTimeout(execCommand("ioreg", ["-c", "IOHIDSystem"]), fallback),
+      withTimeout(execCommand("osascript", ["-e", "output volume of (get volume settings)"]), fallback),
+      withTimeout(execCommand("osascript", ["-e", "output muted of (get volume settings)"]), fallback),
+      withTimeout(execCommand("osascript", ["-e", "input volume of (get volume settings)"]), fallback),
     ]);
 
     let idleMs = 0;

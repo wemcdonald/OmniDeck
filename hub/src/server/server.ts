@@ -59,6 +59,9 @@ interface ConnectionState {
   agentId?: string;
 }
 
+const HEARTBEAT_INTERVAL_MS = 15_000;
+const HEARTBEAT_TIMEOUT_MS = 30_000;
+
 export class AgentServer {
   private wss: WebSocketServer | null = null;
   private httpsServer: ReturnType<typeof createHttpsServer> | null = null;
@@ -78,6 +81,9 @@ export class AgentServer {
   private connectionCallbacks: AgentConnectionCallback[] = [];
   private pluginConfigCallbacks: Array<(hostname: string, pluginId: string) => void> = [];
   private pluginActiveCallbacks: PluginActiveCallback[] = [];
+  /** Tracks last pong timestamp per WebSocket for heartbeat detection */
+  private lastPong = new Map<WebSocket, number>();
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: AgentServerOptions) {
     this.port = opts.port;
@@ -115,10 +121,34 @@ export class AgentServer {
       this.wss.on("connection", (ws) => {
         this.handleConnection(ws);
       });
+
+      // Start heartbeat after wss is configured
+      setTimeout(() => this.startHeartbeat(), 0);
     });
   }
 
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      const now = Date.now();
+      for (const [hostname, agent] of this.agents) {
+        const lastSeen = this.lastPong.get(agent.ws) ?? now;
+        if (now - lastSeen > HEARTBEAT_TIMEOUT_MS) {
+          log.warn({ hostname }, "Agent heartbeat timeout — closing zombie connection");
+          agent.ws.terminate();
+          continue;
+        }
+        if (agent.ws.readyState === WebSocket.OPEN) {
+          agent.ws.send(JSON.stringify(createMessage("ping", {})));
+        }
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
   async stop(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     for (const agent of this.agents.values()) {
       agent.ws.close();
     }
@@ -208,9 +238,17 @@ export class AgentServer {
 
     log.info({ authenticated: connState.authenticated }, "New agent connection");
 
+    // Initialise pong timestamp so the first heartbeat check doesn't immediately evict
+    this.lastPong.set(ws, Date.now());
+
     ws.on("message", (data) => {
       try {
         const msg = parseMessage(data.toString());
+        // Handle pong inline — update last-seen timestamp
+        if (msg.type === "pong") {
+          this.lastPong.set(ws, Date.now());
+          return;
+        }
         this.handleMessage(ws, msg, connState, (hostname) => {
           agentHostname = hostname;
         });
@@ -221,6 +259,7 @@ export class AgentServer {
 
     ws.on("close", () => {
       this.connectionStates.delete(ws);
+      this.lastPong.delete(ws);
       if (agentHostname) {
         this.agents.delete(agentHostname);
         log.info({ hostname: agentHostname }, "Agent disconnected");

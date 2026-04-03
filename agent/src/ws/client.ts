@@ -45,6 +45,9 @@ export class AgentClient {
   }
 
   onMessage(type: string, handler: MessageHandler): void {
+    if (this.handlers.has(type)) {
+      log.warn("Overwriting existing handler for message type", { type });
+    }
     this.handlers.set(type, handler);
   }
 
@@ -53,19 +56,17 @@ export class AgentClient {
     return new Promise((resolve, reject) => {
       // TLS handling for self-signed certs:
       // Bun's WebSocket doesn't accept TLS options as a constructor arg.
-      // For the initial pairing (no CA cert yet), we disable TLS verification
-      // via the environment variable. After pairing, the CA cert is pinned
-      // but we still need to disable strict verification since the server cert
-      // may not include the client's connecting IP in its SAN list.
+      // During the initial pairing flow (no CA cert yet) we must accept any
+      // self-signed cert so the agent can reach a freshly-provisioned hub.
+      // Once a CA cert has been pinned we restore strict verification —
+      // the hub must present a cert signed by that CA.
       if (this.opts.hubUrl.startsWith("wss://")) {
         if (!this.opts.caCert) {
-          // First connection (pairing) — accept any self-signed cert
+          // Pairing — accept any self-signed cert (no pinned CA yet)
           process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
         } else {
-          // We have a pinned CA cert but the server cert's SAN may not
-          // include all IPs (e.g., Tailscale). Accept for now.
-          // TODO: proper cert pinning by fingerprint comparison
-          process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+          // Authenticated — enforce TLS so the pinned CA is actually checked
+          delete process.env["NODE_TLS_REJECT_UNAUTHORIZED"];
         }
       }
 
@@ -96,6 +97,12 @@ export class AgentClient {
             typeof event.data === "string" ? event.data : String(event.data);
           const msg = parseMessage(raw);
           log.debug(`← ${msg.type}`, { id: msg.id });
+
+          // Handle hub ping — reply immediately with pong
+          if (msg.type === "ping") {
+            this.send(createMessage("pong", {}));
+            return;
+          }
 
           // Handle authenticate_response: send hello after successful auth
           if (msg.type === "authenticate_response") {

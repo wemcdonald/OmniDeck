@@ -67,11 +67,13 @@ export default function Modes() {
     mutationFn: ({ id, config }: { id: string; config: ModeConfig }) =>
       api.modes.save(id, config),
     onSuccess: () => invalidateModes(),
+    onError: (err) => alert(`Failed to save mode: ${String(err)}`),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.modes.delete(id),
     onSuccess: () => invalidateModes(),
+    onError: (err) => alert(`Failed to delete mode: ${String(err)}`),
   });
 
   async function handleSave(id: string, config: ModeConfig) {
@@ -237,10 +239,12 @@ export default function Modes() {
                 onChange={async (e) => {
                   const val = e.target.value;
                   try {
-                    await fetch("/api/deck/press/0", { method: "POST" }).catch(() => {});
+                    await fetch("/api/deck/press/0", { method: "POST" });
                     const body = val === "auto" ? null : val;
                     setOverride(body);
-                  } catch { /* ignore */ }
+                  } catch (err) {
+                    alert(`Failed to set override: ${String(err)}`);
+                  }
                 }}
               >
                 <option value="auto">Automatic (rule-based)</option>

@@ -44,8 +44,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       {/* Logo */}
       <div
         className={cn(
-          "flex items-center shrink-0 border-b border-sidebar-border",
-          sidebarCollapsed ? "justify-center px-2 py-4" : "gap-2.5 px-4 py-4"
+          "flex items-center shrink-0 h-14 border-b border-sidebar-border",
+          sidebarCollapsed ? "justify-center px-2" : "gap-2.5 px-4"
         )}
       >
         <img
@@ -137,7 +137,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           {/* Drawer */}
           <div className="relative h-full w-52 bg-sidebar shadow-lg flex flex-col">
             {/* Close button */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
+            <div className="flex items-center justify-between px-4 h-14 border-b border-sidebar-border">
               <div className="flex items-center gap-2.5">
                 <img src="/logo.svg" alt="OmniDeck" className="h-6 w-6 shrink-0" />
                 <span className="text-xs font-semibold font-display uppercase tracking-widest text-sidebar-foreground">
