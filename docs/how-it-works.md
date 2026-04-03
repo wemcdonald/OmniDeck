@@ -102,3 +102,5 @@ The UI has three main areas:
 - **Pages** — drag-and-drop button editor. The deck grid shows a live preview of each button.
 - **Plugins** — install, configure, and remove plugins. Plugin config forms are generated automatically from the plugin's Zod schema.
 - **Agents** — view connected agents, download the agent installer, manage pairing.
+
+![OmniDeck Logs page showing the real-time hub log stream with agent and plugin activity](screenshots/hub-logs.png)

@@ -35,6 +35,8 @@ graph LR
 
 The **hub** runs on a Raspberry Pi, manages the Stream Deck hardware, loads plugins, and serves the configuration UI. **Agents** run on your Mac/PC and receive commands from the hub — keystrokes, mouse clicks, and app control stay on the machine that needs them. Cloud plugins (Weather) run entirely on the hub. Hybrid plugins (Spotify) run their API calls on the agent but send state back to the hub for button rendering.
 
+![OmniDeck page editor showing a populated deck grid alongside the plugin browser panel](docs/screenshots/hero.png)
+
 ## Quick start
 
 1. Install the hub on a Raspberry Pi:

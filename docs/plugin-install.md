@@ -6,13 +6,13 @@
 
 Open the OmniDeck web UI and go to **Plugins** in the sidebar.
 
-<!-- TODO: screenshot: Plugins page showing installed plugins list and "Install Plugin" button -->
+![Plugins page showing built-in and installed plugins with running status indicators](screenshots/plugins-page.png)
 
 ### Browse and install
 
 Click **Install Plugin** to open the plugin browser. The modal shows all available plugins from the [OmniDeck-plugins](https://github.com/wemcdonald/OmniDeck-plugins) repository.
 
-<!-- TODO: screenshot: install modal with plugin grid, showing icons, names, and categories -->
+![Install Plugin modal showing available plugins with descriptions and platform tags](screenshots/install-modal-grid.png)
 
 Click any plugin to see:
 - A description of what it does
@@ -21,7 +21,7 @@ Click any plugin to see:
 
 Click **Install** to download and activate the plugin. It appears in the **Installed** section immediately — no hub restart needed.
 
-<!-- TODO: screenshot: plugin detail view inside the install modal showing description and "What you'll need" checklist -->
+![Plugin detail view showing full description, platform tags, and install button](screenshots/install-modal-detail.png)
 
 ### Configure the plugin
 
@@ -34,7 +34,7 @@ Fill in the required fields:
 
 Click **Save**. The plugin initializes and its status indicator turns green.
 
-<!-- TODO: screenshot: plugin config card expanded showing a mix of regular and secret fields -->
+![Plugin config cards expanded showing secret fields (masked) and regular fields like poll interval](screenshots/plugin-config.png)
 
 ## Using presets on buttons
 
@@ -47,7 +47,7 @@ To use a preset:
 4. The button config panel opens — adjust params, label, or appearance as needed
 5. Click **Save**
 
-<!-- TODO: screenshot: PageEditor with plugin browser open on the right showing preset list for a plugin -->
+![Page editor with plugin browser open showing presets for an installed plugin](screenshots/hero.png)
 
 ## Advanced: manual install
 

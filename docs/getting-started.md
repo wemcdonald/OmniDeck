@@ -75,7 +75,7 @@ http://<pi-hostname>.local:28120
 
 Replace `<pi-hostname>` with your Pi's hostname (default is `raspberrypi`). If mDNS isn't working on your network, use the Pi's IP address instead.
 
-<!-- TODO: screenshot: web UI home screen showing empty deck grid with "No pages yet" and sidebar -->
+![OmniDeck Pages list showing four configured pages](screenshots/pages-list.png)
 
 ## Install the agent
 
@@ -89,7 +89,7 @@ The agent runs on each Mac or PC you want to control. Install it from the hub:
 
 The agent discovers the hub via mDNS. If discovery fails (e.g., on a network that blocks mDNS), enter the hub's IP address manually in the agent's settings.
 
-<!-- TODO: screenshot: Agents page showing one connected agent with green status dot -->
+![Agents page showing paired agents with Download Agent and Generate Code buttons](screenshots/agents-page.png)
 
 ## Install your first plugin
 
@@ -99,7 +99,7 @@ The agent discovers the hub via mDNS. If discovery fails (e.g., on a network tha
 4. Click **Install** — the plugin downloads and activates immediately
 5. Click the plugin row to expand it, fill in the config fields, and click **Save**
 
-<!-- TODO: screenshot: Plugins page with install modal open showing plugin list -->
+![Install Plugin modal showing available plugins with platform and category tags](screenshots/install-modal-grid.png)
 
 ## Add a button to a page
 
@@ -109,7 +109,7 @@ The agent discovers the hub via mDNS. If discovery fails (e.g., on a network tha
 4. The button config panel opens — adjust the label or params as needed
 5. Click **Save** — the button appears on your physical deck within a second
 
-<!-- TODO: screenshot: PageEditor showing a button being dragged from plugin browser onto the deck grid -->
+![Page editor showing a populated deck grid with the plugin browser open on the left](screenshots/hero.png)
 
 ## Troubleshooting
 
