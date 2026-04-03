@@ -251,7 +251,7 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
 
         {showYaml && (
           <pre className="text-xs font-mono bg-surface-container rounded border border-outline-variant p-2 overflow-x-auto">
-            {toYaml(draft)}
+            {`${id}:\n`}{toYaml(draft).split("\n").map(l => `  ${l}`).join("\n")}
           </pre>
         )}
     </div>

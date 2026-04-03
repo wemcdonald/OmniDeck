@@ -159,10 +159,12 @@ export class WebServer {
           if (!registry) return statuses;
           return statuses.map((s: Record<string, unknown>) => {
             const manifest = registry.getManifest(s.id as string);
-            if (manifest?.downloads?.length) {
-              return { ...s, downloads: manifest.downloads };
-            }
-            return s;
+            if (!manifest) return s;
+            const extra: Record<string, unknown> = {};
+            if (manifest.downloads?.length) extra.downloads = manifest.downloads;
+            if (manifest.setup_steps?.length) extra.setup_steps = manifest.setup_steps;
+            if (manifest.source_url) extra.source_url = manifest.source_url;
+            return Object.keys(extra).length ? { ...s, ...extra } : s;
           });
         },
         getPluginCatalog: this.opts.pluginHost ? () => this.opts.pluginHost!.getPluginCatalog() : undefined,
