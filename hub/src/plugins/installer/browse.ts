@@ -14,6 +14,9 @@ export interface BrowsePlugin {
   platforms: string[];
   /** Relative path within the repo (for constructing GitHub URL) */
   dirName: string;
+  icon?: string;
+  category?: string;
+  setup_steps?: string[];
 }
 
 /**
@@ -44,6 +47,9 @@ export function scanPluginsFromDir(dir: string): BrowsePlugin[] {
         version: manifest.version,
         platforms: manifest.platforms,
         dirName: entry.name,
+        icon: manifest.icon,
+        category: manifest.category,
+        setup_steps: manifest.setup_steps,
       });
     } catch (err) {
       log.warn({ err, dir: entry.name }, "Skipping plugin with invalid manifest");

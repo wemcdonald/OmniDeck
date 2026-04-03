@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Search, RefreshCw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Icon } from "@iconify/react";
 import { api, type BrowsePlugin, type InstallResult } from "../lib/api.ts";
 import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
@@ -52,7 +53,7 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
 
   const installMutation = useMutation({
     mutationFn: ({ plugin, overwrite }: { plugin: BrowsePlugin; overwrite: boolean }) => {
-      const url = `https://github.com/wemcdonald/OmniDeck-plugins/tree/main/${plugin.dirName}`;
+      const url = `https://github.com/wemcdonald/OmniDeck-plugins/tree/master/${plugin.dirName}`;
       return api.plugins.installFromGitHub(url, overwrite);
     },
     onSuccess: (result) => {
@@ -220,7 +221,15 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
           return (
             <Card key={plugin.id} size="sm">
               <CardHeader>
-                <CardTitle>{plugin.name}</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  {plugin.icon?.startsWith("ms:") && (
+                    <Icon
+                      icon={`material-symbols:${plugin.icon.slice(3)}`}
+                      className="w-4 h-4 shrink-0 text-muted-foreground"
+                    />
+                  )}
+                  {plugin.name}
+                </CardTitle>
                 {plugin.description && (
                   <CardDescription className="line-clamp-2">
                     {plugin.description}
@@ -230,6 +239,9 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
               <CardContent>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="secondary">{plugin.version}</Badge>
+                  {plugin.category && (
+                    <Badge variant="outline">{plugin.category}</Badge>
+                  )}
                   {plugin.platforms.map((p) => (
                     <Badge key={p} variant="outline">
                       {p}
@@ -242,6 +254,16 @@ export function PluginBrowseTab({ onClose, prefetchedPlugins }: PluginBrowseTabP
                     <Badge variant="destructive">Update available</Badge>
                   )}
                 </div>
+                {plugin.setup_steps && plugin.setup_steps.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">What you&apos;ll need</p>
+                    <ol className="list-decimal list-inside space-y-0.5">
+                      {plugin.setup_steps.map((step, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
               </CardContent>
               <CardFooter>
                 <Button

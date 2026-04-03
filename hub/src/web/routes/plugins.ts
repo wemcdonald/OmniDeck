@@ -123,7 +123,7 @@ export function createPluginInstallRoutes(deps: PluginInstallDeps): Hono {
         return c.json(result, 400);
       }
       if (result.status === "conflict") {
-        return c.json(result, 409);
+        return c.json(result);
       }
 
       // Hot-reload the newly installed plugin
@@ -197,7 +197,7 @@ export function createPluginInstallRoutes(deps: PluginInstallDeps): Hono {
         return c.json(result, 400);
       }
       if (result.status === "conflict") {
-        return c.json(result, 409);
+        return c.json(result);
       }
 
       // Hot-reload the newly installed plugin

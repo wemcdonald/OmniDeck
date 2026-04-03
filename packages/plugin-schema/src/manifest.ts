@@ -35,6 +35,18 @@ export const PluginManifestSchema = z.object({
     /** Description shown below the download button */
     description: z.string().optional(),
   })).optional(),
+
+  /** Icon identifier (e.g., "ms:queue-music") */
+  icon: z.string().optional(),
+
+  /** Plugin category (e.g., "Media", "Communication", "Utility") */
+  category: z.string().optional(),
+
+  /** Setup instructions shown during first-run configuration (markdown strings with inline links) */
+  setup_steps: z.array(z.string()).optional(),
+
+  /** URL to the plugin's source repository */
+  source_url: z.string().optional(),
 });
 
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;

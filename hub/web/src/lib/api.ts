@@ -185,6 +185,9 @@ export interface BrowsePlugin {
   version: string;
   platforms: string[];
   dirName: string;
+  icon?: string;
+  category?: string;
+  setup_steps?: string[];
 }
 
 export interface InstallResult {
@@ -251,6 +254,8 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ default_page: pageId }),
       }),
+    press: (key: number) =>
+      request<{ ok: boolean }>(`/api/deck/press/${key}`, { method: "POST" }),
   },
   plugins: {
     list: () => request<{ plugins: Record<string, unknown>; secretRefs: Record<string, string[]> }>("/api/config/plugins"),
@@ -341,10 +346,6 @@ export const api = {
         uptime: string;
         uptime_seconds: number;
       }>("/api/status/system"),
-  },
-  deck: {
-    press: (key: number) =>
-      request<{ ok: boolean }>(`/api/deck/press/${key}`, { method: "POST" }),
   },
   auth: {
     status: () => request<{ auth_required: boolean; authenticated: boolean }>("/api/auth/status"),
