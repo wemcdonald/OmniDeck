@@ -129,17 +129,17 @@ function PluginGroup({
   const q = search.toLowerCase();
   const presets = q
     ? plugin.presets.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.qualifiedId.includes(q),
+        (p) => p.name?.toLowerCase().includes(q) || p.qualifiedId.includes(q),
       )
     : plugin.presets;
   const actions = q
     ? plugin.actions.filter(
-        (a) => a.name.toLowerCase().includes(q) || a.qualifiedId.includes(q),
+        (a) => a.name?.toLowerCase().includes(q) || a.qualifiedId.includes(q),
       )
     : plugin.actions;
   const providers = q
     ? plugin.stateProviders.filter(
-        (s) => s.name.toLowerCase().includes(q) || s.qualifiedId.includes(q),
+        (s) => s.name?.toLowerCase().includes(q) || s.qualifiedId.includes(q),
       )
     : plugin.stateProviders;
 

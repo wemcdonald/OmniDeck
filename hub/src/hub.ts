@@ -521,19 +521,20 @@ export class Hub {
 
     const width = 72;
     const height = 72;
-    const result: Record<string, string> = {};
 
-    for (const button of page.buttons) {
-      const [col, row] = button.pos;
-      const state = this.resolveButtonState(button);
-      const rawBuf = await this.previewRenderer.render(state, this.scrollTick);
-      const pngBuf = await sharp(rawBuf, { raw: { width, height, channels: 3 } })
-        .png()
-        .toBuffer();
-      result[`${col},${row}`] = `data:image/png;base64,${pngBuf.toString("base64")}`;
-    }
+    const entries = await Promise.all(
+      page.buttons.map(async (button) => {
+        const [col, row] = button.pos;
+        const state = this.resolveButtonState(button);
+        const rawBuf = await this.previewRenderer.render(state, this.scrollTick);
+        const pngBuf = await sharp(rawBuf, { raw: { width, height, channels: 3 } })
+          .png()
+          .toBuffer();
+        return [`${col},${row}`, `data:image/png;base64,${pngBuf.toString("base64")}`] as const;
+      }),
+    );
 
-    return result;
+    return Object.fromEntries(entries);
   }
 
   async getDeckPreview(): Promise<Record<number, string>> {
