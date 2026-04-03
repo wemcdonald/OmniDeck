@@ -26,6 +26,7 @@ export class PluginHost {
   private orchestratorListeners = new Map<string, OrchestratorCallback[]>();
   private pageProviders = new Map<string, () => any>();
   private pluginHealth = new Map<string, PluginHealth>();
+  private pluginIntervals = new Map<string, ReturnType<typeof setInterval>[]>();
   private store: StateStore;
   private configDir?: string;
 
@@ -39,6 +40,11 @@ export class PluginHost {
   }
 
   private createContext(id: string, config: unknown): PluginContext {
+    // Clear any intervals from a previous init of this plugin
+    const prev = this.pluginIntervals.get(id) ?? [];
+    for (const h of prev) clearInterval(h);
+    this.pluginIntervals.set(id, []);
+
     return {
       config,
       state: this.store,
@@ -60,6 +66,11 @@ export class PluginHost {
       },
       setHealth: (health) => {
         this.pluginHealth.set(id, health);
+      },
+      setInterval: (fn, ms) => {
+        const handle = setInterval(fn, ms);
+        this.pluginIntervals.get(id)?.push(handle);
+        return handle;
       },
       registerPageProvider: (pageId, resolve) => {
         this.pageProviders.set(`${id}.${pageId}`, resolve);
@@ -93,6 +104,10 @@ export class PluginHost {
   }
 
   async destroyAll(): Promise<void> {
+    for (const intervals of this.pluginIntervals.values()) {
+      for (const h of intervals) clearInterval(h);
+    }
+    this.pluginIntervals.clear();
     for (const plugin of this.plugins.values()) {
       await plugin.destroy();
     }

@@ -39,6 +39,8 @@ export interface PluginContext {
   scaffoldPage(id: string, config: { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> }): void;
   /** Register a dynamic page provider. The resolve function is called whenever the page needs to render. */
   registerPageProvider(id: string, resolve: () => { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> } | undefined): void;
+  /** Schedule a recurring callback. Automatically cleared when the plugin is reloaded or destroyed. */
+  setInterval(fn: () => void, ms: number): ReturnType<typeof setInterval>;
 }
 
 // ── Plugin Interface ───────────────────────────────────────────────────────

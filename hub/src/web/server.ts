@@ -12,6 +12,7 @@ import { createHaRoutes } from "./routes/ha.js";
 import { createAuthRoutes } from "./routes/auth.js";
 import { createPairingRoutes } from "./routes/pairing.js";
 import { createPluginInstallRoutes } from "./routes/plugins.js";
+import { createBackupRoutes } from "./routes/backup.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import type { Broadcaster } from "./broadcast.js";
 import type { AgentServer } from "../server/server.js";
@@ -114,7 +115,17 @@ export class WebServer {
       this.app.route("/api/pairing", createPairingRoutes(this.opts.pairing));
     }
 
-    this.app.get("/api/health", (c) => c.json({ status: "ok" }));
+    const startedAt = Date.now();
+    this.app.get("/api/health", (c) => {
+      const agentCount = agentServer?.getConnectedAgents().length ?? 0;
+      const pluginCount = getPluginStatuses?.().length ?? 0;
+      return c.json({
+        status: "ok",
+        uptime_ms: Date.now() - startedAt,
+        agents: agentCount,
+        plugins: pluginCount,
+      });
+    });
 
     if (getPagePreview) {
       this.app.get("/api/deck/preview/:pageId", async (c) => {
@@ -131,6 +142,7 @@ export class WebServer {
 
     if (configDir) {
       this.app.route("/api/config", createConfigRoutes(configDir));
+      this.app.route("/api/backup", createBackupRoutes(configDir));
     }
 
     if (this.opts.pluginsDir) {
@@ -251,12 +263,12 @@ export class WebServer {
       broadcaster.add(ws as unknown as Parameters<Broadcaster["add"]>[0]);
       log.info("Browser WebSocket connected");
 
-      // Replay buffered log lines to the new client
-      replayLogs((line) => {
-        if (ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: "log:line", data: line }));
-        }
-      });
+      // Replay buffered log lines as a single batch
+      const history: object[] = [];
+      replayLogs((line) => history.push(line));
+      if (history.length > 0 && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: "log:history", data: history }));
+      }
 
       ws.on("message", (raw) => {
         try {

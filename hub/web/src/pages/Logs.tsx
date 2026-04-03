@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ export default function Logs() {
   const [nameFilter, setNameFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [paused, setPaused] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
   const { subscribe } = useWebSocket();
 
@@ -40,7 +41,12 @@ export default function Logs() {
   }, [paused]);
 
   useEffect(() => {
-    const unsub = subscribe("log:line", (msg) => {
+    const unsubHistory = subscribe("log:history", (msg) => {
+      if (pausedRef.current) return;
+      const history = (msg.data as LogLine[]).slice(-MAX_LINES);
+      setLines(history);
+    });
+    const unsubLine = subscribe("log:line", (msg) => {
       if (pausedRef.current) return;
       setLines((prev) => {
         const incoming = msg.data as LogLine;
@@ -49,13 +55,14 @@ export default function Logs() {
         return next.length > MAX_LINES ? next.slice(-MAX_LINES) : next;
       });
     });
-    return unsub;
+    return () => { unsubHistory(); unsubLine(); };
   }, [subscribe]);
 
   // Auto-scroll to bottom when not paused
   useEffect(() => {
-    if (!paused) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!paused && scrollContainerRef.current) {
+      const el = scrollContainerRef.current;
+      el.scrollTop = el.scrollHeight;
     }
   }, [lines, paused]);
 
@@ -133,12 +140,46 @@ export default function Logs() {
         </span>
       </div>
 
-      <div className="flex-1 bg-muted/30 rounded border p-3 overflow-y-auto font-mono text-xs">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 bg-muted/30 rounded border p-3 overflow-y-auto font-mono text-xs"
+      >
         {filtered.length === 0 && (
           <p className="text-muted-foreground italic">No log entries yet. Waiting for stream...</p>
         )}
-        {filtered.map((line, i) => (
-          <div key={i} className="flex gap-2 py-0.5 hover:bg-muted/50">
+        <LogVirtualList filtered={filtered} scrollContainerRef={scrollContainerRef} />
+      </div>
+    </div>
+  );
+}
+
+interface LogVirtualListProps {
+  filtered: LogLine[];
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function LogVirtualList({ filtered, scrollContainerRef }: LogVirtualListProps) {
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 22,
+    overscan: 20,
+  });
+
+  return (
+    <div
+      style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
+    >
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        const line = filtered[virtualRow.index];
+        return (
+          <div
+            key={virtualRow.key}
+            data-index={virtualRow.index}
+            ref={rowVirtualizer.measureElement}
+            style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
+            className="flex gap-2 py-0.5 hover:bg-muted/50"
+          >
             <span className="text-muted-foreground shrink-0 tabular-nums">
               {new Date(line.ts).toLocaleTimeString()}
             </span>
@@ -148,9 +189,8 @@ export default function Logs() {
             <span className="text-muted-foreground shrink-0 w-20 truncate">[{line.name}]</span>
             <span>{line.msg}</span>
           </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
+        );
+      })}
     </div>
   );
 }
