@@ -1,14 +1,12 @@
-// Virtualised log list backed by @chenglou/pretext height prediction.
+// Virtualised log list.
 //
-// estimateSize uses logRowHeight() — pure O(1) arithmetic from pre-measured
-// canvas data. No measureElement ref, no DOM reads per row, no flicker.
-//
-// ResizeObserver tracks the scroll container width so the msg column width
-// stays accurate when the panel resizes.
+// Rows are whitespace-nowrap so height is always LOG_ROW_HEIGHT — a constant.
+// estimateSize never touches the DOM or canvas. The container overflows
+// horizontally so long lines and agent names are always fully visible.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { logRowHeight, LOG_ROW_FIXED_W } from "../lib/logRowHeight.ts";
+import { LOG_ROW_HEIGHT } from "../lib/logRowHeight.ts";
 import { LogRow } from "./LogRow.tsx";
 import type { LogLine } from "../hooks/useLogStream.ts";
 
@@ -22,35 +20,11 @@ interface LogListProps {
 
 export function LogList({ lines, paused, maxHeight, className }: LogListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  // Track container width with ResizeObserver.
-  // rAF-debounced to avoid thrashing on continuous resize drags.
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    let rafId = 0;
-    const ro = new ResizeObserver(([entry]) => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        setContainerWidth(entry!.contentRect.width);
-      });
-    });
-    ro.observe(el);
-    // Set initial width synchronously so first render has correct heights.
-    setContainerWidth(el.getBoundingClientRect().width);
-    return () => {
-      cancelAnimationFrame(rafId);
-      ro.disconnect();
-    };
-  }, []);
-
-  const msgColWidth = Math.max(0, containerWidth - LOG_ROW_FIXED_W);
 
   const virtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (i) => logRowHeight(lines[i]!, msgColWidth),
+    estimateSize: () => LOG_ROW_HEIGHT,
     overscan: 20,
   });
 
@@ -61,41 +35,12 @@ export function LogList({ lines, paused, maxHeight, className }: LogListProps) {
     }
   }, [lines, paused, virtualizer]);
 
-  // Dev-mode calibration: warn if prediction diverges from actual heights.
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    if (lines.length === 0 || containerWidth === 0) return;
-    // Run once after first real render.
-    const timer = setTimeout(() => {
-      const items = scrollRef.current?.querySelectorAll("[data-index]");
-      if (!items) return;
-      let worst = 0;
-      items.forEach((el) => {
-        const idx = Number((el as HTMLElement).dataset.index);
-        const line = lines[idx];
-        if (!line) return;
-        const actual = el.getBoundingClientRect().height;
-        const predicted = logRowHeight(line, msgColWidth);
-        worst = Math.max(worst, Math.abs(actual - predicted));
-      });
-      if (worst > 2) {
-        console.warn(
-          `[LogList] Height prediction off by up to ${worst.toFixed(1)}px. ` +
-          `Check LOG_ROW_FONT in logRowHeight.ts matches the rendered CSS font.`,
-        );
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  // Only run after initial populate, not on every line.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerWidth > 0 && lines.length > 0]);
-
   const heightClass = maxHeight ?? "flex-1";
 
   return (
     <div
       ref={scrollRef}
-      className={`${heightClass} overflow-y-auto bg-muted/30 rounded border p-3 ${className ?? ""}`}
+      className={`${heightClass} overflow-auto bg-muted/30 rounded border p-3 ${className ?? ""}`}
     >
       {lines.length === 0 && (
         <p className="text-muted-foreground italic text-xs font-mono">

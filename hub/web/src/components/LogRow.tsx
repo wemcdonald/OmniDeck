@@ -1,7 +1,8 @@
 // Shared log row renderer used by both the Logs page and the dashboard widget.
 //
-// Column layout (matches fixed widths in logRowHeight.ts):
-//   [timestamp 68px] [gap 8px] [badge 40px] [gap 8px] [[name] 80px] [gap 8px] [msg flex]
+// Rows are whitespace-nowrap — the container scrolls horizontally rather than
+// wrapping. This means height is always constant (one line), so estimateSize
+// can return a fixed value with no canvas measurement needed.
 
 import { Badge } from "@/components/ui/badge";
 import type { LogLine } from "../hooks/useLogStream.ts";
@@ -26,21 +27,19 @@ const LEVEL_LABEL: Record<string, string> = {
 
 interface LogRowProps {
   line: LogLine;
-  style?: React.CSSProperties; // passed through from virtualizer positioning
+  style?: React.CSSProperties;
 }
 
 export function LogRow({ line, style }: LogRowProps) {
   return (
     <div
       style={style}
-      className="flex items-start gap-2 py-0.5 hover:bg-muted/50 font-mono text-xs"
+      className="flex items-center gap-2 py-0.5 hover:bg-muted/50 font-mono text-xs whitespace-nowrap"
     >
-      {/* Timestamp — fixed 88px, no wrap */}
-      <span className="text-muted-foreground shrink-0 w-[88px] tabular-nums whitespace-nowrap">
+      <span className="text-muted-foreground shrink-0 tabular-nums">
         {new Date(line.ts).toLocaleTimeString()}
       </span>
 
-      {/* Level badge — fixed 48px (w-12) to fit "ERROR" */}
       <Badge
         variant={LEVEL_VARIANT[line.level] ?? "secondary"}
         className="shrink-0 w-12 justify-center"
@@ -48,13 +47,11 @@ export function LogRow({ line, style }: LogRowProps) {
         {LEVEL_LABEL[line.level] ?? line.level.toUpperCase()}
       </Badge>
 
-      {/* Component name — fixed 96px (w-24), truncated */}
-      <span className="text-muted-foreground shrink-0 w-24 truncate">
+      <span className="text-muted-foreground shrink-0">
         [{line.name}]
       </span>
 
-      {/* Message — fills remaining width, may wrap */}
-      <span className="min-w-0 break-words">{line.msg}</span>
+      <span>{line.msg}</span>
     </div>
   );
 }

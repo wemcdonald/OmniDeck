@@ -10,7 +10,6 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useWebSocket } from "./useWebSocket.tsx";
-import { prepareLogLine } from "../lib/logRowHeight.ts";
 
 export interface LogLine {
   seq?: number;
@@ -38,14 +37,12 @@ export function useLogStream(
     const unsubHistory = subscribe("log:history", (msg) => {
       if (isPaused()) return;
       const history = (msg.data as LogLine[]).slice(-maxLinesRef.current);
-      history.forEach(prepareLogLine);
       setLines(history);
     });
 
     const unsubLine = subscribe("log:line", (msg) => {
       if (isPaused()) return;
       const incoming = msg.data as LogLine;
-      prepareLogLine(incoming);
       setLines((prev) => {
         // Deduplicate by seq when present.
         if (incoming.seq !== undefined && prev.some((l) => l.seq === incoming.seq)) {
