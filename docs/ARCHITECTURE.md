@@ -1,3 +1,5 @@
+← [Docs](README.md)
+
 # OmniDeck - Architecture Specification
 
 > An open-source, plugin-driven macro deck system that bridges a physical Stream Deck (or virtual touchscreen) across multiple computers, cloud services, and home automation — controlled from a Raspberry Pi.

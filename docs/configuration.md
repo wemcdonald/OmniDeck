@@ -1,3 +1,5 @@
+← [Docs](README.md)
+
 # Configuration Reference
 
 OmniDeck stores configuration in `~/.omnideck/config/config.yaml`. The hub watches this file and hot-reloads on changes — no restart needed for most settings.

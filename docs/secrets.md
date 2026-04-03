@@ -1,3 +1,5 @@
+← [Docs](README.md)
+
 # Secrets
 
 ## What is secrets.yaml?

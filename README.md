@@ -45,25 +45,17 @@ The **hub** runs on a Raspberry Pi, manages the Stream Deck hardware, loads plug
 3. Install the agent on your Mac/PC from the Agents page
 4. Install plugins from the Plugins page
 
-→ [Full install guide](docs/getting-started.md) · [Architecture](docs/how-it-works.md) · [Plugin guide](docs/plugin-guide.md)
+→ [Full install guide](docs/getting-started.md) · [Documentation](docs/) · [Plugin guide](docs/plugin-guide.md)
 
 ## Plugins
 
-| Plugin | Type | What it does |
-|--------|------|-------------|
-| Home Assistant | Hub | Toggle lights, climate, media players, covers, locks |
-| Spotify | Agent | Playback control, album art, track info |
-| Discord | Agent | Mute/deafen, voice channels, per-user volume |
-| Slack | Hub | Unread counts, DMs, Do Not Disturb |
-| Weather | Hub | Current conditions and forecast for any location |
-| Google Meet | Agent | Mute, camera, hand raise, reactions |
-| Zoom | Agent | Mute, camera, screen share, recording |
-| Clock | Hub | Analog and digital clock display |
-| Counter | Hub | Increment counter with long-press reset |
-| OS Control | Agent | Keystrokes, mouse, app launching, window management |
-| Sound | Hub/Agent | Volume, mute, media keys, audio device switching |
+The [OmniDeck-plugins](https://github.com/wemcdonald/OmniDeck-plugins) repository contains the full plugin library — Spotify, Discord, Slack, Google Meet, Zoom, Weather, Clock, and more. Plugins are installed directly from the web UI; no manual file copying needed.
 
 → [Install plugins](docs/plugin-install.md) · [Write a plugin](docs/plugin-guide.md)
+
+## Hardware
+
+Want to 3D-print a case that mounts the Raspberry Pi directly behind your Stream Deck? See [OmniDeck-hardware](https://github.com/wemcdonald/OmniDeck-hardware).
 
 ## Development
 

@@ -1,3 +1,5 @@
+← [Docs](README.md)
+
 # How OmniDeck Works
 
 ## Hub / Agent split

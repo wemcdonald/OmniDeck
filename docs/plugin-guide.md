@@ -1,3 +1,5 @@
+← [Docs](README.md)
+
 # Writing an OmniDeck Plugin
 
 This guide walks through building a plugin from scratch. By the end, you'll have a plugin that registers actions, exposes live state, and provides one-click presets — all with a schema-driven config UI.

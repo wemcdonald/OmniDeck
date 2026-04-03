@@ -1,3 +1,5 @@
+← [Docs](README.md)
+
 # Installing Plugins
 
 ## From the web UI
