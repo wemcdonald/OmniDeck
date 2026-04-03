@@ -15,3 +15,12 @@ agent.toml
 # External plugins (symlinked from OmniDeck-plugins repo)
 plugins/monitor-control
 plugins/bettertouchtool
+plugins/clock
+plugins/counter
+plugins/discord
+plugins/google-meet
+plugins/slack
+plugins/spotify
+
+# Tool internals
+.bg-shell/
