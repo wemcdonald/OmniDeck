@@ -699,3 +699,40 @@ Or with custom labels:
     label: "{{temp_c}}°C"
     top_label: "{{humidity}}% humidity"
 ```
+
+## Secret fields
+
+Mark config fields as secret by passing `secret: true` to the `field()` helper:
+
+```typescript
+const MyConfig = z.object({
+  api_key: field(z.string(), {
+    label: "API Key",
+    secret: true,
+  }),
+  region: field(z.string().default("us"), { label: "Region" }),
+});
+```
+
+Secret fields are:
+- **Write-only** — the hub stores them in `secrets.yaml`, never returns the value to the browser
+- **Displayed as "••••••••"** in the web UI with a "Change" button
+- **Marked with a "secret" badge** in the plugin config card
+- **Preserved on save** — if the user doesn't change a secret field, the existing value is kept
+
+## setActive() — smart targeting
+
+Call `omnideck.setActive(true)` when your plugin is the active one on this machine:
+
+```typescript
+// In your polling loop
+omnideck.setActive(playbackState.is_playing);
+
+// When a voice call starts
+omnideck.setActive(true);
+
+// When the call ends
+omnideck.setActive(false);
+```
+
+When an agent reports active, the hub routes all actions for that plugin to this agent automatically — users don't need to configure which machine to target.
