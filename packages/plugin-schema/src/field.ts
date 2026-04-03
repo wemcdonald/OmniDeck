@@ -23,6 +23,7 @@ export interface FieldMeta {
   placeholder?: string;
   /** Visual grouping key in the editor (fields with the same group render together). */
   group?: string;
+  secret?: boolean;
 }
 
 /**
@@ -73,6 +74,7 @@ export interface CatalogField {
   domain?: string;
   placeholder?: string;
   group?: string;
+  secret?: boolean;
   /** From Zod checks (number type): */
   min?: number;
   max?: number;
@@ -168,6 +170,7 @@ export function extractFields(schema: z.ZodObject<any>): CatalogField[] {
       domain: meta?.domain,
       placeholder: meta?.placeholder,
       group: meta?.group,
+      secret: meta?.secret,
       ...numChecks,
     });
   }

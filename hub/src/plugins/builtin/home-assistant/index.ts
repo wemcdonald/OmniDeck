@@ -21,7 +21,7 @@ let activePublisher: HaStatePublisher | null = null;
 
 const configSchema = z.object({
   url: field(z.string(), { label: "WebSocket URL", placeholder: "ws://homeassistant.local:8123/api/websocket" }),
-  token: field(z.string(), { label: "Long-Lived Access Token" }),
+  token: field(z.string(), { label: "Long-Lived Access Token", secret: true }),
 });
 
 export const homeAssistantPlugin: OmniDeckPlugin = {

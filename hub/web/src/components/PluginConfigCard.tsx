@@ -5,6 +5,33 @@ import { Badge } from "@/components/ui/badge";
 import { api } from "../lib/api.ts";
 import { ChevronDown, ChevronUp, Download } from "lucide-react";
 
+function toYaml(obj: Record<string, unknown>): string {
+  const lines: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) {
+      lines.push(`${k}: null`);
+    } else if (typeof v === "boolean") {
+      lines.push(`${k}: ${v}`);
+    } else if (typeof v === "number") {
+      lines.push(`${k}: ${v}`);
+    } else if (Array.isArray(v)) {
+      if (v.length === 0) {
+        lines.push(`${k}: []`);
+      } else {
+        lines.push(`${k}:`);
+        for (const item of v) {
+          lines.push(`  - ${JSON.stringify(item)}`);
+        }
+      }
+    } else {
+      const s = String(v);
+      const needsQuotes = /[:#\[\]{},|>&*!'"\\]|^\s|\s$|^(true|false|null|~)$/i.test(s) || s === "";
+      lines.push(`${k}: ${needsQuotes ? JSON.stringify(s) : s}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 interface PluginDownload {
   name: string;
   label: string;
@@ -19,6 +46,7 @@ interface CatalogField {
   fieldType?: string;
   zodType?: string;
   placeholder?: string;
+  secret?: boolean;
 }
 
 interface PluginConfigCardProps {
@@ -32,12 +60,9 @@ interface PluginConfigCardProps {
   configFields?: CatalogField[];
   /** Keys stored as !secret references — show masked and don't overwrite if blank on save */
   secretFields?: string[];
+  /** When true, renders without the Card wrapper (used inside PluginRow) */
+  embedded?: boolean;
   onSaved(): void;
-}
-
-function isSecretKey(key: string): boolean {
-  const lower = key.toLowerCase();
-  return lower.includes("token") || lower.includes("secret") || lower.includes("password");
 }
 
 function healthBadge(health?: { status: string }) {
@@ -51,10 +76,11 @@ function healthBadge(health?: { status: string }) {
   }
 }
 
-export default function PluginConfigCard({ id, name, version, icon: _icon, health, downloads, config, configFields, secretFields = [], onSaved }: PluginConfigCardProps) {
+export default function PluginConfigCard({ id, name, version, icon: _icon, health, downloads, config, configFields, secretFields = [], embedded = false, onSaved }: PluginConfigCardProps) {
   const secretFieldSet = new Set(secretFields);
   const [draft, setDraft] = useState<Record<string, unknown>>({ ...config });
   const [showYaml, setShowYaml] = useState(false);
+  const [editingSecrets, setEditingSecrets] = useState<Set<string>>(new Set());
 
   // Sync draft when config prop changes (query may resolve after initial render)
   useEffect(() => {
@@ -81,19 +107,14 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
-  return (
-    <Card className="bg-surface-container rounded border border-outline-variant">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">{name ?? id}</CardTitle>
-          <div className="flex items-center gap-2">
-            {version && <span className="text-xs text-muted-foreground">v{version}</span>}
-            {healthBadge(health)}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {(() => {
+  function startEditingSecret(key: string) {
+    setEditingSecrets((prev) => new Set([...prev, key]));
+    setDraft((prev) => ({ ...prev, [key]: "" }));
+  }
+
+  const formContent = (
+    <div className="space-y-3">
+      {(() => {
           // Build ordered field list: schema fields first, then any extra stored keys
           const schemaKeys = new Set(configFields?.map(f => f.key) ?? []);
           const extraKeys = Object.keys(draft).filter(k => !schemaKeys.has(k));
@@ -103,6 +124,7 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
               label: f.label ?? f.key,
               fieldType: f.fieldType,
               placeholder: f.placeholder,
+              secret: f.secret === true,
               fromSchema: true,
             })),
             ...extraKeys.map(k => ({
@@ -110,6 +132,7 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
               label: k,
               fieldType: undefined as string | undefined,
               placeholder: undefined as string | undefined,
+              secret: false,
               fromSchema: false,
             })),
           ];
@@ -122,10 +145,16 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
             <>
               {allFields.map((field) => {
                 const value = draft[field.key];
+                const isSecret = field.secret || secretFieldSet.has(field.key);
+                const isEditing = editingSecrets.has(field.key);
+
                 return (
                   <div key={field.key}>
                     <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">
                       {field.label}
+                      {isSecret && (
+                        <span className="ml-1.5 text-xs normal-case tracking-normal font-normal text-muted-foreground">(secret)</span>
+                      )}
                     </label>
                     {field.fieldType === "color" ? (
                       <input
@@ -134,12 +163,23 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
                         value={String(value ?? "#000000")}
                         onChange={(e) => setField(field.key, e.target.value)}
                       />
-                    ) : (isSecretKey(field.key) || secretFieldSet.has(field.key)) ? (
+                    ) : isSecret && secretFieldSet.has(field.key) && !isEditing ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground tracking-widest">••••••••</span>
+                        <button
+                          type="button"
+                          onClick={() => startEditingSecret(field.key)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : isSecret ? (
                       <input
                         type="password"
                         className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
                         value={String(value ?? "")}
-                        placeholder={secretFieldSet.has(field.key) && value ? "••••••••" : (field.placeholder ?? "Enter value")}
+                        placeholder={field.placeholder ?? "Enter value"}
                         onChange={(e) => setField(field.key, e.target.value)}
                       />
                     ) : typeof value === "boolean" ? (
@@ -211,10 +251,26 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
 
         {showYaml && (
           <pre className="text-xs font-mono bg-surface-container rounded border border-outline-variant p-2 overflow-x-auto">
-            {JSON.stringify(draft, null, 2)}
+            {toYaml(draft)}
           </pre>
         )}
-      </CardContent>
+    </div>
+  );
+
+  if (embedded) return formContent;
+
+  return (
+    <Card className="bg-surface-container rounded border border-outline-variant">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-semibold">{name ?? id}</CardTitle>
+          <div className="flex items-center gap-2">
+            {version && <span className="text-xs text-muted-foreground">v{version}</span>}
+            {healthBadge(health)}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>{formContent}</CardContent>
     </Card>
   );
 }
