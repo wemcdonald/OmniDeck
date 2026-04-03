@@ -5,11 +5,27 @@ const LEVEL_NAMES: Record<number, string> = {
   10: "trace", 20: "debug", 30: "info", 40: "warn", 50: "error", 60: "fatal",
 };
 
-const RING_SIZE = 500;
+const RING_SIZE = 10000;
 let logSeq = 0;
 const logRing: Array<{ seq: number; ts: string; level: string; name: string; msg: string; [k: string]: unknown }> = [];
 
 let logBroadcaster: Broadcaster | null = null;
+
+interface LoggingConfig {
+  level?: string;
+  file?: string;
+  plugins?: Record<string, string>;
+}
+
+let loggingConfig: LoggingConfig = {};
+let fileDest: pino.DestinationStream | null = null;
+
+export function configureLogging(config: LoggingConfig): void {
+  loggingConfig = config;
+  if (config.file) {
+    fileDest = pino.destination(config.file);
+  }
+}
 
 export function setLogBroadcaster(b: Broadcaster): void {
   logBroadcaster = b;
@@ -20,34 +36,39 @@ export function replayLogs(send: (line: typeof logRing[number]) => void): void {
 }
 
 export function createLogger(name: string) {
-  return pino({
-    name,
-    hooks: {
-      logMethod(inputArgs, method, level) {
-        const [obj, msgArg] =
-          typeof inputArgs[0] === "object" && inputArgs[0] !== null
-            ? [inputArgs[0] as Record<string, unknown>, inputArgs[1] as string | undefined]
-            : [{}, inputArgs[0] as string | undefined];
+  const level = loggingConfig.plugins?.[name] ?? loggingConfig.level ?? "info";
+  return pino(
+    {
+      name,
+      level,
+      hooks: {
+        logMethod(inputArgs, method, level) {
+          const [obj, msgArg] =
+            typeof inputArgs[0] === "object" && inputArgs[0] !== null
+              ? [inputArgs[0] as Record<string, unknown>, inputArgs[1] as string | undefined]
+              : [{}, inputArgs[0] as string | undefined];
 
-        const entry = {
-          seq: ++logSeq,
-          ts: new Date().toISOString(),
-          level: LEVEL_NAMES[level] ?? "info",
-          name,
-          msg: msgArg ?? "",
-          ...obj,
-        };
+          const entry = {
+            seq: ++logSeq,
+            ts: new Date().toISOString(),
+            level: LEVEL_NAMES[level] ?? "info",
+            name,
+            msg: msgArg ?? "",
+            ...obj,
+          };
 
-        if (logRing.length >= RING_SIZE) logRing.shift();
-        logRing.push(entry);
+          if (logRing.length >= RING_SIZE) logRing.shift();
+          logRing.push(entry);
 
-        if (logBroadcaster) {
-          logBroadcaster.send({ type: "log:line", data: entry });
-        }
+          if (logBroadcaster) {
+            logBroadcaster.send({ type: "log:line", data: entry });
+          }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return method.apply(this, inputArgs as any);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return method.apply(this, inputArgs as any);
+        },
       },
     },
-  });
+    fileDest ?? undefined,
+  );
 }

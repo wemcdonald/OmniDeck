@@ -154,6 +154,10 @@ const OrchestratorConfigSchema = z
     device_pages: z.record(z.string(), z.string()).optional(),
     discord: z.record(z.unknown()).optional(),
     cec: z.record(z.unknown()).optional(),
+    agent_order: z.array(z.string()).optional(),
+    plugins: z.record(z.object({
+      agent_order: z.array(z.string()).optional(),
+    })).optional(),
   })
   .optional();
 
@@ -170,6 +174,14 @@ const AuthConfigSchema = z
   })
   .optional();
 
+const LoggingConfigSchema = z
+  .object({
+    level: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
+    file: z.string().optional(),
+    plugins: z.record(z.enum(["trace", "debug", "info", "warn", "error"])).optional(),
+  })
+  .optional();
+
 export const FullConfigSchema = z.object({
   deck: DeckConfigSchema,
   devices: z.array(DeviceConfigSchema).default([]),
@@ -178,6 +190,7 @@ export const FullConfigSchema = z.object({
   modes: ModesConfigSchema,
   hub: HubConfigSchema,
   auth: AuthConfigSchema,
+  logging: LoggingConfigSchema,
   pages: z.array(PageConfigSchema).default([]),
 });
 

@@ -8,6 +8,7 @@ export interface RawConfig {
   devices?: Array<Record<string, unknown>>;
   plugins?: Record<string, Record<string, unknown>>;
   orchestrator?: Record<string, unknown>;
+  logging?: { level?: string; file?: string; plugins?: Record<string, string> };
   pages: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }

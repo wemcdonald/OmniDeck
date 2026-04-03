@@ -3,7 +3,7 @@ import { PhysicalDeck } from "./deck/manager.js";
 import { loadConfig } from "./config/loader.js";
 import { validateConfig } from "./config/validator.js";
 import { ensureTlsCerts } from "./server/tls.js";
-import { createLogger } from "./logger.js";
+import { createLogger, configureLogging } from "./logger.js";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -21,6 +21,7 @@ async function main() {
   log.info({ configDir }, "Loading config...");
   const rawConfig = await loadConfig(configDir, secretsPath);
   const config = validateConfig(rawConfig);
+  configureLogging(config.logging ?? {});
   log.info({ pages: config.pages.length, devices: config.devices.length }, "Config loaded");
 
   // Generate/load TLS certificates

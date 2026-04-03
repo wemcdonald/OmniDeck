@@ -14,6 +14,10 @@ interface LogLine {
 
 const MAX_LINES = 2000;
 
+const LEVEL_ORDER: Record<string, number> = {
+  trace: 10, debug: 20, info: 30, warn: 40, error: 50,
+};
+
 const LEVEL_VARIANT: Record<string, "success" | "warning" | "error" | "secondary"> = {
   info: "success",
   warn: "warning",
@@ -23,8 +27,9 @@ const LEVEL_VARIANT: Record<string, "success" | "warning" | "error" | "secondary
 
 export default function Logs() {
   const [lines, setLines] = useState<LogLine[]>([]);
-  const [levelFilter, setLevelFilter] = useState<string>("all");
+  const [levelFilter, setLevelFilter] = useState<string>("warn");
   const [nameFilter, setNameFilter] = useState<string>("all");
+  const [search, setSearch] = useState<string>("");
   const [paused, setPaused] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
@@ -61,12 +66,15 @@ export default function Logs() {
   }, [lines]);
 
   const filtered = useMemo(() => {
+    const minLevel = levelFilter === "all" ? 0 : (LEVEL_ORDER[levelFilter] ?? 0);
+    const lowerSearch = search.toLowerCase();
     return lines.filter((l) => {
-      if (levelFilter !== "all" && l.level !== levelFilter) return false;
+      if (levelFilter !== "all" && (LEVEL_ORDER[l.level] ?? 0) < minLevel) return false;
       if (nameFilter !== "all" && l.name !== nameFilter) return false;
+      if (lowerSearch && !l.msg.toLowerCase().includes(lowerSearch)) return false;
       return true;
     });
-  }, [lines, levelFilter, nameFilter]);
+  }, [lines, levelFilter, nameFilter, search]);
 
   function download() {
     const content = lines.map((l) => JSON.stringify(l)).join("\n");
@@ -89,10 +97,11 @@ export default function Logs() {
           onChange={(e) => setLevelFilter(e.target.value)}
         >
           <option value="all">All levels</option>
-          <option value="info">Info</option>
-          <option value="warn">Warn</option>
-          <option value="error">Error</option>
-          <option value="debug">Debug</option>
+          <option value="trace">&ge; Trace</option>
+          <option value="debug">&ge; Debug</option>
+          <option value="info">&ge; Info</option>
+          <option value="warn">&ge; Warn</option>
+          <option value="error">&ge; Error</option>
         </select>
         <select
           className="text-xs font-display rounded border px-2 py-1 bg-background"
@@ -106,6 +115,13 @@ export default function Logs() {
             </option>
           ))}
         </select>
+        <input
+          type="text"
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="text-xs font-display rounded border px-2 py-1 bg-background w-40"
+        />
         <Button variant="outline" size="sm" onClick={() => setPaused((v) => !v)}>
           {paused ? "Resume" : "Pause"}
         </Button>
