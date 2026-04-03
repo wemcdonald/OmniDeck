@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-export default function Security() {
+export default function Agents() {
   const queryClient = useQueryClient();
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [codeExpiresAt, setCodeExpiresAt] = useState<Date | null>(null);
@@ -52,7 +52,7 @@ export default function Security() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold font-display">Security</h1>
+      <h1 className="text-2xl font-bold font-display">Agents</h1>
 
       {/* Install Agent */}
       <Card>

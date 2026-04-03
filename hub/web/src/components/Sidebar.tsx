@@ -6,7 +6,7 @@ import {
   Puzzle,
   Monitor,
   ScrollText,
-  Shield,
+  Users,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -21,7 +21,7 @@ const navItems = [
   { to: "/plugins", icon: Puzzle, label: "Plugins" },
   { to: "/devices", icon: Monitor, label: "Devices" },
   { to: "/logs", icon: ScrollText, label: "Logs" },
-  { to: "/security", icon: Shield, label: "Security" },
+  { to: "/agents", icon: Users, label: "Agents" },
 ] as const;
 
 interface SidebarProps {

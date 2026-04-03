@@ -10,7 +10,7 @@ const PageEditor = lazy(() => import("./pages/PageEditor.tsx"));
 const Plugins = lazy(() => import("./pages/Plugins.tsx"));
 const Devices = lazy(() => import("./pages/Devices.tsx"));
 const Logs = lazy(() => import("./pages/Logs.tsx"));
-const Security = lazy(() => import("./pages/Security.tsx"));
+const Agents = lazy(() => import("./pages/Agents.tsx"));
 const Modes = lazy(() => import("./pages/Modes.tsx"));
 const Login = lazy(() => import("./pages/Login.tsx"));
 
@@ -49,7 +49,7 @@ export default function App() {
           <Route path="/plugins" element={<Plugins />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/logs" element={<Logs />} />
-          <Route path="/security" element={<Security />} />
+          <Route path="/agents" element={<Agents />} />
         </Routes>
       </Suspense>
     </Layout>
