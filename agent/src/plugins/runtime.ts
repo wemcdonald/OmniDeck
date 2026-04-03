@@ -24,6 +24,7 @@ interface RuntimeOptions {
   onStateUpdate: (pluginId: string, key: string, value: unknown) => void;
   onLog?: (pluginId: string, level: string, msg: string, data?: Record<string, unknown>) => void;
   platformRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
+  onActiveUpdate?: (pluginId: string, active: boolean, metadata?: Record<string, unknown>) => void;
 }
 
 export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck; runtime: PluginRuntime } {
@@ -112,6 +113,10 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
 
     onDestroy(fn) {
       destroyCallbacks.push(fn);
+    },
+
+    setActive(active, metadata) {
+      opts.onActiveUpdate?.(opts.pluginId, active, metadata);
     },
   };
 

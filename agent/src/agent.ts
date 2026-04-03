@@ -223,6 +223,11 @@ export class Agent {
               );
             },
             platformRequest: this.opts.platformRequest,
+            onActiveUpdate: (pluginId, active, metadata) => {
+              this.client.send(
+                createMessage("plugin_active", { pluginId, active, metadata }),
+              );
+            },
           });
           statuses.push({ id: plugin.id, version: plugin.version, status: "active" });
         } else {
@@ -275,6 +280,11 @@ export class Agent {
           );
         },
         platformRequest: this.opts.platformRequest,
+        onActiveUpdate: (pluginId, active, metadata) => {
+          this.client.send(
+            createMessage("plugin_active", { pluginId, active, metadata }),
+          );
+        },
       });
       this.client.send(
         createMessage("plugin_status", {

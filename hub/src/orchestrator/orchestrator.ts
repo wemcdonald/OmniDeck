@@ -11,6 +11,8 @@ export interface OrchestratorConfig {
   };
   media: MediaRouterConfig;
   device_pages?: Record<string, string>;
+  agent_order?: string[];
+  plugins?: Record<string, { agent_order?: string[] }>;
 }
 
 export interface AgentStateUpdate {

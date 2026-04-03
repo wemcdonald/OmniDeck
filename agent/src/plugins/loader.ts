@@ -17,6 +17,7 @@ interface LoaderOptions {
   onStateUpdate?: (pluginId: string, key: string, value: unknown) => void;
   onLog?: (pluginId: string, level: string, msg: string, data?: Record<string, unknown>) => void;
   platformRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
+  onActiveUpdate?: (pluginId: string, active: boolean, metadata?: Record<string, unknown>) => void;
 }
 
 export class PluginLoader {
@@ -65,6 +66,7 @@ export class PluginLoader {
       onStateUpdate: opts.onStateUpdate ?? (() => {}),
       onLog: opts.onLog,
       platformRequest: opts.platformRequest,
+      onActiveUpdate: opts.onActiveUpdate,
     });
 
     // Dynamic import the plugin module (unique path = fresh import)

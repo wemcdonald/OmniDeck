@@ -98,6 +98,13 @@ export interface OmniDeck {
 
   /** Register cleanup function called on plugin unload/reload */
   onDestroy(fn: () => void | Promise<void>): void;
+
+  /**
+   * Report whether this plugin is currently "active" (e.g. music is playing,
+   * a voice call is in progress). The hub uses this for Tier-1 smart routing:
+   * when active, actions for this plugin's domain are routed to this agent.
+   */
+  setActive(active: boolean, metadata?: Record<string, unknown>): void;
 }
 
 /** The function signature every agent plugin must default-export */

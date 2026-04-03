@@ -51,6 +51,7 @@ interface AgentServerOptions {
 type AgentStateCallback = (hostname: string, state: AgentStateData) => void;
 type PluginStateCallback = (hostname: string, pluginId: string, key: string, value: unknown) => void;
 type AgentConnectionCallback = (hostname: string, connected: boolean) => void;
+type PluginActiveCallback = (hostname: string, pluginId: string, active: boolean, metadata?: Record<string, unknown>) => void;
 
 /** Per-connection auth state */
 interface ConnectionState {
@@ -76,6 +77,7 @@ export class AgentServer {
   private pluginStateCallbacks: PluginStateCallback[] = [];
   private connectionCallbacks: AgentConnectionCallback[] = [];
   private pluginConfigCallbacks: Array<(hostname: string, pluginId: string) => void> = [];
+  private pluginActiveCallbacks: PluginActiveCallback[] = [];
 
   constructor(opts: AgentServerOptions) {
     this.port = opts.port;
@@ -156,6 +158,11 @@ export class AgentServer {
   /** Register a callback for agent connect/disconnect events. */
   onPluginActive(cb: (hostname: string, pluginId: string) => void): void {
     this.pluginConfigCallbacks.push(cb);
+  }
+
+  /** Register a callback for plugin_active reports from agents (Tier-1 routing). */
+  onPluginActiveReport(cb: PluginActiveCallback): void {
+    this.pluginActiveCallbacks.push(cb);
   }
 
   onAgentConnection(cb: AgentConnectionCallback): void {
@@ -327,6 +334,14 @@ export class AgentServer {
         const hostname = connState.agentId ? this.getHostnameByAgentId(connState.agentId) : undefined;
         if (hostname) {
           for (const cb of this.pluginStateCallbacks) cb(hostname, pluginId, key, value);
+        }
+        break;
+      }
+      case "plugin_active": {
+        const { pluginId, active, metadata } = msg.data as { pluginId: string; active: boolean; metadata?: Record<string, unknown> };
+        const hostname = connState.agentId ? this.getHostnameByAgentId(connState.agentId) : undefined;
+        if (hostname) {
+          for (const cb of this.pluginActiveCallbacks) cb(hostname, pluginId, active, metadata);
         }
         break;
       }

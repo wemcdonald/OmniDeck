@@ -182,6 +182,9 @@ export class Hub {
       log.info({ strategy: focusCfg?.strategy ?? "idle_time" }, "Orchestrator initialized");
     }
 
+    // Track connected agent hostnames for smart routing
+    const connectedAgents = new Set<string>();
+
     // Bridge agent state into the state store so plugins can read it
     this.agentServer.onAgentStateUpdate((hostname, state) => {
       this.store.set("os-control", `agent:${hostname}:state`, state);
@@ -198,6 +201,8 @@ export class Hub {
     this.agentServer.onAgentConnection((hostname, connected) => {
       this.store.set("os-control", `agent:${hostname}:online`, connected);
       if (connected) {
+        connectedAgents.add(hostname);
+        this.store.set("orchestrator", "connected_agents", Array.from(connectedAgents));
         this.orchestrator?.handleAgentConnect(hostname);
         // Send plugin configs so agent-side plugins can read their config
         for (const [pluginId, config] of Object.entries(pluginConfigs)) {
@@ -206,6 +211,8 @@ export class Hub {
           }
         }
       } else {
+        connectedAgents.delete(hostname);
+        this.store.set("orchestrator", "connected_agents", Array.from(connectedAgents));
         this.orchestrator?.handleAgentDisconnect(hostname);
         this.orchestrator?.handleAgentState(hostname, { online: false, idleTimeMs: 0 });
         const focused = this.orchestrator?.focusedDevice ?? null;
@@ -228,6 +235,18 @@ export class Hub {
       const v = value as Record<string, unknown> | null;
       if (v && (v.connected === true || v.extensionConnected === true)) {
         this.store.set(pluginId, "active_agent", hostname);
+      }
+    });
+
+    // Handle plugin_active reports from agents (Tier-1 smart routing)
+    this.agentServer.onPluginActiveReport((hostname, pluginId, active) => {
+      if (active) {
+        this.store.set(pluginId, "active_agent", hostname);
+      } else {
+        const current = this.store.get(pluginId, "active_agent") as string | undefined;
+        if (current === hostname) {
+          this.store.set(pluginId, "active_agent", null);
+        }
       }
     });
 
