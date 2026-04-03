@@ -4,14 +4,18 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/opt/omnideck
-ExecStart=/usr/bin/node /opt/omnideck/hub/dist/index.js
+User=%%USER%%
+WorkingDirectory=%%INSTALL_DIR%%
+ExecStart=/usr/bin/node %%INSTALL_DIR%%/hub/dist/index.js
+ExecStop=/bin/kill -TERM $MAINPID
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
-Environment=OMNIDECK_CONFIG_DIR=/home/pi/.omnideck/config
-Environment=OMNIDECK_SECRETS_PATH=/home/pi/.omnideck/secrets.yaml
+Environment=OMNIDECK_CONFIG_DIR=%%HOME%%/.omnideck/config
+Environment=OMNIDECK_SECRETS_PATH=%%HOME%%/.omnideck/secrets.yaml
+Environment=OMNIDECK_DATA_DIR=%%HOME%%/.omnideck
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
