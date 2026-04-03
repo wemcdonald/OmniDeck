@@ -1,0 +1,8 @@
+id: weather
+name: "Weather"
+version: "1.0.0"
+description: |
+  Real-time weather conditions and multi-day forecast for any location on Earth.
+  Powered by Open-Meteo — no API key required.
+  Supports city names, postal codes, or GPS coordinates.
+hub: hub.ts
