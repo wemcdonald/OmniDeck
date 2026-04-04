@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, existsSync, realpathSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join, dirname } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import {
   PluginManifestSchema,
@@ -8,10 +8,21 @@ import {
   type PluginDistribution,
   type OmniDeckPlugin,
 } from "@omnideck/plugin-schema";
-import { bundleAgentPlugin, type BundleResult } from "./bundler.js";
+import { bundleAgentPlugin, bundleHubPlugin, type BundleResult } from "./bundler.js";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("registry");
+
+/** Walk up from this file to find the directory that contains node_modules/@omnideck/plugin-schema. */
+function findHubRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  while (true) {
+    if (existsSync(join(dir, "node_modules", "@omnideck", "plugin-schema"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) throw new Error("Cannot locate hub root: no @omnideck/plugin-schema found in ancestor node_modules");
+    dir = parent;
+  }
+}
 
 function isValidPlugin(obj: unknown): obj is OmniDeckPlugin {
   if (!obj || typeof obj !== "object") return false;
@@ -88,8 +99,19 @@ export class PluginRegistry {
       const hubEntry = join(resolvedDir, manifest.hub);
       if (existsSync(hubEntry)) {
         try {
-          // Use file:// URL for cross-platform dynamic import compatibility
-          const mod = await import(pathToFileURL(hubEntry).href);
+          // TypeScript entries must be bundled to plain ESM before import.
+          // The bundle is written into the hub root's .plugin-hub-cache/ so that
+          // external imports (e.g. @omnideck/plugin-schema) resolve correctly.
+          let importUrl: string;
+          if (hubEntry.endsWith(".ts")) {
+            const hubRoot = findHubRoot();
+            const bundlePath = join(hubRoot, ".plugin-hub-cache", `${manifest.id}.mjs`);
+            await bundleHubPlugin(hubEntry, bundlePath);
+            importUrl = pathToFileURL(bundlePath).href;
+          } else {
+            importUrl = pathToFileURL(hubEntry).href;
+          }
+          const mod = await import(importUrl);
           // Accept default export or first named export that looks like a plugin
           const plugin = mod.default ?? Object.values(mod).find(isValidPlugin);
           if (isValidPlugin(plugin)) {

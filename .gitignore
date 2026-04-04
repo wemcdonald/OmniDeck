@@ -24,3 +24,6 @@ plugins/spotify
 
 # Tool internals
 .bg-shell/
+
+# Hub plugin bundle cache (generated at runtime for TypeScript external plugins)
+.plugin-hub-cache/

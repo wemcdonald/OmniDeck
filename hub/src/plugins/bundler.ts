@@ -1,11 +1,50 @@
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export interface BundleResult {
   /** The bundled JavaScript code */
   code: string;
   /** SHA-256 hex digest of the code */
   sha256: string;
+}
+
+/**
+ * Bundle a TypeScript hub plugin entry point to a plain ESM .mjs file.
+ * Marks @omnideck/plugin-schema and zod as external so the hub's shared
+ * instances are used (critical for the FIELD_META symbol to match).
+ */
+export async function bundleHubPlugin(
+  entryPoint: string,
+  outFile: string,
+): Promise<void> {
+  mkdirSync(dirname(outFile), { recursive: true });
+  try {
+    await build({
+      entryPoints: [entryPoint],
+      outfile: outFile,
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      target: "es2023",
+      external: ["@omnideck/plugin-schema", "zod"],
+      logLevel: "silent",
+    });
+  } catch {
+    // Fallback: mark all packages external (plugin deps must live in hub node_modules)
+    await build({
+      entryPoints: [entryPoint],
+      outfile: outFile,
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      target: "es2023",
+      external: ["@omnideck/plugin-schema", "zod"],
+      packages: "external",
+      logLevel: "silent",
+    });
+  }
 }
 
 export async function bundleAgentPlugin(
