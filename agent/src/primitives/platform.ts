@@ -30,7 +30,7 @@ export function getDeviceName(): string {
   const platform = detectPlatform();
   if (platform === "darwin") {
     try {
-      const result = Bun.spawnSync(["scutil", "--get", "LocalHostName"], { stdout: "pipe", stderr: "pipe" });
+      const result = Bun.spawnSync(["/usr/sbin/scutil", "--get", "LocalHostName"], { stdout: "pipe", stderr: "pipe" });
       if (result.exitCode === 0) {
         const name = Buffer.from(result.stdout).toString("utf8").trim();
         if (name) return name;
