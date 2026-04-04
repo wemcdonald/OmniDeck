@@ -22,6 +22,27 @@ export function getAgentHostname(): string {
   return process.env["OMNIDECK_HOSTNAME"] ?? getHostname();
 }
 
+/** Returns a stable, network-independent device name. */
+export function getDeviceName(): string {
+  if (process.env["OMNIDECK_DEVICE_NAME"]) {
+    return process.env["OMNIDECK_DEVICE_NAME"];
+  }
+  const platform = detectPlatform();
+  if (platform === "darwin") {
+    try {
+      const result = Bun.spawnSync(["scutil", "--get", "LocalHostName"], { stdout: "pipe", stderr: "pipe" });
+      if (result.exitCode === 0) {
+        const name = Buffer.from(result.stdout).toString("utf8").trim();
+        if (name) return name;
+      }
+    } catch {
+      // fall through to default
+    }
+  }
+  // Windows/Linux: strip domain suffix from OS hostname
+  return getHostname().split(".")[0];
+}
+
 /** Get all non-internal MAC addresses for this machine. */
 export function getMacAddresses(): string[] {
   const ifaces = networkInterfaces();

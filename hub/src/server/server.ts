@@ -299,11 +299,12 @@ export class AgentServer {
     switch (msg.type) {
       case "state_update": {
         const state = msg.data as AgentStateData;
-        const isNew = !this.agents.has(state.hostname);
-        setHostname(state.hostname);
-        this.agents.set(state.hostname, {
+        const agentName = state.device_name ?? state.hostname;
+        const isNew = !this.agents.has(agentName);
+        setHostname(agentName);
+        this.agents.set(agentName, {
           ws,
-          hostname: state.hostname,
+          hostname: agentName,
           platform: state.platform,
           state,
           agentId: connState.agentId,
@@ -431,6 +432,7 @@ export class AgentServer {
 
     const { agentId, token } = this.pairing.registerAgent(
       data.hostname,
+      data.device_name ?? data.hostname,
       data.platform,
     );
 

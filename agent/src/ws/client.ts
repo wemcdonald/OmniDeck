@@ -8,6 +8,7 @@ const RECONNECT_DELAY_MS = 5000;
 export interface AgentClientOptions {
   hubUrl: string;
   hostname: string;
+  deviceName: string;
   platform: string;
   agentVersion: string;
   /** PEM CA certificate for TLS verification (pinned during pairing) */
@@ -39,6 +40,7 @@ export class AgentClient {
   createHelloMessage(): WsMessage {
     return createMessage("state_update", {
       hostname: this.opts.hostname,
+      device_name: this.opts.deviceName,
       platform: this.opts.platform,
       agent_version: this.opts.agentVersion,
     });
@@ -182,6 +184,7 @@ export class AgentClient {
     this.send(
       createMessage("pair_request", {
         hostname: this.opts.hostname,
+        device_name: this.opts.deviceName,
         platform: this.opts.platform,
         agent_version: this.opts.agentVersion,
         pairing_code: pairingCode,

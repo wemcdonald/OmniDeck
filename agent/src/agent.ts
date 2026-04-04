@@ -12,6 +12,7 @@ import { ensureFfi } from "./primitives/ffi.js";
 import {
   detectPlatform,
   getAgentHostname,
+  getDeviceName,
   getMacAddresses,
   pollSystemState,
 } from "./primitives/platform.js";
@@ -74,11 +75,13 @@ export class Agent {
   constructor(opts: AgentOptions) {
     this.opts = opts;
     const hostname = opts.hostname ?? getAgentHostname();
+    const deviceName = getDeviceName();
     const cacheDir = opts.cacheDir ?? getPluginsCacheDir();
 
     this.client = new AgentClient({
       hubUrl: opts.hubUrl,
       hostname,
+      deviceName,
       platform: detectPlatform(),
       agentVersion: AGENT_VERSION,
       caCert: opts.caCert,
@@ -165,6 +168,7 @@ export class Agent {
   private startStatePolling(): void {
     // Collect static info once
     const hostname = this.opts.hostname ?? getAgentHostname();
+    const deviceName = getDeviceName();
     const platform = detectPlatform();
     const macAddresses = getMacAddresses();
 
@@ -176,6 +180,7 @@ export class Agent {
         this.client.send(
           createMessage("state_update", {
             hostname,
+            device_name: deviceName,
             platform,
             agent_version: AGENT_VERSION,
             active_window_app: state.activeWindowApp,
@@ -221,7 +226,7 @@ export class Agent {
       error?: string;
     }> = [];
 
-    const hostname = this.opts.hostname ?? getAgentHostname();
+    const deviceName = getDeviceName();
 
     for (const plugin of plugins) {
       try {
@@ -240,7 +245,7 @@ export class Agent {
         if (this.loader.hasCached(plugin.id, plugin.sha256)) {
           // Load from cache
           await this.loader.loadFromCache(plugin.id, {
-            hostname,
+            hostname: deviceName,
             onStateUpdate: (pId, key, value) => {
               this.client.send(
                 createMessage("plugin_state", { pluginId: pId, key, value }),
@@ -248,7 +253,7 @@ export class Agent {
             },
             onLog: (pluginId, level, msg, data) => {
               this.client.send(
-                createMessage("plugin_log", { hostname, pluginId, level, msg, data }),
+                createMessage("plugin_log", { hostname: deviceName, pluginId, level, msg, data }),
               );
             },
             platformRequest: this.opts.platformRequest,
@@ -291,7 +296,7 @@ export class Agent {
       return;
     }
     const { id, code, sha256 } = parsed.data;
-    const hostname = this.opts.hostname ?? getAgentHostname();
+    const deviceName = getDeviceName();
     try {
       // Unload existing version before loading new code
       if (this.loader.getPlugin(id)) {
@@ -300,7 +305,7 @@ export class Agent {
       }
 
       await this.loader.loadFromCode(id, code, sha256, {
-        hostname,
+        hostname: deviceName,
         onStateUpdate: (pId, key, value) => {
           this.client.send(
             createMessage("plugin_state", { pluginId: pId, key, value }),
@@ -308,7 +313,7 @@ export class Agent {
         },
         onLog: (pluginId, level, msg, data) => {
           this.client.send(
-            createMessage("plugin_log", { hostname, pluginId, level, msg, data }),
+            createMessage("plugin_log", { hostname: deviceName, pluginId, level, msg, data }),
           );
         },
         platformRequest: this.opts.platformRequest,

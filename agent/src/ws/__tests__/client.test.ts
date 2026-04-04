@@ -37,6 +37,7 @@ describe("AgentClient", () => {
     const client = new AgentClient({
       hubUrl: "ws://localhost:9200",
       hostname: "test-mac",
+      deviceName: "test-mac",
       platform: "darwin",
       agentVersion: "0.2.0",
     });
@@ -47,6 +48,7 @@ describe("AgentClient", () => {
     const client = new AgentClient({
       hubUrl: "ws://localhost:9200",
       hostname: "test-mac",
+      deviceName: "test-mac",
       platform: "darwin",
       agentVersion: "0.2.0",
     });
@@ -63,6 +65,7 @@ describe("AgentClient", () => {
     const client = new AgentClient({
       hubUrl: "ws://localhost:9200",
       hostname: "box",
+      deviceName: "box",
       platform: "linux",
       agentVersion: "0.1.0",
     });
@@ -74,6 +77,7 @@ describe("AgentClient", () => {
     const client = new AgentClient({
       hubUrl: "ws://localhost:9200",
       hostname: "test-mac",
+      deviceName: "test-mac",
       platform: "darwin",
       agentVersion: "0.2.0",
     });
@@ -87,6 +91,7 @@ describe("AgentClient", () => {
     const client = new AgentClient({
       hubUrl: "ws://localhost:9200",
       hostname: "test-mac",
+      deviceName: "test-mac",
       platform: "darwin",
       agentVersion: "0.2.0",
     });

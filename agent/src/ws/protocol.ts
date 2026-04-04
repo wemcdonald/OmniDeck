@@ -50,6 +50,7 @@ export function parseMessage(raw: string): WsMessage {
 
 export interface PairRequestData {
   hostname: string;
+  device_name: string;
   platform: string;
   agent_version: string;
   pairing_code: string;

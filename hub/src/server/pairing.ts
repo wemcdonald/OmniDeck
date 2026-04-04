@@ -83,6 +83,7 @@ export class PairingManager {
    */
   registerAgent(
     hostname: string,
+    deviceName: string,
     platform: string,
   ): { agentId: string; token: string } {
     const agentId = randomUUID();
@@ -91,7 +92,7 @@ export class PairingManager {
 
     const agent: PairedAgent = {
       agent_id: agentId,
-      name: hostname,
+      name: deviceName || hostname,
       token_hash: tokenHash,
       platform,
       paired_at: new Date().toISOString(),
@@ -99,7 +100,7 @@ export class PairingManager {
 
     this.agents.push(agent);
     this.saveRegistry();
-    log.info({ agentId, hostname, platform }, "Agent registered");
+    log.info({ agentId, hostname, deviceName, platform }, "Agent registered");
     return { agentId, token };
   }
 

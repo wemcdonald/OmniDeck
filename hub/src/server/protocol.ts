@@ -19,6 +19,7 @@ export interface CommandResponseData {
 
 export interface AgentStateData {
   hostname: string;
+  device_name?: string;
   platform: string;
   active_window_title?: string;
   active_window_app?: string;
@@ -33,6 +34,7 @@ export interface AgentStateData {
 
 export interface PairRequestData {
   hostname: string;
+  device_name?: string;
   platform: string;
   agent_version: string;
   pairing_code: string;
