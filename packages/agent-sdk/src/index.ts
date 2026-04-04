@@ -3,6 +3,7 @@ export type {
   OmniDeck,
   AgentPluginInit,
   ActionResult,
+  AgentPluginHealth,
   ExecResult,
   IntervalHandle,
   OmniDeckLogger,

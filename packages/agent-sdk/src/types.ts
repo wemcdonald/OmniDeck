@@ -36,6 +36,12 @@ export interface FfiLibrary {
   close(): void;
 }
 
+/** Health status reported by an agent plugin */
+export interface AgentPluginHealth {
+  status: "ok" | "error" | "misconfigured";
+  message?: string;
+}
+
 /** Logger interface */
 export interface OmniDeckLogger {
   debug(msg: string, data?: Record<string, unknown>): void;
@@ -106,6 +112,12 @@ export interface OmniDeck {
    * when active, actions for this plugin's domain are routed to this agent.
    */
   setActive(active: boolean, metadata?: Record<string, unknown>): void;
+
+  /**
+   * Report this plugin's health to the hub. Use this to signal missing
+   * dependencies or misconfiguration so the hub can surface the issue on buttons.
+   */
+  setHealth(health: AgentPluginHealth): void;
 }
 
 /** The function signature every agent plugin must default-export */

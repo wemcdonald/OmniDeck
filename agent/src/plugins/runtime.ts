@@ -1,4 +1,4 @@
-import type { OmniDeck, ActionResult, IntervalHandle, OmniDeckLogger } from "@omnideck/agent-sdk";
+import type { OmniDeck, ActionResult, AgentPluginHealth, IntervalHandle, OmniDeckLogger } from "@omnideck/agent-sdk";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { execCommand } from "../primitives/exec.js";
@@ -123,6 +123,10 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
 
     setActive(active, metadata) {
       opts.onActiveUpdate?.(opts.pluginId, active, metadata);
+    },
+
+    setHealth(health: AgentPluginHealth) {
+      opts.onStateUpdate(opts.pluginId, "_health", health);
     },
   };
 
