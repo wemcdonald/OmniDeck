@@ -248,7 +248,7 @@ export const corePlugin: OmniDeckPlugin = {
           state: {
             label: modeName ?? "None",
             icon: modeIcon ?? undefined,
-            background: modeId ? "#1e40af" : "#424242",
+            background: modeId ? "#1e40af" : "#000000",
           },
           variables: {
             active_mode: modeId ?? "none",
@@ -295,7 +295,7 @@ export const corePlugin: OmniDeckPlugin = {
         return {
           state: {
             label: allIdle ? "Idle" : "Active",
-            background: allIdle ? "#6b7280" : "#16a34a",
+            background: allIdle ? "#000000" : "#16a34a",
           },
           variables: {
             idle: String(allIdle),

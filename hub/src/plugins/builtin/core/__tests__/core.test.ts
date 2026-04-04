@@ -54,7 +54,7 @@ describe("omnideck-core plugin", () => {
     expect(result!.variables.active_mode).toBe("none");
     expect(result!.variables.active_mode_name).toBe("None");
     expect(result!.state.label).toBe("None");
-    expect(result!.state.background).toBe("#424242");
+    expect(result!.state.background).toBe("#000000");
   });
 
   it("mode provider reflects active mode from state store", () => {

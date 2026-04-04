@@ -72,7 +72,7 @@ const DOMAIN_ON_BG: Record<string, string> = {
   input_boolean: "#065f46",
 };
 
-const DOMAIN_OFF_BG = "#374151";
+const DOMAIN_OFF_BG = "#000000";
 
 function getDomain(entityId: string): string {
   return entityId.split(".")[0] ?? "unknown";
@@ -180,7 +180,7 @@ function resolveClimateState(entity: EntityState): StateProviderResult {
   const hvacAction = entity.attributes.hvac_action as string | undefined;
   if (hvacAction === "heating") background = "#b45309";
   else if (hvacAction === "cooling") background = "#0369a1";
-  else if (hvacAction === "idle") background = "#374151";
+  else if (hvacAction === "idle") background = "#000000";
 
   return {
     state: {
@@ -214,7 +214,7 @@ function resolveMediaPlayerState(entity: EntityState): StateProviderResult {
   return {
     state: {
       icon,
-      background: isPlaying ? "#065f46" : isPaused ? "#374151" : DOMAIN_OFF_BG,
+      background: isPlaying ? "#065f46" : DOMAIN_OFF_BG,
       label: title || entity.state,
       topLabel: appName || undefined,
       iconColor: entity.state === "off" || entity.state === "unavailable" ? "#9ca3af" : "#ffffff",

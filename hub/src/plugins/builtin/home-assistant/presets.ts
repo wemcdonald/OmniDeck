@@ -56,7 +56,6 @@ export const haPresets: ButtonPreset[] = [
     action: "run_script",
     defaults: {
       icon: "ms:description",
-      background: "#1e3a5f",
     },
   },
 
