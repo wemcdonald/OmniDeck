@@ -161,6 +161,7 @@ function renderCurrent(size: number, data: WeatherData, units: "celsius" | "fahr
   ctx.fillRect(0, 0, size, size);
 
   const c = data.current;
+  if (!c) return canvas.toBuffer("image/png");
   const emoji = wmoEmoji(c.weather_code);
 
   // Weather emoji (top area)
@@ -189,7 +190,7 @@ function renderForecastDay(size: number, data: WeatherData, dayIndex: number, un
   ctx.fillRect(0, 0, size, size);
 
   const d = data.daily;
-  if (dayIndex >= d.time.length) return canvas.toBuffer("image/png");
+  if (!d || dayIndex >= d.time.length) return canvas.toBuffer("image/png");
 
   const dayName = shortDayName(d.time[dayIndex]);
   const emoji = wmoEmoji(d.weather_code[dayIndex]);

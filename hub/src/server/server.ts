@@ -290,7 +290,7 @@ export class AgentServer {
       }
       // Don't close the connection — just drop the message.
       // Closing triggers reconnect loops where the agent can never recover.
-      log.warn({ type: msg.type }, "Unauthenticated message dropped (waiting for auth)");
+      log.debug({ type: msg.type }, "Unauthenticated message dropped (waiting for auth)");
       return;
     }
 
@@ -362,6 +362,7 @@ export class AgentServer {
         }
         const logData = d.data ? { ...d.data } : {};
         switch (d.level) {
+          case "debug": agentLogger.debug(logData, d.msg); break;
           case "warn": agentLogger.warn(logData, d.msg); break;
           case "error": agentLogger.error(logData, d.msg); break;
           default: agentLogger.info(logData, d.msg); break;

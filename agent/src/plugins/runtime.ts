@@ -36,6 +36,7 @@ export function createPluginRuntime(opts: RuntimeOptions): { omnideck: OmniDeck;
   let currentConfig = { ...opts.config };
 
   const pluginLog: OmniDeckLogger = {
+    debug: (msg, data) => { log.debug(msg, data); opts.onLog?.(opts.pluginId, "debug", msg, data); },
     info: (msg, data) => { log.info(msg, data); opts.onLog?.(opts.pluginId, "info", msg, data); },
     warn: (msg, data) => { log.warn(msg, data); opts.onLog?.(opts.pluginId, "warn", msg, data); },
     error: (msg, data) => { log.error(msg, data); opts.onLog?.(opts.pluginId, "error", msg, data); },

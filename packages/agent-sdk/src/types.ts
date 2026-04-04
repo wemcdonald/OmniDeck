@@ -38,6 +38,7 @@ export interface FfiLibrary {
 
 /** Logger interface */
 export interface OmniDeckLogger {
+  debug(msg: string, data?: Record<string, unknown>): void;
   info(msg: string, data?: Record<string, unknown>): void;
   warn(msg: string, data?: Record<string, unknown>): void;
   error(msg: string, data?: Record<string, unknown>): void;

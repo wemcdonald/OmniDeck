@@ -458,7 +458,7 @@ export class Hub {
               data: { action: `${pluginId}.${action}`, target, success: true },
             });
           }).catch((err) => {
-            log.error({ err, target, action }, "Failed to dispatch command to agent");
+            log.warn({ err, target, action }, "Failed to dispatch command to agent");
             this.broadcaster.send({
               type: "action:response",
               data: { action: `${pluginId}.${action}`, target, success: false, error: String(err) },
@@ -811,7 +811,7 @@ export class Hub {
           stateParams = userParams;
         }
       } else {
-        log.warn({ preset: button.preset }, "Preset not found");
+        log.debug({ preset: button.preset }, "Preset not found");
       }
     }
 

@@ -117,7 +117,7 @@ export interface PluginConfigUpdateData {
 export interface PluginLogData {
   hostname: string;
   pluginId: string;
-  level: "info" | "warn" | "error";
+  level: "debug" | "info" | "warn" | "error";
   msg: string;
   data?: Record<string, unknown>;
 }
