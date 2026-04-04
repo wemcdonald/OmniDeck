@@ -112,8 +112,6 @@ export const corePlugin: OmniDeckPlugin = {
   icon: "ms:settings",
 
   async init(ctx: PluginContext) {
-    const pageHistory: string[] = [];
-
     const changePageSchema = z.object({
       page: field(z.string(), { label: "Page", fieldType: "page" }),
     });
@@ -126,12 +124,6 @@ export const corePlugin: OmniDeckPlugin = {
       paramsSchema: changePageSchema,
       async execute(params) {
         const { page } = changePageSchema.parse(params);
-        const current = ctx.state.get("omnideck-core", "current_page") as
-          | string
-          | undefined;
-        if (current !== undefined) {
-          pageHistory.push(current);
-        }
         ctx.state.set("omnideck-core", "current_page", page);
       },
     });
@@ -142,10 +134,7 @@ export const corePlugin: OmniDeckPlugin = {
       description: "Go back to the previous page",
       icon: "ms:arrow-back",
       async execute() {
-        const prev = pageHistory.pop();
-        if (prev !== undefined) {
-          ctx.state.set("omnideck-core", "current_page", prev);
-        }
+        ctx.state.set("omnideck-core", "go_back_request", Date.now());
       },
     });
 
