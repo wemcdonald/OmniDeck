@@ -158,4 +158,8 @@ export interface ButtonPreset {
   longPressAction?: string;
   /** Default params for the long-press action. */
   longPressDefaults?: Record<string, unknown>;
+  /** Action fired on key DOWN (hold-to-activate, e.g. push-to-talk). Mutually exclusive with action. */
+  pressAction?: string;
+  /** Action fired on key UP when pressAction was used. */
+  releaseAction?: string;
 }

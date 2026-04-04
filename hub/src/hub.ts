@@ -488,15 +488,52 @@ export class Hub {
 
     // Listen for key presses (short press vs long press >500ms)
     const keyDownTimes = new Map<number, number>();
+    // Tracks press/release buttons that fired on key-down (keyed by index)
+    const pressReleaseActive = new Map<number, { releaseAction: string | undefined; params: Record<string, unknown>; target: string | undefined }>();
 
     this.deck.onKeyDown((key) => {
       keyDownTimes.set(key, Date.now());
+
+      // Check if this button has a press_action — fire it immediately on down
+      const page = this.getPage(this.currentPageId);
+      if (!page) return;
+      const button = this.findButtonByKeyIndex(page, key);
+      if (!button) return;
+      const effectiveButton = this.applyModeOverrides(button);
+      const resolved = this.resolveButton(effectiveButton);
+      if (!resolved.pressAction) return;
+
+      let params = resolved.actionParams;
+      if (resolved.target && !(params as Record<string, unknown>).target) {
+        params = { ...params, target: resolved.target };
+      }
+      pressReleaseActive.set(key, { releaseAction: resolved.releaseAction, params, target: resolved.target });
+      log.info({ pos: button.pos, action: resolved.pressAction, params }, `[${button.pos}] pressed → ${resolved.pressAction}`);
+      this.pluginHost.executeAction(resolved.pressAction, params, {
+        targetAgent: resolved.target,
+        focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
+      }).catch((err) => log.error({ err, key }, "Press action error"));
     });
 
     this.deck.onKeyUp((key) => {
       const downTime = keyDownTimes.get(key);
       keyDownTimes.delete(key);
       if (downTime === undefined) return;
+
+      // If this was a press/release button, fire the release action and skip normal handling
+      const pressInfo = pressReleaseActive.get(key);
+      if (pressInfo) {
+        pressReleaseActive.delete(key);
+        if (pressInfo.releaseAction) {
+          log.info({ key, action: pressInfo.releaseAction }, `key released → ${pressInfo.releaseAction}`);
+          this.pluginHost.executeAction(pressInfo.releaseAction, pressInfo.params, {
+            targetAgent: pressInfo.target,
+            focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
+          }).catch((err) => log.error({ err, key }, "Release action error"));
+        }
+        return;
+      }
+
       const isLongPress = Date.now() - downTime >= 500;
       this.handleKeyPress(key, isLongPress).catch((err) =>
         log.error({ err, key }, "Key press handler error"),
@@ -756,6 +793,8 @@ export class Hub {
     actionParams: Record<string, unknown>;
     longPressAction: string | undefined;
     longPressParams: Record<string, unknown>;
+    pressAction: string | undefined;
+    releaseAction: string | undefined;
     stateProvider: string | undefined;
     stateParams: Record<string, unknown>;
     target: string | undefined;
@@ -769,6 +808,8 @@ export class Hub {
     const userParams: Record<string, unknown> = button.params ?? {};
     let longPressAction = button.long_press_action;
     let longPressParams: Record<string, unknown> = button.long_press_params ?? {};
+    let pressAction = button.press_action;
+    let releaseAction = button.release_action;
     let stateProvider = button.state?.provider;
     let stateParams: Record<string, unknown> = button.state?.params ?? {};
     let icon = button.icon;
@@ -790,6 +831,12 @@ export class Hub {
         }
         if (!longPressAction && preset.longPressAction) {
           longPressAction = `${pluginId}.${preset.longPressAction}`;
+        }
+        if (!pressAction && preset.pressAction) {
+          pressAction = `${pluginId}.${preset.pressAction}`;
+        }
+        if (!releaseAction && preset.releaseAction) {
+          releaseAction = `${pluginId}.${preset.releaseAction}`;
         }
         if (!stateProvider && preset.stateProvider) {
           stateProvider = `${pluginId}.${preset.stateProvider}`;
@@ -815,7 +862,7 @@ export class Hub {
       }
     }
 
-    return { action, actionParams: userParams, longPressAction, longPressParams, stateProvider, stateParams, target: button.target, icon, label, topLabel, background };
+    return { action, actionParams: userParams, longPressAction, longPressParams, pressAction, releaseAction, stateProvider, stateParams, target: button.target, icon, label, topLabel, background };
   }
 
   /**
@@ -862,6 +909,8 @@ export class Hub {
       long_press_params: override.long_press_params !== undefined
         ? (override.long_press_params === null ? undefined : override.long_press_params)
         : (longPressOverridden ? {} : button.long_press_params),
+      press_action: merge(override.press_action, button.press_action),
+      release_action: merge(override.release_action, button.release_action),
     };
   }
 

@@ -55,6 +55,8 @@ const ButtonModeOverrideSchema = z.object({
   opacity: z.number().min(0).max(1).nullable().optional(),
   long_press_action: z.string().nullable().optional(),
   long_press_params: z.record(z.unknown()).nullable().optional(),
+  press_action: z.string().nullable().optional(),
+  release_action: z.string().nullable().optional(),
 });
 
 export const ButtonConfigSchema = z.object({
@@ -75,6 +77,8 @@ export const ButtonConfigSchema = z.object({
   params: z.record(z.unknown()).optional(),
   long_press_action: z.string().optional(),
   long_press_params: z.record(z.unknown()).optional(),
+  press_action: z.string().optional(),
+  release_action: z.string().optional(),
   state: ButtonStateSchema.optional(),
   preset: z.string().optional(),
   target: z.string().optional(),
