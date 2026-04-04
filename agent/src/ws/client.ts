@@ -57,22 +57,21 @@ export class AgentClient {
     this.closing = false;
     return new Promise((resolve, reject) => {
       // TLS handling for self-signed certs:
-      // Bun's WebSocket doesn't accept TLS options as a constructor arg.
-      // During the initial pairing flow (no CA cert yet) we must accept any
-      // self-signed cert so the agent can reach a freshly-provisioned hub.
-      // Once a CA cert has been pinned we restore strict verification —
-      // the hub must present a cert signed by that CA.
-      if (this.opts.hubUrl.startsWith("wss://")) {
-        if (!this.opts.caCert) {
-          // Pairing — accept any self-signed cert (no pinned CA yet)
-          process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
-        } else {
-          // Authenticated — enforce TLS so the pinned CA is actually checked
-          delete process.env["NODE_TLS_REJECT_UNAUTHORIZED"];
-        }
+      // During pairing (no CA cert yet) we disable TLS verification so the
+      // agent can reach a freshly-provisioned hub it hasn't trusted yet.
+      // After pairing, the pinned CA cert is passed directly to Bun's
+      // WebSocket TLS options — no env var manipulation needed.
+      if (this.opts.hubUrl.startsWith("wss://") && !this.opts.caCert) {
+        process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
+      } else {
+        delete process.env["NODE_TLS_REJECT_UNAUTHORIZED"];
       }
 
-      this.ws = new WebSocket(this.opts.hubUrl);
+      // Pass pinned CA cert via Bun's WebSocket TLS extension
+      const wsOptions = this.opts.caCert
+        ? ({ tls: { ca: this.opts.caCert } } as unknown as string[])
+        : undefined;
+      this.ws = new WebSocket(this.opts.hubUrl, wsOptions);
 
       this.ws.onopen = () => {
         log.info("Connected to hub", { url: this.opts.hubUrl });
