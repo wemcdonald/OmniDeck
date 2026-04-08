@@ -9,6 +9,17 @@ export type BroadcastMessage =
   | { type: "plugin:status"; data: unknown }
   | { type: "deck:update"; data: { page: string; images: Record<number, string> } }
   | {
+      type: "deck:info";
+      data: {
+        driver: string;
+        model: string;
+        keyCount: number;
+        keyColumns: number;
+        keySize: { width: number; height: number };
+        capabilities: { hasKeyUp: boolean; hasHardwareLongPress: boolean; hasDisplay: boolean };
+      };
+    }
+  | {
       type: "log:line";
       data: { ts: string; level: string; name: string; msg: string; [k: string]: unknown };
     }

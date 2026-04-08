@@ -1,5 +1,5 @@
 import { Hub } from "./hub.js";
-import { PhysicalDeck } from "./deck/manager.js";
+import { createDeck } from "./deck/factory.js";
 import { loadConfig } from "./config/loader.js";
 import { validateConfig } from "./config/validator.js";
 import { ensureTlsCerts } from "./server/tls.js";
@@ -28,7 +28,7 @@ async function main() {
   const tlsDir = join(homedir(), ".omnideck", "tls");
   const tls = await ensureTlsCerts(tlsDir);
 
-  const deck = new PhysicalDeck();
+  const deck = await createDeck(config.deck.driver ?? "auto");
   const webPort = process.env["OMNIDECK_WEB_PORT"]
     ? parseInt(process.env["OMNIDECK_WEB_PORT"], 10)
     : 9211;

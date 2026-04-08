@@ -34,6 +34,7 @@ export interface WebServerOptions {
   staticDir?: string;
   getPagePreview?: (pageId: string) => Promise<Record<string, string>>;
   getDeckPreview?: () => Promise<Record<number, string>>;
+  getDeckInfo?: () => object;
   pressKey?: (key: number) => Promise<void>;
   getPluginStatuses?: () => Array<{ id: string; name: string; version: string; status: string }>;
   getPresets?: () => Array<{ qualifiedId: string; pluginId: string; name: string; defaults: Record<string, unknown> }>;
@@ -262,6 +263,14 @@ export class WebServer {
     wss.on("connection", (ws: WebSocket) => {
       broadcaster.add(ws as unknown as Parameters<Broadcaster["add"]>[0]);
       log.info("Browser WebSocket connected");
+
+      // Send current deck info so the client knows the layout immediately
+      if (this.opts.getDeckInfo) {
+        const info = this.opts.getDeckInfo();
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: "deck:info", data: info }));
+        }
+      }
 
       // Replay buffered log lines as a single batch
       const history: object[] = [];

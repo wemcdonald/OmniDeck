@@ -38,7 +38,7 @@ INSTALL_DIR="/opt/omnideck"
 REPO_URL="https://github.com/wemcdonald/OmniDeck.git"
 SERVICE_NAME="omnideck-hub"
 SERVICE_DEST="/etc/systemd/system/${SERVICE_NAME}.service"
-UDEV_DEST="/etc/udev/rules.d/50-stream-deck.rules"
+UDEV_DEST="/etc/udev/rules.d/50-omnideck.rules"
 HUB_PORT=28120
 
 # ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ info "Building OmniDeck Hub..."
 # ---------------------------------------------------------------------------
 info "Installing udev rules for Stream Deck HID access..."
 
-UDEV_SRC="${INSTALL_DIR}/deploy/udev/50-stream-deck.rules"
+UDEV_SRC="${INSTALL_DIR}/deploy/udev/50-omnideck.rules"
 if [ ! -f "$UDEV_SRC" ]; then
   die "udev rules source not found at ${UDEV_SRC}"
 fi

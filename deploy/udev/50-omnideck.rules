@@ -1,0 +1,13 @@
+# OmniDeck HID device permissions
+# Allow access without root for the hub process (running as a regular user).
+# Both subsystems are listed because different kernel versions may expose the
+# device under "usb" or "hidraw". uaccess covers local console sessions;
+# the explicit group/mode covers headless (e.g. Raspberry Pi) setups.
+
+# Elgato Stream Deck (all models, VID 0fd9)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0fd9", MODE="0660", GROUP="plugdev"
+
+# Mirabox / Ajazz AKP153E Stream Dock (VID 0300)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0300", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0300", MODE="0660", GROUP="plugdev"

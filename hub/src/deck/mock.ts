@@ -1,50 +1,49 @@
-import type { DeckManager } from "./types.js";
+import type { DeckCapabilities } from "./types.js";
+import { BaseDeck } from "./base.js";
 
-export class MockDeck implements DeckManager {
-  readonly model = "MockDeck";
+export class MockDeck extends BaseDeck {
   readonly keyCount: number;
-  readonly keySize = { width: 96, height: 96 };
   readonly keyColumns: number;
+  readonly keySize: { width: number; height: number };
 
-  private keyDownCbs: Array<(key: number) => void> = [];
-  private keyUpCbs: Array<(key: number) => void> = [];
-  private connectCbs: Array<() => void> = [];
-  private disconnectCbs: Array<() => void> = [];
+  private _capabilities: DeckCapabilities;
 
   /** Track images set on keys for assertions */
   public images = new Map<number, Buffer>();
   public brightness = 100;
   public connected = false;
 
-  constructor(opts?: { keyCount?: number; columns?: number }) {
+  constructor(opts?: {
+    keyCount?: number;
+    columns?: number;
+    keySize?: number;
+    capabilities?: Partial<DeckCapabilities>;
+  }) {
+    super();
     this.keyCount = opts?.keyCount ?? 15;
     this.keyColumns = opts?.columns ?? 5;
+    const size = opts?.keySize ?? 96;
+    this.keySize = { width: size, height: size };
+    this._capabilities = {
+      hasKeyUp: true,
+      hasHardwareLongPress: false,
+      hasDisplay: true,
+      ...opts?.capabilities,
+    };
   }
+
+  get driver(): string { return "mock"; }
+  get model(): string { return "MockDeck"; }
+  get capabilities(): DeckCapabilities { return this._capabilities; }
 
   async connect(): Promise<void> {
     this.connected = true;
-    for (const cb of this.connectCbs) cb();
+    this.emitConnect();
   }
 
   async disconnect(): Promise<void> {
     this.connected = false;
-    for (const cb of this.disconnectCbs) cb();
-  }
-
-  onConnect(cb: () => void): void {
-    this.connectCbs.push(cb);
-  }
-
-  onDisconnect(cb: () => void): void {
-    this.disconnectCbs.push(cb);
-  }
-
-  onKeyDown(cb: (key: number) => void): void {
-    this.keyDownCbs.push(cb);
-  }
-
-  onKeyUp(cb: (key: number) => void): void {
-    this.keyUpCbs.push(cb);
+    this.emitDisconnect();
   }
 
   async setKeyImage(key: number, buffer: Buffer): Promise<void> {
@@ -56,11 +55,7 @@ export class MockDeck implements DeckManager {
   }
 
   // Test helpers
-  simulateKeyDown(key: number): void {
-    for (const cb of this.keyDownCbs) cb(key);
-  }
-
-  simulateKeyUp(key: number): void {
-    for (const cb of this.keyUpCbs) cb(key);
-  }
+  simulateKeyDown(key: number): void { this.emitKeyDown(key); }
+  simulateKeyUp(key: number): void { this.emitKeyUp(key); }
+  simulateLongPress(key: number): void { this.emitLongPress(key); }
 }

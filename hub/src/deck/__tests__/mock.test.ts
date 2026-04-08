@@ -1,0 +1,99 @@
+import { describe, it, expect, vi } from "vitest";
+import { MockDeck } from "../mock.js";
+
+describe("MockDeck", () => {
+  it("tracks connection state", async () => {
+    const deck = new MockDeck();
+    expect(deck.connected).toBe(false);
+    await deck.connect();
+    expect(deck.connected).toBe(true);
+    await deck.disconnect();
+    expect(deck.connected).toBe(false);
+  });
+
+  it("fires onKeyDown callbacks", () => {
+    const deck = new MockDeck();
+    const cb = vi.fn();
+    deck.onKeyDown(cb);
+    deck.simulateKeyDown(5);
+    expect(cb).toHaveBeenCalledWith(5);
+  });
+
+  it("fires onKeyUp callbacks", () => {
+    const deck = new MockDeck();
+    const cb = vi.fn();
+    deck.onKeyUp(cb);
+    deck.simulateKeyUp(3);
+    expect(cb).toHaveBeenCalledWith(3);
+  });
+
+  it("fires onLongPress callbacks", () => {
+    const deck = new MockDeck();
+    const cb = vi.fn();
+    deck.onLongPress(cb);
+    deck.simulateLongPress(7);
+    expect(cb).toHaveBeenCalledWith(7);
+  });
+
+  it("stores images set on keys", async () => {
+    const deck = new MockDeck();
+    const buf = Buffer.from("test-image");
+    await deck.setKeyImage(0, buf);
+    expect(deck.images.get(0)).toBe(buf);
+  });
+
+  it("stores brightness", async () => {
+    const deck = new MockDeck();
+    await deck.setBrightness(50);
+    expect(deck.brightness).toBe(50);
+  });
+
+  it("reports correct key count and layout", () => {
+    const deck = new MockDeck({ keyCount: 32, columns: 8 });
+    expect(deck.keyCount).toBe(32);
+    expect(deck.keyColumns).toBe(8);
+  });
+
+  it("reports driver as mock", () => {
+    const deck = new MockDeck();
+    expect(deck.driver).toBe("mock");
+  });
+
+  it("has sensible default capabilities", () => {
+    const deck = new MockDeck();
+    expect(deck.capabilities.hasKeyUp).toBe(true);
+    expect(deck.capabilities.hasHardwareLongPress).toBe(false);
+    expect(deck.capabilities.hasDisplay).toBe(true);
+  });
+
+  it("allows custom capabilities via constructor", () => {
+    const deck = new MockDeck({ capabilities: { hasKeyUp: false } });
+    expect(deck.capabilities.hasKeyUp).toBe(false);
+    expect(deck.capabilities.hasDisplay).toBe(true); // unchanged default
+  });
+
+  it("allows fully custom capabilities", () => {
+    const deck = new MockDeck({
+      capabilities: { hasKeyUp: true, hasHardwareLongPress: true, hasDisplay: false },
+    });
+    expect(deck.capabilities.hasHardwareLongPress).toBe(true);
+    expect(deck.capabilities.hasDisplay).toBe(false);
+  });
+
+  it("fires onConnect callback on connect", async () => {
+    const deck = new MockDeck();
+    const cb = vi.fn();
+    deck.onConnect(cb);
+    await deck.connect();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires onDisconnect callback on disconnect", async () => {
+    const deck = new MockDeck();
+    const cb = vi.fn();
+    deck.onDisconnect(cb);
+    await deck.connect();
+    await deck.disconnect();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+});

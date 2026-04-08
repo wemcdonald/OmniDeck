@@ -347,6 +347,14 @@ export class Hub {
       staticDir: existsSync(webDistDir) ? webDistDir : undefined,
       getPagePreview: (pageId) => this.getPagePreview(pageId),
       getDeckPreview: () => this.getDeckPreview(),
+      getDeckInfo: () => ({
+        driver: this.deck.driver,
+        model: this.deck.model,
+        keyCount: this.deck.keyCount,
+        keyColumns: this.deck.keyColumns,
+        keySize: this.deck.keySize,
+        capabilities: this.deck.capabilities,
+      }),
       pressKey: (key) => this.pressKey(key),
       getPluginStatuses: () => this.pluginHost.getStatuses(),
       getPresets: () => this.pluginHost.getAllPresets(),
@@ -408,12 +416,42 @@ export class Hub {
     await this.deck.connect();
     this.renderer = new ButtonRenderer(this.deck.keySize);
 
+    // Broadcast deck info so web clients know the layout and capabilities
+    this.broadcaster.send({
+      type: "deck:info",
+      data: {
+        driver: this.deck.driver,
+        model: this.deck.model,
+        keyCount: this.deck.keyCount,
+        keyColumns: this.deck.keyColumns,
+        keySize: this.deck.keySize,
+        capabilities: this.deck.capabilities,
+      },
+    });
+
     // Set initial page — prefer configured default_page, fall back to first loaded page
     const firstPage = defaultPage && this.pages.has(defaultPage)
       ? defaultPage
       : (pageConfigs[0]?.page ?? "home");
     this.store.set("omnideck-core", "current_page", firstPage);
     this.currentPageId = firstPage;
+
+    // Warn about button features unsupported by this device's capabilities
+    if (!this.deck.capabilities.hasKeyUp) {
+      const unsupportedFeatures = ["long_press_action", "press_action", "release_action"] as const;
+      for (const [pageId, page] of this.pages) {
+        for (const button of page.buttons) {
+          for (const feature of unsupportedFeatures) {
+            if (button[feature]) {
+              log.warn(
+                { page: pageId, pos: button.pos, feature, deck: this.deck.model },
+                `Button [${button.pos}] on page "${pageId}" has ${feature} but "${this.deck.model}" does not support key-up events — it will be ignored`,
+              );
+            }
+          }
+        }
+      }
+    }
 
     // Incremental render: coalesce rapid state changes with a short debounce.
     // 16ms (~1 frame) gives a good balance: coalesces bursts (e.g. HA entity floods)
@@ -503,59 +541,92 @@ export class Hub {
       this.modeEngine.start();
     }
 
-    // Listen for key presses (short press vs long press >500ms)
-    const keyDownTimes = new Map<number, number>();
-    // Tracks press/release buttons that fired on key-down (keyed by index)
-    const pressReleaseActive = new Map<number, { releaseAction: string | undefined; params: Record<string, unknown>; target: string | undefined }>();
+    // Listen for key presses. Behaviour varies by device capabilities:
+    //   Path A — hasKeyUp: false (e.g. Mirabox Rev 1): fire action immediately on key-down,
+    //            long_press_action / press_action / release_action are unavailable.
+    //   Path B — hasKeyUp: true, hasHardwareLongPress: false (Elgato, virtual): software
+    //            long-press detection via 500ms keyDown/keyUp timing (existing behaviour).
+    //   Path C — hasKeyUp: true, hasHardwareLongPress: true (Mirabox Rev 2): like Path B but
+    //            onLongPress fires long_press_action directly, bypassing the timer.
+    const { hasKeyUp, hasHardwareLongPress } = this.deck.capabilities;
 
-    this.deck.onKeyDown((key) => {
-      keyDownTimes.set(key, Date.now());
+    if (!hasKeyUp) {
+      // Path A — no key-up: fire primary action immediately on key-down.
+      this.deck.onKeyDown((key) => {
+        this.handleKeyPress(key, false).catch((err) =>
+          log.error({ err, key }, "Key press handler error"),
+        );
+      });
+    } else {
+      // Path B / C — key-up available: software long-press + press/release pairs.
+      const keyDownTimes = new Map<number, number>();
+      // Tracks press/release buttons that fired on key-down (keyed by index)
+      const pressReleaseActive = new Map<number, { releaseAction: string | undefined; params: Record<string, unknown>; target: string | undefined }>();
 
-      // Check if this button has a press_action — fire it immediately on down
-      const page = this.getPage(this.currentPageId);
-      if (!page) return;
-      const button = this.findButtonByKeyIndex(page, key);
-      if (!button) return;
-      const effectiveButton = this.applyModeOverrides(button);
-      const resolved = this.resolveButton(effectiveButton);
-      if (!resolved.pressAction) return;
+      this.deck.onKeyDown((key) => {
+        keyDownTimes.set(key, Date.now());
 
-      let params = resolved.actionParams;
-      if (resolved.target && !(params as Record<string, unknown>).target) {
-        params = { ...params, target: resolved.target };
-      }
-      pressReleaseActive.set(key, { releaseAction: resolved.releaseAction, params, target: resolved.target });
-      log.info({ pos: button.pos, action: resolved.pressAction, params }, `[${button.pos}] pressed → ${resolved.pressAction}`);
-      this.pluginHost.executeAction(resolved.pressAction, params, {
-        targetAgent: resolved.target,
-        focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
-      }).catch((err) => log.error({ err, key }, "Press action error"));
-    });
+        // Check if this button has a press_action — fire it immediately on down
+        const page = this.getPage(this.currentPageId);
+        if (!page) return;
+        const button = this.findButtonByKeyIndex(page, key);
+        if (!button) return;
+        const effectiveButton = this.applyModeOverrides(button);
+        const resolved = this.resolveButton(effectiveButton);
+        if (!resolved.pressAction) return;
 
-    this.deck.onKeyUp((key) => {
-      const downTime = keyDownTimes.get(key);
-      keyDownTimes.delete(key);
-      if (downTime === undefined) return;
-
-      // If this was a press/release button, fire the release action and skip normal handling
-      const pressInfo = pressReleaseActive.get(key);
-      if (pressInfo) {
-        pressReleaseActive.delete(key);
-        if (pressInfo.releaseAction) {
-          log.info({ key, action: pressInfo.releaseAction }, `key released → ${pressInfo.releaseAction}`);
-          this.pluginHost.executeAction(pressInfo.releaseAction, pressInfo.params, {
-            targetAgent: pressInfo.target,
-            focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
-          }).catch((err) => log.error({ err, key }, "Release action error"));
+        let params = resolved.actionParams;
+        if (resolved.target && !(params as Record<string, unknown>).target) {
+          params = { ...params, target: resolved.target };
         }
-        return;
-      }
+        pressReleaseActive.set(key, { releaseAction: resolved.releaseAction, params, target: resolved.target });
+        log.info({ pos: button.pos, action: resolved.pressAction, params }, `[${button.pos}] pressed → ${resolved.pressAction}`);
+        this.pluginHost.executeAction(resolved.pressAction, params, {
+          targetAgent: resolved.target,
+          focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
+        }).catch((err) => log.error({ err, key }, "Press action error"));
+      });
 
-      const isLongPress = Date.now() - downTime >= 500;
-      this.handleKeyPress(key, isLongPress).catch((err) =>
-        log.error({ err, key }, "Key press handler error"),
-      );
-    });
+      this.deck.onKeyUp((key) => {
+        const downTime = keyDownTimes.get(key);
+        keyDownTimes.delete(key);
+        if (downTime === undefined) return;
+
+        // If this was a press/release button, fire the release action and skip normal handling
+        const pressInfo = pressReleaseActive.get(key);
+        if (pressInfo) {
+          pressReleaseActive.delete(key);
+          if (pressInfo.releaseAction) {
+            log.info({ key, action: pressInfo.releaseAction }, `key released → ${pressInfo.releaseAction}`);
+            this.pluginHost.executeAction(pressInfo.releaseAction, pressInfo.params, {
+              targetAgent: pressInfo.target,
+              focusedAgent: this.orchestrator?.focusedDevice ?? undefined,
+            }).catch((err) => log.error({ err, key }, "Release action error"));
+          }
+          return;
+        }
+
+        // Path C: if hardware long-press already fired, skip software detection
+        if (pressReleaseActive.has(key)) return;
+
+        const isLongPress = Date.now() - downTime >= 500;
+        this.handleKeyPress(key, isLongPress).catch((err) =>
+          log.error({ err, key }, "Key press handler error"),
+        );
+      });
+
+      // Path C — hardware long-press: fires long_press_action directly, clears timing state.
+      if (hasHardwareLongPress) {
+        this.deck.onLongPress((key) => {
+          // Prevent the subsequent key-up from also firing a long-press via software timer
+          keyDownTimes.delete(key);
+          pressReleaseActive.delete(key);
+          this.handleKeyPress(key, true).catch((err) =>
+            log.error({ err, key }, "Hardware long-press handler error"),
+          );
+        });
+      }
+    }
   }
 
   async stop(): Promise<void> {

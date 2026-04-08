@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const DeckConfigSchema = z.object({
+  driver: z.enum(["auto", "elgato", "mirabox"]).default("auto"),
   brightness: z.number().min(0).max(100).default(100),
   idle_dim_after: z.string().optional(),
   idle_dim_brightness: z.number().min(0).max(100).optional(),
