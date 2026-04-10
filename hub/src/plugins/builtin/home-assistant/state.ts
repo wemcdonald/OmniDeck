@@ -72,7 +72,7 @@ const DOMAIN_ON_BG: Record<string, string> = {
   input_boolean: "#065f46",
 };
 
-const DOMAIN_OFF_BG = "#374151";
+const DOMAIN_OFF_BG = "#000000";
 
 function getDomain(entityId: string): string {
   return entityId.split(".")[0] ?? "unknown";

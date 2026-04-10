@@ -187,7 +187,7 @@ describe("home-assistant plugin", () => {
       const result = provider.resolve({ entity_id: "switch.desk_fan" });
       expect(result.state.label).toBe("off");
       expect(result.state.iconColor).toBe("#9ca3af");
-      expect(result.state.background).toBe("#374151");
+      expect(result.state.background).toBe("#000000");
     });
   });
 
