@@ -41,7 +41,7 @@ The **hub** runs on a Raspberry Pi, manages the Stream Deck hardware, loads plug
 
 1. Install the hub on a Raspberry Pi:
    ```bash
-   curl -sSf https://raw.githubusercontent.com/wemcdonald/OmniDeck/main/deploy/install.sh | bash
+   curl -sSf https://raw.githubusercontent.com/wemcdonald/OmniDeck/master/deploy/install.sh | bash
    ```
 2. Open `http://<pi-hostname>.local:28120` in your browser
 3. Install the agent on your Mac/PC from the Agents page
