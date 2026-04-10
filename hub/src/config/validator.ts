@@ -169,6 +169,7 @@ const OrchestratorConfigSchema = z
 const HubConfigSchema = z
   .object({
     name: z.string().default("OmniDeck"),
+    port: z.number().int().min(1).max(65535).default(28120),
   })
   .optional();
 

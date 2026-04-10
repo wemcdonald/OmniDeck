@@ -323,7 +323,7 @@ export class Hub {
 
     // Start web server
     setLogBroadcaster(this.broadcaster);
-    const webDistDir = resolve(__dirname, "../../dist/web");
+    const webDistDir = resolve(__dirname, "web");
     this.webServer = new WebServer({
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,

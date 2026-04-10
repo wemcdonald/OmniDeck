@@ -124,7 +124,8 @@ info "pnpm $(pnpm --version) ready."
 # ---------------------------------------------------------------------------
 info "Installing system dependencies..."
 
-sudo apt-get install -y git fontconfig
+sudo apt-get install -y git git-lfs fontconfig
+git lfs install --skip-repo
 
 # ---------------------------------------------------------------------------
 # Step 5: Clone or update OmniDeck
@@ -149,8 +150,14 @@ info "Installing Node.js dependencies..."
 # ---------------------------------------------------------------------------
 # Step 7: Build hub
 # ---------------------------------------------------------------------------
-info "Building OmniDeck Hub..."
-(cd "$INSTALL_DIR" && pnpm --filter hub build)
+info "Building OmniDeck Hub (frontend + backend)..."
+(cd "$INSTALL_DIR" && NODE_OPTIONS="--max-old-space-size=600" pnpm --filter omnideck-hub build:all)
+if [ ! -f "${INSTALL_DIR}/hub/dist/index.js" ]; then
+  die "Build failed: ${INSTALL_DIR}/hub/dist/index.js not found after build step."
+fi
+if [ ! -f "${INSTALL_DIR}/hub/dist/web/index.html" ]; then
+  die "Build failed: ${INSTALL_DIR}/hub/dist/web/index.html not found after build step."
+fi
 
 # ---------------------------------------------------------------------------
 # Step 8: Set up udev rules
@@ -199,12 +206,31 @@ if [ ! -f "$CONFIG_FILE" ]; then
 hub:
   port: 28120
 
+deck:
+  brightness: 100
+  wake_on_touch: true
+  default_page: main
+
+plugins:
+  sound: {}
+
 # Add your Stream Deck devices and pages here.
 # devices: []
 YAML
   info "Starter config written to ${CONFIG_FILE}."
 else
   info "Config file already exists at ${CONFIG_FILE} — skipping."
+fi
+
+MAIN_PAGE_FILE="${PAGES_DIR}/main.yaml"
+if [ ! -f "$MAIN_PAGE_FILE" ] && [ -z "$(ls -A "$PAGES_DIR" 2>/dev/null)" ]; then
+  info "Writing starter main.yaml page..."
+  cat > "$MAIN_PAGE_FILE" <<'YAML'
+page: main
+name: Main
+buttons: []
+YAML
+  info "Starter page written to ${MAIN_PAGE_FILE}."
 fi
 
 # ---------------------------------------------------------------------------

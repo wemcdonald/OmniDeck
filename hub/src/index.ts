@@ -28,10 +28,20 @@ async function main() {
   const tlsDir = join(homedir(), ".omnideck", "tls");
   const tls = await ensureTlsCerts(tlsDir);
 
-  const deck = await createDeck(config.deck.driver ?? "auto");
+  let deck;
+  try {
+    deck = await createDeck(config.deck.driver ?? "auto");
+  } catch (err) {
+    if (config.deck.driver != null && config.deck.driver !== "auto") {
+      throw err; // User explicitly chose a driver — surface the error
+    }
+    log.warn({ err }, "No deck device found — starting in web-only mode. Connect a device and restart the service.");
+    const { MockDeck } = await import("./deck/mock.js");
+    deck = new MockDeck();
+  }
   const webPort = process.env["OMNIDECK_WEB_PORT"]
     ? parseInt(process.env["OMNIDECK_WEB_PORT"], 10)
-    : 9211;
+    : (config.hub?.port ?? 28120);
   const agentPort = process.env["OMNIDECK_AGENT_PORT"]
     ? parseInt(process.env["OMNIDECK_AGENT_PORT"], 10)
     : 9210;

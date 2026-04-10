@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { createServer as createHttpsServer } from "node:https";
 import { join, extname } from "node:path";
 import { serve, type ServerType } from "@hono/node-server";
@@ -222,7 +222,7 @@ export class WebServer {
           return next();
         }
         const filePath = join(staticDir, c.req.path);
-        if (existsSync(filePath)) {
+        if (existsSync(filePath) && statSync(filePath).isFile()) {
           const ext = extname(filePath);
           const mime = mimeTypes[ext] ?? "application/octet-stream";
           const body = await readFile(filePath);
