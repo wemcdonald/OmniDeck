@@ -120,8 +120,11 @@ export class MiraboxDeck extends BaseDeck {
     });
 
     this.device.on("error", (err: Error) => {
-      log.error({ err }, "Mirabox HID error");
+      log.error({ err }, "Mirabox HID error — will attempt reconnect");
+      try { this.device?.close(); } catch { /* ignore */ }
+      this.device = null;
       this.emitDisconnect();
+      this.scheduleReconnect();
     });
 
     log.info(
@@ -132,6 +135,7 @@ export class MiraboxDeck extends BaseDeck {
   }
 
   async disconnect(): Promise<void> {
+    this.stopReconnecting();
     if (this.device && this.config) {
       try {
         this.write(buildClear(0xff, this.config.packetSize));

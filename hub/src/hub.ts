@@ -412,11 +412,41 @@ export class Hub {
       await this.configWatcher.start();
     }
 
+    // Re-usable helper: (re)initialise renderer and broadcast deck state.
+    // Called at startup and again on every reconnect.
+    const onDeckConnected = () => {
+      this.renderer = new ButtonRenderer(this.deck.keySize);
+      this.broadcaster.send({
+        type: "deck:info",
+        data: {
+          driver: this.deck.driver,
+          model: this.deck.model,
+          keyCount: this.deck.keyCount,
+          keyColumns: this.deck.keyColumns,
+          keySize: this.deck.keySize,
+          capabilities: this.deck.capabilities,
+        },
+      });
+      this.renderCurrentPage().catch((err) =>
+        log.error({ err }, "Re-render after reconnect failed"),
+      );
+    };
+
+    this.deck.onConnect(() => {
+      log.info({ model: this.deck.model }, "Deck reconnected");
+      onDeckConnected();
+    });
+
+    this.deck.onDisconnect(() => {
+      log.warn({ model: this.deck.model }, "Deck disconnected — waiting for reconnect");
+      this.broadcaster.send({ type: "deck:disconnected" });
+    });
+
     // Connect deck
     await this.deck.connect();
+    // Initialise renderer and broadcast info for the first connection.
+    // (The onConnect callback above handles subsequent reconnections.)
     this.renderer = new ButtonRenderer(this.deck.keySize);
-
-    // Broadcast deck info so web clients know the layout and capabilities
     this.broadcaster.send({
       type: "deck:info",
       data: {

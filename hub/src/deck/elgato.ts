@@ -81,8 +81,11 @@ export class ElgatoDeck extends BaseDeck {
       });
 
       this.device.on("error", (err) => {
-        log.error({ err }, "Stream Deck error");
+        log.error({ err }, "Stream Deck error — will attempt reconnect");
+        try { this.device?.close(); } catch { /* ignore */ }
+        this.device = null;
         this.emitDisconnect();
+        this.scheduleReconnect();
       });
 
       log.info(
@@ -97,6 +100,7 @@ export class ElgatoDeck extends BaseDeck {
   }
 
   async disconnect(): Promise<void> {
+    this.stopReconnecting();
     if (this.device) {
       await this.device.close();
       this.device = null;

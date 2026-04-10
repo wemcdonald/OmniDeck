@@ -8,6 +8,7 @@ export type BroadcastMessage =
   | { type: "agent:update"; data: unknown }
   | { type: "plugin:status"; data: unknown }
   | { type: "deck:update"; data: { page: string; images: Record<number, string> } }
+  | { type: "deck:disconnected" }
   | {
       type: "deck:info";
       data: {
