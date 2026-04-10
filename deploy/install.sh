@@ -178,7 +178,9 @@ info "udev rules reloaded."
 # ---------------------------------------------------------------------------
 info "Adding ${USER} to the plugdev group..."
 sudo usermod -aG plugdev "$USER"
-info "Done. You may need to log out and back in for this to take effect."
+info "User added to plugdev. The service will start with the correct permissions."
+info "(Your current shell session won't have plugdev until you open a new SSH session,"
+info " but that only matters if you want to run the hub manually from the command line.)"
 
 # ---------------------------------------------------------------------------
 # Step 10: Create config directory and starter config
@@ -231,7 +233,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
 
-info "Service ${SERVICE_NAME} enabled and started."
+# Give the service a moment to start, then check it's actually running
+sleep 2
+if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+  info "Service ${SERVICE_NAME} is running."
+else
+  warn "Service ${SERVICE_NAME} may not have started cleanly."
+  warn "Check logs with: journalctl -u ${SERVICE_NAME} -n 50"
+fi
 
 # ---------------------------------------------------------------------------
 # Done
@@ -252,6 +261,7 @@ echo "  Install directory: ${INSTALL_DIR}"
 echo "  Service status   : sudo systemctl status ${SERVICE_NAME}"
 echo "  Service logs     : journalctl -u ${SERVICE_NAME} -f"
 echo ""
-echo "  IMPORTANT: If this is a fresh install, log out and back in"
-echo "  (or run 'newgrp plugdev') so Stream Deck / Mirabox USB access takes effect."
+echo "  Note: the service already has USB access to your Stream Deck / Mirabox."
+echo "  If you want to access the device directly from the command line, open"
+echo "  a new SSH session (your current one predates the plugdev group change)."
 echo "============================================================"
