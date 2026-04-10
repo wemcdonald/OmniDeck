@@ -63,7 +63,7 @@ describe("Config routes", () => {
     const res = await app.request("/api/config/plugins");
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body["home-assistant"]).toBeDefined();
+    expect(body.plugins["home-assistant"]).toBeDefined();
   });
 
   it("GET /api/config/raw/main.yaml returns raw YAML string", async () => {

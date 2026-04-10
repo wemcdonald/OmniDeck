@@ -124,6 +124,12 @@ export const corePlugin: OmniDeckPlugin = {
       paramsSchema: changePageSchema,
       async execute(params) {
         const { page } = changePageSchema.parse(params);
+        // Push current page to history before navigating
+        const current = ctx.state.get("omnideck-core", "current_page") as string | null;
+        if (current && current !== page) {
+          const history = (ctx.state.get("omnideck-core", "page_history") as string[]) ?? [];
+          ctx.state.set("omnideck-core", "page_history", [...history, current].slice(-20));
+        }
         ctx.state.set("omnideck-core", "current_page", page);
       },
     });
@@ -134,7 +140,11 @@ export const corePlugin: OmniDeckPlugin = {
       description: "Go back to the previous page",
       icon: "ms:arrow-back",
       async execute() {
-        ctx.state.set("omnideck-core", "go_back_request", Date.now());
+        const history = (ctx.state.get("omnideck-core", "page_history") as string[]) ?? [];
+        if (history.length === 0) return;
+        const prev = history[history.length - 1];
+        ctx.state.set("omnideck-core", "page_history", history.slice(0, -1));
+        ctx.state.set("omnideck-core", "current_page", prev);
       },
     });
 

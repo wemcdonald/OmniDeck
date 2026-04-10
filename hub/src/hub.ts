@@ -82,8 +82,6 @@ export class Hub {
   private modeEngine: ModeEngine | null = null;
   private orchestrator: Orchestrator | null = null;
   private opts: HubOptions;
-  private pageHistory: string[] = [];
-  private navigatingBack = false;
 
   constructor(opts: HubOptions) {
     this.opts = opts;
@@ -507,24 +505,10 @@ export class Hub {
     this.store.onChange((pluginId, stateKey, value) => {
       if (pluginId === "omnideck-core" && stateKey === "current_page") {
         const newPage = value as string;
-        if (!this.navigatingBack && this.currentPageId && this.currentPageId !== newPage) {
-          this.pageHistory.push(this.currentPageId);
-          if (this.pageHistory.length > 20) this.pageHistory.shift();
-        }
-        this.navigatingBack = false;
         this.currentPageId = newPage;
         this.renderCurrentPage().catch((err) =>
           log.error({ err }, "Page render error"),
         );
-        return;
-      }
-
-      if (pluginId === "omnideck-core" && stateKey === "go_back_request") {
-        const prev = this.pageHistory.pop();
-        if (prev !== undefined) {
-          this.navigatingBack = true;
-          this.store.set("omnideck-core", "current_page", prev);
-        }
         return;
       }
 
