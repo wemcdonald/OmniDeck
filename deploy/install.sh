@@ -124,7 +124,7 @@ info "pnpm $(pnpm --version) ready."
 # ---------------------------------------------------------------------------
 info "Installing system dependencies..."
 
-sudo apt-get install -y fontconfig
+sudo apt-get install -y git fontconfig
 
 # ---------------------------------------------------------------------------
 # Step 5: Clone or update OmniDeck
