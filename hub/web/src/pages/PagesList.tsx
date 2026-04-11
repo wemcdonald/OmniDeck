@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type PageConfig } from "../lib/api.ts";
 import { Button } from "@/components/ui/button";
@@ -55,18 +55,20 @@ export default function PagesList() {
         {pages.map((page) => {
           const isDefault = page.page === defaultPage;
           return (
-            <Card key={page.page} className={`transition-colors ${isDefault ? "border-primary" : "hover:border-primary/50"} cursor-pointer`}>
+            <Card
+              key={page.page}
+              className={`transition-colors ${isDefault ? "border-primary" : "hover:border-primary/50"} cursor-pointer`}
+              onClick={() => navigate(`/pages/${page.page}`)}
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
-                  <Link to={`/pages/${page.page}`} className="flex-1 min-w-0">
-                    <CardTitle className="text-base truncate">{page.name ?? page.page}</CardTitle>
-                  </Link>
+                  <CardTitle className="text-base truncate flex-1 min-w-0">{page.name ?? page.page}</CardTitle>
                   <div className="flex items-center gap-1 shrink-0">
                     {isDefault ? (
                       <Badge variant="success" className="text-xs">Default</Badge>
                     ) : (
                       <button
-                        onClick={(e) => { e.preventDefault(); setDefaultMutation.mutate(page.page); }}
+                        onClick={(e) => { e.stopPropagation(); setDefaultMutation.mutate(page.page); }}
                         className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
                         title="Set as default page"
                       >
@@ -76,13 +78,11 @@ export default function PagesList() {
                   </div>
                 </div>
               </CardHeader>
-              <Link to={`/pages/${page.page}`}>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground font-mono">
-                    {page.buttons.length} button{page.buttons.length !== 1 ? "s" : ""}
-                  </p>
-                </CardContent>
-              </Link>
+              <CardContent>
+                <p className="text-sm text-muted-foreground font-mono">
+                  {page.buttons.length} button{page.buttons.length !== 1 ? "s" : ""}
+                </p>
+              </CardContent>
             </Card>
           );
         })}

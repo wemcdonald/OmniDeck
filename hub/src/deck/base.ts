@@ -68,6 +68,7 @@ export abstract class BaseDeck implements DeckManager {
   abstract disconnect(): Promise<void>;
   abstract setKeyImage(key: number, buffer: Buffer): Promise<void>;
   abstract setBrightness(percent: number): Promise<void>;
+  async flush(): Promise<void> { /* no-op for most devices */ }
 
   abstract get driver(): string;
   abstract get model(): string;

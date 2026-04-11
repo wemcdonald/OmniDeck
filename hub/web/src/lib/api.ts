@@ -228,6 +228,19 @@ export interface AgentState {
   agent_version: string;
 }
 
+export interface DeckInfo {
+  driver: string;
+  model: string;
+  keyCount: number;
+  keyColumns: number;
+  keySize: { width: number; height: number };
+  capabilities: {
+    hasKeyUp: boolean;
+    hasHardwareLongPress: boolean;
+    hasDisplay: boolean;
+  };
+}
+
 export const api = {
   pages: {
     list: () => request<PageConfig[]>("/api/config/pages"),
@@ -314,6 +327,7 @@ export const api = {
       request<{ ok: boolean }>(`/api/config/modes/${id}`, { method: "DELETE" }),
   },
   status: {
+    deck: () => request<DeckInfo>("/api/status/deck"),
     agents: () => request<AgentState[]>("/api/status/agents"),
     plugins: () =>
       request<Array<{ id: string; status: string; version: string; error?: string }>>(

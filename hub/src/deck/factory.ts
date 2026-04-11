@@ -41,7 +41,7 @@ async function autoDetect(): Promise<DeckManager> {
   // Try Mirabox
   try {
     const { MiraboxDeck } = await import("./mirabox/index.js");
-    const config = MiraboxDeck.detect();
+    const config = await MiraboxDeck.detect();
     if (config !== null) {
       return new MiraboxDeck();
     }

@@ -22,6 +22,8 @@ export interface DeckManager {
   // Output
   setKeyImage(key: number, buffer: Buffer): Promise<void>;
   setBrightness(percent: number): Promise<void>;
+  /** Commit all pending key image writes to the display. No-op on most devices. */
+  flush(): Promise<void>;
 
   // Info
   readonly driver: string;

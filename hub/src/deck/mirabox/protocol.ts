@@ -8,7 +8,10 @@
  *   Bytes 6-8:  3-letter ASCII command code
  *   Bytes 9-10: 0x00 0x00 — padding
  *   Bytes 11+:  command-specific payload
- *   Remaining:  zero-padded to packetSize bytes
+ *   Remaining:  zero-padded to packetSize + 1 bytes total
+ *
+ * packetSize is the DATA size (512 or 1024). Total write = packetSize + 1
+ * (the extra byte is the HID report ID at byte 0).
  *
  * Reference: https://github.com/dvortsis/ajazz-companion-bridge
  *            https://github.com/Uriziel01/Ajazz-AKP153-reverse-engineering
@@ -29,7 +32,8 @@ export function buildCommand(
   packetSize: number,
 ): Buffer {
   const codeBytes = [code.charCodeAt(0), code.charCodeAt(1), code.charCodeAt(2)];
-  const packet = Buffer.alloc(packetSize, 0);
+  // Total write = packetSize + 1: byte 0 is HID report ID, bytes 1..packetSize are data
+  const packet = Buffer.alloc(packetSize + 1, 0);
   let offset = 0;
   for (const b of [...CRT_HEADER, ...codeBytes, ...PADDING, ...payload]) {
     packet[offset++] = b;
@@ -39,7 +43,7 @@ export function buildCommand(
 
 /** DIS — initialize / wake the display */
 export function buildInitDisplay(packetSize: number): Buffer {
-  return buildCommand("DIS", [0x01], packetSize);
+  return buildCommand("DIS", [], packetSize);
 }
 
 /** LIG — set brightness (0-100) */
@@ -51,9 +55,16 @@ export function buildBrightness(percent: number, packetSize: number): Buffer {
 /**
  * CLE — clear a key (or all keys if keyId is 0xFF).
  * @param keyId  1-based Mirabox key ID, or 0xFF to clear all
+ *
+ * The payload is 2 bytes: a leading 0x00 subcommand byte followed by keyId.
  */
 export function buildClear(keyId: number, packetSize: number): Buffer {
-  return buildCommand("CLE", [keyId], packetSize);
+  return buildCommand("CLE", [0x00, keyId], packetSize);
+}
+
+/** STP — commit a pending operation (image write or screen clear). */
+export function buildStp(packetSize: number): Buffer {
+  return buildCommand("STP", [], packetSize);
 }
 
 /** HAN — put device to sleep */
@@ -62,12 +73,13 @@ export function buildSleep(packetSize: number): Buffer {
 }
 
 /**
- * Build the sequence of HID packets to upload a JPEG image to a key.
+ * Build the HID packets for uploading a JPEG image to a single key.
+ * Does NOT include an STP packet — caller must send buildStp() once after
+ * all keys have been uploaded (the device commits on STP, not per-image).
  *
  * Sequence:
  *   1. BAT packet: signals start of image transfer, includes key ID and JPEG size
  *   2. One or more data packets: raw JPEG bytes, chunked to packetSize
- *   3. STP packet: commits the image
  *
  * @param keyId   1-based Mirabox key ID
  * @param jpeg    JPEG image data
@@ -90,18 +102,15 @@ export function buildImagePackets(
   packets.push(buildCommand("BAT", batPayload, packetSize));
 
   // Data packets: chunk the JPEG. Each packet is a raw HID report (report ID 0x00
-  // in byte 0, then up to packetSize-1 bytes of JPEG data).
-  const chunkSize = packetSize - 1; // first byte is always 0x00 report ID
+  // in byte 0, then up to packetSize bytes of JPEG data). Total size = packetSize + 1.
+  const chunkSize = packetSize; // packetSize is the data capacity; report ID is the +1
   for (let offset = 0; offset < jpeg.length; offset += chunkSize) {
     const chunk = jpeg.subarray(offset, offset + chunkSize);
-    const packet = Buffer.alloc(packetSize, 0);
+    const packet = Buffer.alloc(packetSize + 1, 0);
     packet[0] = 0x00; // HID report ID
     chunk.copy(packet, 1);
     packets.push(packet);
   }
-
-  // STP (stop): commits the image
-  packets.push(buildCommand("STP", [keyId], packetSize));
 
   return packets;
 }

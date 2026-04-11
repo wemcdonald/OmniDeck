@@ -41,9 +41,9 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
-      "/api": "http://localhost:9211",
+      "/api": "http://localhost:28120",
       "/ws": {
-        target: "ws://localhost:9211",
+        target: "ws://localhost:28120",
         ws: true,
       },
     },

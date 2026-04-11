@@ -14,10 +14,16 @@ interface StatusRouteDeps {
   getModeOverride?(): string | null;
   getWsConnectionCount?(): number;
   getAgentCount?(): number;
+  getDeckInfo?(): object;
 }
 
 export function createStatusRoutes(deps: StatusRouteDeps): Hono {
   const router = new Hono();
+
+  if (deps.getDeckInfo) {
+    const getDeckInfo = deps.getDeckInfo;
+    router.get("/status/deck", (c) => c.json(getDeckInfo()));
+  }
 
   router.get("/status/agents", (c) => c.json(deps.getAgents()));
   router.get("/status/plugins", (c) => c.json(deps.getPluginStatuses()));

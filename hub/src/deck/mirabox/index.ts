@@ -7,6 +7,7 @@ import {
   buildInitDisplay,
   buildBrightness,
   buildClear,
+  buildStp,
   buildImagePackets,
   parseInputReport,
 } from "./protocol.js";
@@ -47,10 +48,9 @@ export class MiraboxDeck extends BaseDeck {
    * Enumerate connected HID devices and return the first matching Mirabox
    * hardware config, or null if no device is found. Does not open the device.
    */
-  static detect(): MiraboxHardwareConfig | null {
+  static async detect(): Promise<MiraboxHardwareConfig | null> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const HID = require("node-hid") as typeof import("node-hid");
+      const HID = (await import("node-hid")).default as typeof import("node-hid");
       const devices = HID.devices();
       for (const d of devices) {
         if (d.vendorId === MIRABOX_VID && d.productId !== undefined) {
@@ -77,6 +77,17 @@ export class MiraboxDeck extends BaseDeck {
       if (d.vendorId !== MIRABOX_VID || d.productId === undefined) continue;
       const config = HARDWARE_BY_PID.get(d.productId);
       if (!config) continue;
+      log.info(
+        {
+          path: d.path,
+          pid: `0x${d.productId.toString(16)}`,
+          usagePage: d.usagePage != null ? `0x${d.usagePage.toString(16)}` : undefined,
+          usage: d.usage,
+          interface: d.interface,
+          product: d.product,
+        },
+        `Found Mirabox interface${d.usagePage === MIRABOX_USAGE_PAGE ? " [preferred vendor page]" : ""}`,
+      );
       // Prefer the vendor-specific usage page (0xff60) on systems that expose it;
       // fall back to the first matching path
       if (!foundPath || d.usagePage === MIRABOX_USAGE_PAGE) {
@@ -91,6 +102,7 @@ export class MiraboxDeck extends BaseDeck {
       );
     }
 
+    log.info({ path: foundPath, model: foundConfig.name }, "Opening Mirabox HID device");
     this.config = foundConfig;
 
     try {
@@ -100,8 +112,15 @@ export class MiraboxDeck extends BaseDeck {
     }
 
     // Initialize display
+    log.info({ packetSize: this.config.packetSize, protocol: this.config.protocolVersion }, "Sending DIS + LIG + CLE init");
     this.write(buildInitDisplay(this.config.packetSize));
     this.write(buildBrightness(100, this.config.packetSize));
+    // Protocol v2/v3 (1024-byte packet devices) keep showing the boot/demo screen
+    // until a CLE (clear-all) + STP (commit) sequence is sent.
+    if (this.config.protocolVersion >= 2) {
+      this.write(buildClear(0xff, this.config.packetSize));
+      this.write(buildStp(this.config.packetSize));
+    }
 
     // Set up input listener
     this.device.on("data", (data: Buffer) => {
@@ -139,6 +158,9 @@ export class MiraboxDeck extends BaseDeck {
     if (this.device && this.config) {
       try {
         this.write(buildClear(0xff, this.config.packetSize));
+        if (this.config.protocolVersion >= 2) {
+          this.write(buildStp(this.config.packetSize));
+        }
         this.device.close();
       } catch {
         // Ignore errors on disconnect
@@ -155,6 +177,11 @@ export class MiraboxDeck extends BaseDeck {
     const jpeg = await encodeKeyImage(rgb, this.keySize, this.config.keyImageSize);
     const packets = buildImagePackets(miraboxKey, jpeg, this.config.packetSize);
 
+    log.info(
+      { key, miraboxKey, jpegBytes: jpeg.length, packetCount: packets.length, packetSize: this.config.packetSize },
+      `setKeyImage key=${key} → mirabox=${miraboxKey}`,
+    );
+
     for (const packet of packets) {
       this.write(packet);
     }
@@ -165,12 +192,24 @@ export class MiraboxDeck extends BaseDeck {
     this.write(buildBrightness(percent, this.config.packetSize));
   }
 
+  /** Send STP to commit all pending image writes to the display. */
+  override async flush(): Promise<void> {
+    if (!this.device || !this.config) return;
+    log.info("flush: sending STP to commit all pending images");
+    this.write(buildStp(this.config.packetSize));
+  }
+
   private write(packet: Buffer): void {
     if (!this.device) return;
     try {
-      this.device.write([...packet]);
+      const written = this.device.write([...packet]);
+      if (written < 0) {
+        log.warn({ written, sent: packet.length }, "Mirabox HID write returned negative — device may have disconnected");
+      } else if (written !== packet.length) {
+        log.warn({ written, sent: packet.length }, "Mirabox HID write partial");
+      }
     } catch (err) {
-      log.error({ err }, "Mirabox HID write error");
+      log.error({ err, sent: packet.length }, "Mirabox HID write error");
     }
   }
 }

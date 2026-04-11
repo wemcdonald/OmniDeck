@@ -323,7 +323,10 @@ export class Hub {
 
     // Start web server
     setLogBroadcaster(this.broadcaster);
-    const webDistDir = resolve(__dirname, "web");
+    // In tsx dev __dirname is src/; in compiled prod it's dist/.
+    // Try both locations and pick whichever has an index.html.
+    const webDistDirCandidates = [resolve(__dirname, "web"), resolve(__dirname, "../dist/web")];
+    const webDistDir = webDistDirCandidates.find((d) => existsSync(join(d, "index.html")));
     this.webServer = new WebServer({
       port: this.opts.webPort ?? 0,
       configDir: this.opts.configDir,
@@ -836,6 +839,9 @@ export class Hub {
       this.stateCache.set(keyIndex, this.hashState(state));
     }
 
+    // Commit all image writes (no-op on most devices; sends STP on Mirabox)
+    await this.deck.flush();
+
     // Broadcast full preview to web clients
     this.getDeckPreview()
       .then((images) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, images } }))
@@ -868,6 +874,10 @@ export class Hub {
       const image = await this.renderer.render(state, this.scrollTick);
       await this.deck.setKeyImage(keyIndex, image);
       anyChanged = true;
+    }
+
+    if (anyChanged) {
+      await this.deck.flush();
     }
 
     // Only broadcast to web if something actually changed

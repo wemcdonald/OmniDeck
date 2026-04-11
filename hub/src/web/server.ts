@@ -196,6 +196,7 @@ export class WebServer {
         getWsConnectionCount: () => broadcaster?.size ?? 0,
         getAgentCount: () => agentServer?.getConnectedAgents()?.length ?? 0,
         getModeOverride: this.opts.getModeOverride,
+        getDeckInfo: this.opts.getDeckInfo,
       }),
     );
 
