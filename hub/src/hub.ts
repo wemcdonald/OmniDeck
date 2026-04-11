@@ -69,6 +69,8 @@ interface HubOptions {
 export class Hub {
   private deck: DeckManager;
   private renderer: ButtonRenderer;
+  private displayAreaRenderers = new Map<string, ButtonRenderer>();
+  private displayAreaStateCache = new Map<string, string>();
   private store: StateStore;
   private pluginHost: PluginHost;
   private pages = new Map<string, PageConfig>();
@@ -425,6 +427,15 @@ export class Hub {
     // Called at startup and again on every reconnect.
     const onDeckConnected = () => {
       this.renderer = new ButtonRenderer(this.deck.keySize);
+      // Build a renderer per display area (each area's segments are uniform size)
+      this.displayAreaRenderers.clear();
+      this.displayAreaStateCache.clear();
+      for (const area of this.deck.displayAreas) {
+        const seg = area.segments[0];
+        if (seg) {
+          this.displayAreaRenderers.set(area.id, new ButtonRenderer({ width: seg.width, height: seg.height }));
+        }
+      }
       this.broadcaster.send({
         type: "deck:info",
         data: {
@@ -456,6 +467,10 @@ export class Hub {
     // Initialise renderer and broadcast info for the first connection.
     // (The onConnect callback above handles subsequent reconnections.)
     this.renderer = new ButtonRenderer(this.deck.keySize);
+    for (const area of this.deck.displayAreas) {
+      const seg = area.segments[0];
+      if (seg) this.displayAreaRenderers.set(area.id, new ButtonRenderer({ width: seg.width, height: seg.height }));
+    }
     this.broadcaster.send({
       type: "deck:info",
       data: {
@@ -843,11 +858,31 @@ export class Hub {
       await this.deck.setKeyImage(i, blackImage);
     }
 
+    // Clear display areas
+    for (const area of this.deck.displayAreas) {
+      await this.deck.clearDisplayArea(area.id);
+    }
+
     // Render each button
     const columns = page.columns ?? this.deck.keyColumns;
     log.debug({ buttonCount: page.buttons.length, columns, keyCount: this.deck.keyCount }, "Rendering page");
     for (const button of page.buttons) {
       const [col, row] = button.pos;
+
+      // Check if this button belongs to a display area
+      const area = this.deck.displayAreas.find(a => a.col === col);
+      if (area) {
+        const areaRenderer = this.displayAreaRenderers.get(area.id);
+        if (!areaRenderer || row < 0 || row >= area.rows) continue;
+        const seg = area.segments[row];
+        if (!seg) continue;
+        const state = this.resolveButtonState(button);
+        const image = await areaRenderer.render(state, this.scrollTick);
+        await this.deck.fillDisplayRegion(area.id, seg.x, seg.y, image, seg.width, seg.height);
+        this.displayAreaStateCache.set(`${area.id}:${row}`, this.hashState(state));
+        continue;
+      }
+
       const keyIndex = row * columns + col;
       if (keyIndex >= this.deck.keyCount) continue;
 
@@ -879,6 +914,25 @@ export class Hub {
 
     for (const button of page.buttons) {
       const [col, row] = button.pos;
+
+      // Display area button
+      const area = this.deck.displayAreas.find(a => a.col === col);
+      if (area) {
+        const areaRenderer = this.displayAreaRenderers.get(area.id);
+        if (!areaRenderer || row < 0 || row >= area.rows) continue;
+        const seg = area.segments[row];
+        if (!seg) continue;
+        const state = this.resolveButtonState(button);
+        const hash = this.hashState(state);
+        const cacheKey = `${area.id}:${row}`;
+        if (this.displayAreaStateCache.get(cacheKey) === hash) continue;
+        this.displayAreaStateCache.set(cacheKey, hash);
+        const image = await areaRenderer.render(state, this.scrollTick);
+        await this.deck.fillDisplayRegion(area.id, seg.x, seg.y, image, seg.width, seg.height);
+        anyChanged = true;
+        continue;
+      }
+
       const keyIndex = row * columns + col;
       if (keyIndex >= this.deck.keyCount) continue;
 

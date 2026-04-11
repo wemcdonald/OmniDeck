@@ -70,6 +70,11 @@ export abstract class BaseDeck implements DeckManager {
   abstract setBrightness(percent: number): Promise<void>;
   async flush(): Promise<void> { /* no-op for most devices */ }
 
+  // Display area defaults — overridden by devices that have LCD surfaces
+  get displayAreas(): import("./types.js").DisplayArea[] { return []; }
+  async fillDisplayRegion(_areaId: string, _x: number, _y: number, _buf: Buffer, _w: number, _h: number): Promise<void> {}
+  async clearDisplayArea(_areaId: string): Promise<void> {}
+
   abstract get driver(): string;
   abstract get model(): string;
   abstract get keyCount(): number;

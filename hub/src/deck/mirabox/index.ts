@@ -1,4 +1,4 @@
-import type { DeckCapabilities } from "../types.js";
+import type { DeckCapabilities, DisplayArea } from "../types.js";
 import { BaseDeck } from "../base.js";
 import { MIRABOX_VID, HARDWARE_BY_PID, type MiraboxHardwareConfig } from "./types.js";
 import { miraboxToStandard, standardToMirabox } from "./keymap.js";
@@ -197,6 +197,53 @@ export class MiraboxDeck extends BaseDeck {
     if (!this.device || !this.config) return;
     log.info("flush: sending STP to commit all pending images");
     this.write(buildStp(this.config.packetSize));
+  }
+
+  // ── DisplayArea implementation ─────────────────────────────────────────────
+
+  override get displayAreas(): DisplayArea[] {
+    const strip = this.config?.strip;
+    if (!strip) return [];
+    const { segments, segmentImageSize: size, firstSegmentId, col } = strip;
+    return [{
+      id: "strip",
+      pixelWidth: size,
+      pixelHeight: size * segments,
+      layoutAnchor: { edge: "right", offset: 0 },
+      col,
+      rows: segments,
+      supportsInput: false,
+      supportsRegionalWrite: false,
+      segments: Array.from({ length: segments }, (_, i) => ({
+        id: firstSegmentId + i,
+        x: 0,
+        y: i * size,
+        width: size,
+        height: size,
+      })),
+    }];
+  }
+
+  override async fillDisplayRegion(
+    areaId: string, x: number, y: number, buf: Buffer, w: number, h: number,
+  ): Promise<void> {
+    if (!this.device || !this.config) return;
+    const area = this.displayAreas.find(a => a.id === areaId);
+    if (!area) return;
+    const seg = area.segments.find(s => s.x === x && s.y === y);
+    if (!seg) return;
+    const jpeg = await encodeKeyImage(buf, { width: w, height: h }, seg.width);
+    const packets = buildImagePackets(seg.id, jpeg, this.config.packetSize);
+    for (const packet of packets) this.write(packet);
+  }
+
+  override async clearDisplayArea(areaId: string): Promise<void> {
+    if (!this.device || !this.config) return;
+    const area = this.displayAreas.find(a => a.id === areaId);
+    if (!area) return;
+    for (const seg of area.segments) {
+      this.write(buildClear(seg.id, this.config.packetSize));
+    }
   }
 
   private write(packet: Buffer): void {

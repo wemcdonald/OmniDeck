@@ -1,3 +1,14 @@
+export interface MiraboxStripConfig {
+  /** Number of independently-addressable strip segments */
+  segments: number;
+  /** Pixel size of each segment (square) */
+  segmentImageSize: number;
+  /** First HID key ID used for the strip (subsequent segments are id+1, id+2, …) */
+  firstSegmentId: number;
+  /** Column index the strip occupies in the page layout grid */
+  col: number;
+}
+
 export interface MiraboxHardwareConfig {
   /** Display name for this hardware revision */
   name: string;
@@ -13,6 +24,8 @@ export interface MiraboxHardwareConfig {
   hasKeyUp: boolean;
   /** Device reports long-press natively */
   hasHardwareLongPress: boolean;
+  /** Side strip LCD configuration, if present */
+  strip?: MiraboxStripConfig;
 }
 
 /** USB Vendor ID shared by all Mirabox devices */
@@ -41,6 +54,7 @@ export const HARDWARE_REVISIONS: MiraboxHardwareConfig[] = [
     keyImageSize: 95,
     hasKeyUp: true,
     hasHardwareLongPress: true,
+    strip: { segments: 3, segmentImageSize: 82, firstSegmentId: 0x10, col: 5 },
   },
   {
     name: "AKP153R",
@@ -59,6 +73,7 @@ export const HARDWARE_REVISIONS: MiraboxHardwareConfig[] = [
     keyImageSize: 95,
     hasKeyUp: true,
     hasHardwareLongPress: true,
+    strip: { segments: 3, segmentImageSize: 82, firstSegmentId: 0x10, col: 5 },
   },
 ];
 
