@@ -82,6 +82,7 @@ export class Hub {
   private modeEngine: ModeEngine | null = null;
   private orchestrator: Orchestrator | null = null;
   private opts: HubOptions;
+  private renderTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(opts: HubOptions) {
     this.opts = opts;
@@ -487,11 +488,10 @@ export class Hub {
     // Incremental render: coalesce rapid state changes with a short debounce.
     // 16ms (~1 frame) gives a good balance: coalesces bursts (e.g. HA entity floods)
     // while keeping interactive latency low for agent state updates.
-    let renderTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleRender = () => {
-      if (renderTimer) return;
-      renderTimer = setTimeout(() => {
-        renderTimer = null;
+      if (this.renderTimer) return;
+      this.renderTimer = setTimeout(() => {
+        this.renderTimer = null;
         this.renderDirtyButtons().catch((err) =>
           log.error({ err }, "State-driven re-render error"),
         );
@@ -550,13 +550,14 @@ export class Hub {
       }
     });
 
-    // Render initial page
-    await this.renderCurrentPage();
-
-    // Start mode engine (after plugins are initialized and initial page is rendered)
+    // Start mode engine first and await its initial evaluation (including any
+    // on_enter switch_page actions) so current_page is settled before we render.
     if (this.modeEngine) {
-      this.modeEngine.start();
+      await this.modeEngine.start();
     }
+
+    // Render the page that the mode engine has settled on (or the default page).
+    await this.renderCurrentPage();
 
     // Listen for key presses. Behaviour varies by device capabilities:
     //   Path A — hasKeyUp: false (e.g. Mirabox Rev 1): fire action immediately on key-down,
@@ -814,6 +815,12 @@ export class Hub {
   }
 
   private async renderCurrentPage(): Promise<void> {
+    // Cancel any pending incremental render — it would race with the full redraw.
+    if (this.renderTimer) {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+
     const page = this.getPage(this.currentPageId);
     if (!page) return;
 

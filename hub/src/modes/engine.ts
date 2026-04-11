@@ -46,17 +46,27 @@ export class ModeEngine {
     this.changeCbs.push(cb);
   }
 
-  /** Start listening to state changes. Performs an initial evaluation. */
-  start(): void {
+  /**
+   * Start the engine. Performs an initial evaluation and **awaits** any
+   * on_enter/on_exit transition actions (e.g. switch_page) before resolving.
+   * Hub callers should await this before rendering the initial page so the
+   * correct page is active when the first render happens.
+   */
+  async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
 
+    // Subscribe before the initial evaluation so that any store.set calls that
+    // happen concurrently (e.g. in tests) are picked up by subsequent evaluations.
+    // Re-entrant evaluate() calls during the initial evaluation are safely
+    // dropped because evaluating = true while evaluateInternal is running.
     this.deps.store.onChange(() => {
       this.evaluate();
     });
 
-    // Initial evaluation
-    this.evaluate();
+    // Evaluate initial state and await on_enter/on_exit actions so that
+    // current_page is settled before the caller renders the first frame.
+    await this.evaluateInternal(true);
   }
 
   /** Get all mode definitions (for debug/status API). */
@@ -95,9 +105,18 @@ export class ModeEngine {
 
   /**
    * Re-evaluate all modes against current state.
-   * Fires on_exit/on_enter actions and callbacks if the active mode changes.
+   * Called on every store change after start(). Transition fires fire-and-forget.
    */
   evaluate(): void {
+    void this.evaluateInternal(false);
+  }
+
+  /**
+   * Core evaluation logic.
+   * @param awaitTransition - true for the initial evaluation (start() awaits it);
+   *                          false for ongoing store-change-driven evaluations.
+   */
+  private async evaluateInternal(awaitTransition: boolean): Promise<void> {
     if (!this.started || this.evaluating) return;
     this.evaluating = true;
 
@@ -111,7 +130,6 @@ export class ModeEngine {
     } else {
       // Modes are pre-sorted by priority. First match wins.
       for (const mode of this.modes) {
-        // Top-level OR: any rule matching = mode is active
         const active = mode.rules.some((rule) => evaluateRule(rule, resolve));
         if (active) {
           matched = mode;
@@ -162,23 +180,25 @@ export class ModeEngine {
       }
     }
 
-    // Fire on_exit for previous mode, then on_enter for new mode
-    this.fireTransition(prev, matched);
+    // Fire on_exit/on_enter actions — awaited on initial start(), fire-and-forget after.
+    const transition = this.runTransition(prev, matched);
+    if (awaitTransition) {
+      await transition;
+    } else {
+      transition.catch((err) => log.error({ err }, "Mode transition action error"));
+    }
   }
 
-  private fireTransition(
+  private async runTransition(
     prev: ModeDefinition | null,
     next: ModeDefinition | null,
-  ): void {
-    const run = async () => {
-      if (prev?.onExit) {
-        await this.fireActions(prev.onExit);
-      }
-      if (next?.onEnter) {
-        await this.fireActions(next.onEnter);
-      }
-    };
-    run().catch((err) => log.error({ err }, "Mode transition action error"));
+  ): Promise<void> {
+    if (prev?.onExit) {
+      await this.fireActions(prev.onExit);
+    }
+    if (next?.onEnter) {
+      await this.fireActions(next.onEnter);
+    }
   }
 
   private async fireActions(actions: ModeAction[]): Promise<void> {
