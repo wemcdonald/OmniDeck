@@ -4,8 +4,7 @@ import { loadConfig } from "./config/loader.js";
 import { validateConfig } from "./config/validator.js";
 import { ensureTlsCerts } from "./server/tls.js";
 import { createLogger, configureLogging } from "./logger.js";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { homedir } from "node:os";
 
 const log = createLogger("main");
@@ -45,10 +44,9 @@ async function main() {
   const agentPort = process.env["OMNIDECK_AGENT_PORT"]
     ? parseInt(process.env["OMNIDECK_AGENT_PORT"], 10)
     : 9210;
-  const __dirname = fileURLToPath(new URL(".", import.meta.url));
   const pluginsDir =
     process.env["OMNIDECK_PLUGINS_DIR"] ??
-    resolve(__dirname, "../../plugins");
+    join(homedir(), ".omnideck", "plugins");
   const agentsRegistryPath = join(homedir(), ".omnideck", "agents.yaml");
 
   const hub = new Hub({

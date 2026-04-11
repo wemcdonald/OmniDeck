@@ -67,13 +67,13 @@ my-plugin.zip
 
 ### Drop a directory
 
-SSH into the Pi and drop the plugin folder into the hub's `plugins/` directory:
+SSH into the Pi and drop the plugin folder into the plugins directory:
 
 ```bash
-scp -r my-plugin/ pi@raspberrypi.local:~/OmniDeck/plugins/
+scp -r my-plugin/ pi@raspberrypi.local:~/.omnideck/plugins/
 ```
 
-The hub detects new directories in `plugins/` and loads them automatically. Check the logs if the plugin doesn't appear:
+The hub detects new directories in `~/.omnideck/plugins/` and loads them automatically. Check the logs if the plugin doesn't appear:
 
 ```bash
 journalctl -u omnideck-hub -f
@@ -82,7 +82,7 @@ journalctl -u omnideck-hub -f
 For local development, symlink your plugin directory instead of copying:
 
 ```bash
-ln -s /path/to/my-plugin ~/OmniDeck/plugins/my-plugin
+ln -s /path/to/my-plugin ~/.omnideck/plugins/my-plugin
 ```
 
 ### Install from a GitHub URL
@@ -93,8 +93,8 @@ In the **Install Plugin** modal, paste a GitHub repository URL into the search b
 https://github.com/user/repo/tree/main/my-plugin
 ```
 
-The hub clones the plugin directory directly into `plugins/`.
+The hub clones the plugin directory directly into `~/.omnideck/plugins/`.
 
 ## Removing a plugin
 
-In the **Plugins** page, expand the plugin row and click **Remove**. This unloads the plugin and removes its directory from `plugins/`. Its config in `config.yaml` and any secrets in `secrets.yaml` are left in place — remove them manually if you don't plan to reinstall.
+In the **Plugins** page, expand the plugin row and click **Remove**. This unloads the plugin and removes its directory from `~/.omnideck/plugins/`. Its config in `config.yaml` and any secrets in `secrets.yaml` are left in place — remove them manually if you don't plan to reinstall.

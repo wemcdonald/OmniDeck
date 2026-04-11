@@ -18,10 +18,10 @@ Users compose buttons from these building blocks. Presets are the easy path — 
 
 ## File Structure
 
-An external plugin lives in the hub's `plugins/` directory:
+An external plugin lives in `~/.omnideck/plugins/`:
 
 ```
-plugins/my-plugin/
+~/.omnideck/plugins/my-plugin/
   manifest.yaml  # Plugin metadata (required)
   hub.ts         # Hub-side entry point (actions, state providers, presets)
   agent.ts       # Agent-side code (runs on Mac/Windows/Linux)
@@ -29,7 +29,9 @@ plugins/my-plugin/
 
 Both `hub.ts` and `agent.ts` are optional — a plugin can be hub-only, agent-only, or both. The hub automatically loads and registers hub-side code, and bundles and distributes agent-side code to connected agents.
 
-Builtin plugins (shipped with OmniDeck) live in `hub/src/plugins/builtin/` and are imported directly in the hub source code.
+Builtin plugins (shipped with OmniDeck) live in `hub/src/plugins/builtin/` and are imported directly in the hub source code. First-party external plugins (os-control, sound, weather) are seeded into `~/.omnideck/plugins/` by the install script and survive hub upgrades.
+
+The plugins directory can be overridden via the `OMNIDECK_PLUGINS_DIR` environment variable.
 
 ## Installing Plugins
 
@@ -40,14 +42,14 @@ Builtin plugins (shipped with OmniDeck) live in `hub/src/plugins/builtin/` and a
 
 Installed plugins are immediately active — no hub restart needed.
 
-**Manually:** Drop the plugin directory into `plugins/` and restart the hub. For development, you can symlink your plugin directory instead.
+**Manually:** Drop the plugin directory into `~/.omnideck/plugins/` and restart the hub. For development, you can symlink your plugin directory instead.
 
 ## Minimal Plugin
 
 Here's the smallest possible plugin:
 
 ```
-plugins/my-plugin/
+~/.omnideck/plugins/my-plugin/
   manifest.yaml
   hub.ts
 ```
@@ -88,7 +90,7 @@ export const myPlugin: OmniDeckPlugin = {
 };
 ```
 
-Drop the plugin folder into the hub's `plugins/` directory and restart the hub. The hub automatically detects, loads, and registers it — no code changes needed.
+Drop the plugin folder into `~/.omnideck/plugins/` and restart the hub. The hub automatically detects, loads, and registers it — no code changes needed.
 
 ## Actions
 

@@ -197,9 +197,11 @@ info "Done."
 CONFIG_DIR="${HOME}/.omnideck/config"
 PAGES_DIR="${CONFIG_DIR}/pages"
 CONFIG_FILE="${CONFIG_DIR}/config.yaml"
+PLUGINS_DIR="${HOME}/.omnideck/plugins"
 
 info "Setting up config directory at ${CONFIG_DIR}..."
 mkdir -p "$PAGES_DIR"
+mkdir -p "$PLUGINS_DIR"
 
 if [ ! -f "$CONFIG_FILE" ]; then
   info "Writing starter config.yaml..."
@@ -235,6 +237,27 @@ name: Main
 buttons: []
 YAML
   info "Starter page written to ${MAIN_PAGE_FILE}."
+fi
+
+# Seed first-party plugins on a fresh install.
+# On upgrade, user-installed plugins in PLUGINS_DIR are left untouched; only
+# first-party plugins that don't already exist are copied in.
+BUNDLED_PLUGINS_DIR="${INSTALL_DIR}/plugins"
+if [ -d "$BUNDLED_PLUGINS_DIR" ]; then
+  info "Seeding first-party plugins into ${PLUGINS_DIR}..."
+  for PLUGIN_SRC in "${BUNDLED_PLUGINS_DIR}"/*/; do
+    [ -d "$PLUGIN_SRC" ] || continue
+    PLUGIN_NAME="$(basename "$PLUGIN_SRC")"
+    PLUGIN_DEST="${PLUGINS_DIR}/${PLUGIN_NAME}"
+    if [ ! -d "$PLUGIN_DEST" ]; then
+      cp -r "$PLUGIN_SRC" "$PLUGIN_DEST"
+      info "  Installed plugin: ${PLUGIN_NAME}"
+    else
+      info "  Plugin already present, skipping: ${PLUGIN_NAME}"
+    fi
+  done
+else
+  warn "No bundled plugins directory found at ${BUNDLED_PLUGINS_DIR} — skipping plugin seed."
 fi
 
 # ---------------------------------------------------------------------------

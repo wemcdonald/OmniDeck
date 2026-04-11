@@ -325,7 +325,7 @@ All integrations are plugins. The core provides the mechanism; plugins provide t
 ### Package format
 
 ```
-plugins/my-plugin/
+~/.omnideck/plugins/my-plugin/
 ├── manifest.yaml     # Identity, metadata, setup instructions
 ├── hub.ts            # Hub-side: actions, state providers, presets
 └── agent.ts          # Agent-side: optional, distributed by hub
@@ -1080,7 +1080,7 @@ OmniDeck/
 ├── packages/
 │   ├── agent-sdk/        # @omnideck/agent-sdk — OmniDeck interface for agent plugins
 │   └── plugin-schema/    # @omnideck/plugin-schema — Zod manifest + plugin types
-├── plugins/              # External plugins directory (OmniDeck-plugins repo)
+├── plugins/              # First-party plugins (seeded to ~/.omnideck/plugins/ on install)
 ├── deploy/
 │   ├── install.sh        # curl | bash installer for Pi
 │   ├── omnideck-hub.service  # systemd service
