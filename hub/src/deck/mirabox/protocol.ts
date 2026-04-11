@@ -140,11 +140,12 @@ export function parseInputReport(data: Buffer): InputEvent | null {
 
   const state = data[10];
 
-  // Protocol v1: state byte is always 0 (only down events)
-  if (state === 0x00 || state === 0x01) {
+  // v3 (protocol 3): 0x01 = down, 0x00 = up, 0x03 = longpress
+  // v1 (protocol 1): only 0x01 down events (no up/longpress)
+  if (state === 0x01) {
     return { keyId, event: "down" };
   }
-  if (state === 0x02) {
+  if (state === 0x00) {
     return { keyId, event: "up" };
   }
   if (state === 0x03) {
