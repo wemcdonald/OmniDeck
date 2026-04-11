@@ -164,20 +164,13 @@ function renderCurrent(size: number, data: WeatherData, units: "celsius" | "fahr
   if (!c) return canvas.toBuffer("image/png");
   const emoji = wmoEmoji(c.weather_code);
 
-  // Weather emoji (top area)
-  const emojiFontSize = Math.round(size * 0.38);
+  // Weather emoji — centred, filling the canvas. Temperature is rendered
+  // as a label overlay by the button renderer so we don't draw it here.
+  const emojiFontSize = Math.round(size * 0.55);
   ctx.font = `${emojiFontSize}px NotoColorEmoji, sans-serif`;
   ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText(emoji, size / 2, size * 0.04);
-
-  // Temperature (bottom area)
-  const tempStr = formatTemp(c.temperature_2m, units);
-  const tempFontSize = Math.round(size * 0.26);
-  ctx.font = `bold ${tempFontSize}px sans-serif`;
-  ctx.fillStyle = "#ffffff";
-  ctx.textBaseline = "bottom";
-  ctx.fillText(tempStr, size / 2, size - size * 0.04);
+  ctx.textBaseline = "middle";
+  ctx.fillText(emoji, size / 2, size * 0.45);
 
   return canvas.toBuffer("image/png");
 }
@@ -192,33 +185,15 @@ function renderForecastDay(size: number, data: WeatherData, dayIndex: number, un
   const d = data.daily;
   if (!d || dayIndex >= d.time.length) return canvas.toBuffer("image/png");
 
-  const dayName = shortDayName(d.time[dayIndex]);
   const emoji = wmoEmoji(d.weather_code[dayIndex]);
-  const hi = formatTemp(d.temperature_2m_max[dayIndex], units);
-  const lo = formatTemp(d.temperature_2m_min[dayIndex], units);
 
-  const smallFont = Math.round(size * 0.17);
-  const emojiFont = Math.round(size * 0.30);
-
-  // Day name (top)
-  ctx.font = `bold ${smallFont}px sans-serif`;
-  ctx.fillStyle = "#94a3b8";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText(dayName, size / 2, size * 0.04);
-
-  // Emoji (middle)
+  // Weather emoji — centred. Day name and temps are rendered as label
+  // overlays by the button renderer so we don't draw them here.
+  const emojiFont = Math.round(size * 0.55);
   ctx.font = `${emojiFont}px NotoColorEmoji, sans-serif`;
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(emoji, size / 2, size * 0.52);
-
-  // High / Low (bottom)
-  ctx.font = `bold ${smallFont}px sans-serif`;
-  ctx.fillStyle = "#f97316";
-  ctx.textBaseline = "bottom";
-  ctx.fillText(`↑${hi}`, size * 0.3, size - size * 0.04);
-  ctx.fillStyle = "#60a5fa";
-  ctx.fillText(`↓${lo}`, size * 0.72, size - size * 0.04);
+  ctx.fillText(emoji, size / 2, size * 0.45);
 
   return canvas.toBuffer("image/png");
 }

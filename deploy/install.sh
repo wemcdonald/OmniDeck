@@ -141,6 +141,10 @@ else
   info "OmniDeck already installed at ${INSTALL_DIR}. Pass --upgrade to update."
 fi
 
+# Fetch LFS objects (e.g. NotoColorEmoji.ttf) that aren't included in a shallow clone
+info "Fetching Git LFS assets..."
+git -C "$INSTALL_DIR" lfs pull
+
 # ---------------------------------------------------------------------------
 # Step 6: Install dependencies
 # ---------------------------------------------------------------------------

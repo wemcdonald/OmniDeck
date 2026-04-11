@@ -12,13 +12,19 @@ const materialSymbolsData = _require("@iconify-json/material-symbols/icons.json"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Resolve assets dir relative to this file for both tsx (src/) and built (dist/) layouts
-for (const rel of ["../../assets", "../assets"]) {
-  const candidate = join(__dirname, rel, "NotoColorEmoji.ttf");
-  try {
-    GlobalFonts.registerFromPath(candidate, "NotoColorEmoji");
-    break;
-  } catch {
-    // try next candidate
+{
+  let registered = false;
+  for (const rel of ["../../assets", "../assets"]) {
+    const candidate = join(__dirname, rel, "NotoColorEmoji.ttf");
+    try {
+      const result = GlobalFonts.registerFromPath(candidate, "NotoColorEmoji");
+      if (result) { registered = true; break; }
+    } catch {
+      // try next candidate
+    }
+  }
+  if (!registered) {
+    console.warn("[renderer] NotoColorEmoji font not loaded — emoji icons will not render. Run 'git lfs pull' to fetch the font file.");
   }
 }
 
