@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { parseDocument } from "yaml";
 import sharp from "sharp";
-import type { DeckManager } from "./deck/types.js";
+import type { DeckManager, DisplayArea } from "./deck/types.js";
 import type { PageConfig, ButtonConfig } from "./config/validator.js";
 import { PageConfigSchema } from "./config/validator.js";
 import { ButtonRenderer } from "./renderer/renderer.js";
@@ -360,6 +360,7 @@ export class Hub {
         keyColumns: this.deck.keyColumns,
         keySize: this.deck.keySize,
         capabilities: this.deck.capabilities,
+        displayAreas: this.deck.displayAreas,
       }),
       pressKey: (key) => this.pressKey(key),
       getPluginStatuses: () => this.pluginHost.getStatuses(),
@@ -445,6 +446,7 @@ export class Hub {
           keyColumns: this.deck.keyColumns,
           keySize: this.deck.keySize,
           capabilities: this.deck.capabilities,
+          displayAreas: this.deck.displayAreas,
         },
       });
       this.renderCurrentPage().catch((err) =>
@@ -480,6 +482,7 @@ export class Hub {
         keyColumns: this.deck.keyColumns,
         keySize: this.deck.keySize,
         capabilities: this.deck.capabilities,
+        displayAreas: this.deck.displayAreas,
       },
     });
 
@@ -722,32 +725,89 @@ export class Hub {
     return Object.fromEntries(entries);
   }
 
-  async getDeckPreview(): Promise<Record<number, string>> {
+  async getDeckPreview(): Promise<{ images: Record<number, string>; displayAreaImages: Record<string, string> }> {
     const page = this.getPage(this.currentPageId);
-    if (!page) return {};
+    if (!page) return { images: {}, displayAreaImages: {} };
 
     const { width, height } = this.deck.keySize;
     const columns = page.columns ?? this.deck.keyColumns;
-    const result: Record<number, string> = {};
+    const images: Record<number, string> = {};
+    const displayAreaImages: Record<string, string> = {};
 
     const blackRaw = await this.renderer.render({});
     const blackJpeg = await sharp(blackRaw, { raw: { width, height, channels: 3 } }).jpeg().toBuffer();
     const blackB64 = blackJpeg.toString("base64");
     for (let i = 0; i < this.deck.keyCount; i++) {
-      result[i] = blackB64;
+      images[i] = blackB64;
+    }
+
+    // Black placeholder for each display area segment
+    for (const area of this.deck.displayAreas) {
+      const areaRenderer = this.displayAreaRenderers.get(area.id);
+      if (!areaRenderer) continue;
+      const seg = area.segments[0];
+      if (!seg) continue;
+      const areaBlackRaw = await areaRenderer.render({});
+      const areaBlackJpeg = await sharp(areaBlackRaw, { raw: { width: seg.width, height: seg.height, channels: 3 } }).jpeg().toBuffer();
+      const areaBlackB64 = areaBlackJpeg.toString("base64");
+      for (let i = 0; i < area.segments.length; i++) {
+        displayAreaImages[`${area.id}:${i}`] = areaBlackB64;
+      }
+    }
+
+    // Pre-compute spanning buttons for preview
+    const spanByArea = new Map<string, ButtonConfig>();
+    for (const button of page.buttons) {
+      if (button.span) {
+        const area = this.deck.displayAreas.find(a => a.col === button.pos[0]);
+        if (area) spanByArea.set(area.id, button);
+      }
     }
 
     for (const button of page.buttons) {
       const [col, row] = button.pos;
+
+      // Display area button
+      const area = this.deck.displayAreas.find(a => a.col === col);
+      if (area) {
+        const spanButton = spanByArea.get(area.id);
+        if (spanButton) {
+          if (button !== spanButton) continue;
+          const spanRenderer = new ButtonRenderer({ width: area.pixelWidth, height: area.pixelHeight });
+          const state = this.resolveButtonState(spanButton);
+          const fullRaw = await spanRenderer.render(state, this.scrollTick);
+          for (let i = 0; i < area.segments.length; i++) {
+            const seg = area.segments[i]!;
+            const jpeg = await sharp(fullRaw, {
+              raw: { width: area.pixelWidth, height: area.pixelHeight, channels: 3 },
+            })
+              .extract({ left: seg.x, top: seg.y, width: seg.width, height: seg.height })
+              .jpeg()
+              .toBuffer();
+            displayAreaImages[`${area.id}:${i}`] = jpeg.toString("base64");
+          }
+          continue;
+        }
+        const areaRenderer = this.displayAreaRenderers.get(area.id);
+        if (!areaRenderer || row < 0 || row >= area.rows) continue;
+        const seg = area.segments[row];
+        if (!seg) continue;
+        const state = this.resolveButtonState(button);
+        const raw = await areaRenderer.render(state, this.scrollTick);
+        const jpeg = await sharp(raw, { raw: { width: seg.width, height: seg.height, channels: 3 } }).jpeg().toBuffer();
+        displayAreaImages[`${area.id}:${row}`] = jpeg.toString("base64");
+        continue;
+      }
+
       const keyIndex = row * columns + col;
       if (keyIndex >= this.deck.keyCount) continue;
       const state = this.resolveButtonState(button);
       const raw = await this.renderer.render(state, this.scrollTick);
       const jpeg = await sharp(raw, { raw: { width, height, channels: 3 } }).jpeg().toBuffer();
-      result[keyIndex] = jpeg.toString("base64");
+      images[keyIndex] = jpeg.toString("base64");
     }
 
-    return result;
+    return { images, displayAreaImages };
   }
 
   async pressKey(keyIndex: number): Promise<void> {
@@ -840,6 +900,30 @@ export class Hub {
     return undefined;
   }
 
+  /**
+   * Render a spanning display area button: renders at full area dimensions,
+   * slices into per-segment crops, and sends each to the device.
+   * Returns the raw full-height buffer (for preview use).
+   */
+  private async renderSpanButton(
+    area: DisplayArea,
+    button: ButtonConfig,
+  ): Promise<Buffer> {
+    const spanRenderer = new ButtonRenderer({ width: area.pixelWidth, height: area.pixelHeight });
+    const state = this.resolveButtonState(button);
+    const fullRaw = await spanRenderer.render(state, this.scrollTick);
+    for (const seg of area.segments) {
+      const sliced = await sharp(fullRaw, {
+        raw: { width: area.pixelWidth, height: area.pixelHeight, channels: 3 },
+      })
+        .extract({ left: seg.x, top: seg.y, width: seg.width, height: seg.height })
+        .raw()
+        .toBuffer();
+      await this.deck.fillDisplayRegion(area.id, seg.x, seg.y, sliced, seg.width, seg.height);
+    }
+    return fullRaw;
+  }
+
   private async renderCurrentPage(): Promise<void> {
     // Cancel any pending incremental render — it would race with the full redraw.
     if (this.renderTimer) {
@@ -851,6 +935,7 @@ export class Hub {
     if (!page) return;
 
     this.stateCache.clear();
+    this.displayAreaStateCache.clear();
 
     // Clear all keys first (black)
     const blackImage = await this.renderer.render({});
@@ -866,12 +951,30 @@ export class Hub {
     // Render each button
     const columns = page.columns ?? this.deck.keyColumns;
     log.debug({ buttonCount: page.buttons.length, columns, keyCount: this.deck.keyCount }, "Rendering page");
+
+    // Pre-compute which areas have a spanning button (takes precedence over individual rows)
+    const spanByArea = new Map<string, ButtonConfig>();
+    for (const button of page.buttons) {
+      if (button.span) {
+        const area = this.deck.displayAreas.find(a => a.col === button.pos[0]);
+        if (area) spanByArea.set(area.id, button);
+      }
+    }
+
     for (const button of page.buttons) {
       const [col, row] = button.pos;
 
       // Check if this button belongs to a display area
       const area = this.deck.displayAreas.find(a => a.col === col);
       if (area) {
+        const spanButton = spanByArea.get(area.id);
+        if (spanButton) {
+          // Only process the span button itself; skip individual row buttons for this area
+          if (button !== spanButton) continue;
+          await this.renderSpanButton(area, spanButton);
+          this.displayAreaStateCache.set(`${area.id}:span`, this.hashState(this.resolveButtonState(spanButton)));
+          continue;
+        }
         const areaRenderer = this.displayAreaRenderers.get(area.id);
         if (!areaRenderer || row < 0 || row >= area.rows) continue;
         const seg = area.segments[row];
@@ -897,7 +1000,7 @@ export class Hub {
 
     // Broadcast full preview to web clients
     this.getDeckPreview()
-      .then((images) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, images } }))
+      .then((preview) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, ...preview } }))
       .catch((err) => log.warn({ err }, "Failed to broadcast deck preview"));
   }
 
@@ -912,12 +1015,33 @@ export class Hub {
     const columns = page.columns ?? this.deck.keyColumns;
     let anyChanged = false;
 
+    // Pre-compute spanning buttons
+    const spanByArea = new Map<string, ButtonConfig>();
+    for (const button of page.buttons) {
+      if (button.span) {
+        const area = this.deck.displayAreas.find(a => a.col === button.pos[0]);
+        if (area) spanByArea.set(area.id, button);
+      }
+    }
+
     for (const button of page.buttons) {
       const [col, row] = button.pos;
 
       // Display area button
       const area = this.deck.displayAreas.find(a => a.col === col);
       if (area) {
+        const spanButton = spanByArea.get(area.id);
+        if (spanButton) {
+          if (button !== spanButton) continue;
+          const state = this.resolveButtonState(spanButton);
+          const hash = this.hashState(state);
+          const cacheKey = `${area.id}:span`;
+          if (this.displayAreaStateCache.get(cacheKey) === hash) continue;
+          this.displayAreaStateCache.set(cacheKey, hash);
+          await this.renderSpanButton(area, spanButton);
+          anyChanged = true;
+          continue;
+        }
         const areaRenderer = this.displayAreaRenderers.get(area.id);
         if (!areaRenderer || row < 0 || row >= area.rows) continue;
         const seg = area.segments[row];
@@ -955,7 +1079,7 @@ export class Hub {
     // Only broadcast to web if something actually changed
     if (anyChanged) {
       this.getDeckPreview()
-        .then((images) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, images } }))
+        .then((preview) => this.broadcaster.send({ type: "deck:update", data: { page: this.currentPageId, ...preview } }))
         .catch((err) => log.warn({ err }, "Failed to broadcast deck preview"));
     }
   }

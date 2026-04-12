@@ -83,6 +83,8 @@ export const ButtonConfigSchema = z.object({
   state: ButtonStateSchema.optional(),
   preset: z.string().optional(),
   target: z.string().optional(),
+  /** Span all rows of a display area (e.g. the full strip). Renders one image across all segments. */
+  span: z.boolean().optional(),
   /** Per-mode overrides. Key is the mode ID. */
   modes: z.record(z.string(), ButtonModeOverrideSchema).optional(),
 });

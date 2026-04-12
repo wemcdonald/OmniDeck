@@ -30,6 +30,7 @@ export interface ButtonConfig {
   };
   preset?: string;
   target?: string;
+  span?: boolean;
   long_press_action?: string;
   long_press_params?: Record<string, unknown>;
 }
@@ -228,6 +229,23 @@ export interface AgentState {
   agent_version: string;
 }
 
+export interface DisplaySegmentInfo {
+  id: number;
+  x: number; y: number;
+  width: number; height: number;
+}
+
+export interface DisplayAreaInfo {
+  id: string;
+  pixelWidth: number;
+  pixelHeight: number;
+  col: number;
+  rows: number;
+  supportsInput: boolean;
+  supportsRegionalWrite: boolean;
+  segments: DisplaySegmentInfo[];
+}
+
 export interface DeckInfo {
   driver: string;
   model: string;
@@ -239,6 +257,7 @@ export interface DeckInfo {
     hasHardwareLongPress: boolean;
     hasDisplay: boolean;
   };
+  displayAreas: DisplayAreaInfo[];
 }
 
 export const api = {
@@ -333,7 +352,7 @@ export const api = {
       request<Array<{ id: string; status: string; version: string; error?: string }>>(
         "/api/status/plugins"
       ),
-    deckPreview: () => request<Record<number, string>>("/api/deck/preview"),
+    deckPreview: () => request<{ images: Record<number, string>; displayAreaImages: Record<string, string> }>("/api/deck/preview"),
     presets: () => request<PresetInfo[]>("/api/status/presets"),
     pluginCatalog: () => request<PluginCatalog>("/api/status/plugin-catalog"),
     activeMode: () => request<ActiveModeInfo>("/api/status/active-mode"),

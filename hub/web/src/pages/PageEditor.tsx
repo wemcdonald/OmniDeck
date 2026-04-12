@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { api, type PageConfig, type ButtonConfig } from "../lib/api";
+import { api, type PageConfig, type ButtonConfig, type DisplayAreaInfo } from "../lib/api";
 import { usePluginCatalog } from "../hooks/usePluginCatalog";
 import ButtonGrid from "../components/ButtonGrid";
 import ButtonConfigEditor from "../components/ButtonConfigEditor";
@@ -40,6 +40,12 @@ export default function PageEditor() {
     queryFn: () => api.pages.preview(id!),
     enabled: !!id,
   });
+
+  const { data: deckInfo } = useQuery({
+    queryKey: ["status", "deck"],
+    queryFn: () => api.status.deck().catch(() => null),
+  });
+  const displayAreas: DisplayAreaInfo[] = deckInfo?.displayAreas ?? [];
 
   // Sync page data from query to local state for optimistic editing
   useEffect(() => {
@@ -188,6 +194,7 @@ export default function PageEditor() {
               onSelect={setSelectedPos}
               onDrop={handleDrop}
               previews={previews}
+              displayAreas={displayAreas}
             />
           </div>
         </div>
