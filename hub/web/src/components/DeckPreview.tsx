@@ -66,7 +66,6 @@ export default function DeckPreview() {
   }
 
   const totalCols = keyColumns + displayAreas.length;
-  const rows = Math.ceil(keyCount / keyColumns);
 
   return (
     <Card className="bg-surface-container rounded border border-outline-variant dark:border-outline">
