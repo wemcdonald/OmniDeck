@@ -129,10 +129,7 @@ export default function ButtonGrid({
 
     {/* Display area columns (e.g. Mirabox side strip) */}
     {displayAreas.map((area) => (
-      <div key={area.id} className="flex flex-col gap-2" style={{ width: "calc(100% / 6)" }}>
-        <div className="text-[9px] text-muted-foreground text-center uppercase tracking-wide">
-          {area.id}
-        </div>
+      <div key={area.id} className="flex flex-col gap-2" style={{ width: `calc(100% / ${columns + displayAreas.length})` }}>
         {Array.from({ length: area.rows }, (_, row) => {
           const pos: [number, number] = [area.col, row];
           const key = `${area.col},${row}`;

@@ -135,8 +135,8 @@ export default function PageEditor() {
 
   if (!page) return <p className="text-muted-foreground p-4">Loading...</p>;
 
-  const columns = page.columns ?? 5;
-  const rows = 3;
+  const columns = page.columns ?? deckInfo?.keyColumns ?? 5;
+  const rows = deckInfo ? Math.ceil(deckInfo.keyCount / columns) : 3;
 
   return (
     <div className="h-full flex flex-col lg:flex-row overflow-hidden -m-4 md:-m-6">
@@ -181,7 +181,7 @@ export default function PageEditor() {
         <div className="flex items-center justify-between">
           <h2 className="font-semibold font-display">{page.name ?? page.page}</h2>
           <span className="text-xs text-muted-foreground font-mono">
-            {page.buttons.length} / {columns * rows}
+            {page.buttons.length} / {columns * rows + displayAreas.reduce((s, a) => s + a.rows, 0)}
           </span>
         </div>
         <div className="flex-1 flex items-start min-h-0">
