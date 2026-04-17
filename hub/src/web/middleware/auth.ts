@@ -16,6 +16,12 @@ const PUBLIC_PATHS = [
   "/api/tls/ca.crt",
 ];
 
+/** Path prefixes that bypass auth — used for Wi-Fi setup when the hub is in AP mode. */
+const PUBLIC_PREFIXES = [
+  "/api/setup/",
+  "/setup",
+];
+
 const SESSION_COOKIE = "omnideck_session";
 
 export interface AuthMiddlewareOptions {
@@ -31,6 +37,9 @@ export function createAuthMiddleware(opts: AuthMiddlewareOptions) {
   return async (c: Context, next: Next) => {
     // Allow public paths through
     if (PUBLIC_PATHS.some((p) => c.req.path === p)) {
+      return next();
+    }
+    if (PUBLIC_PREFIXES.some((p) => c.req.path.startsWith(p))) {
       return next();
     }
 

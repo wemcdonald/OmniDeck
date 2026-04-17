@@ -13,6 +13,7 @@ import { createAuthRoutes } from "./routes/auth.js";
 import { createPairingRoutes } from "./routes/pairing.js";
 import { createPluginInstallRoutes } from "./routes/plugins.js";
 import { createBackupRoutes } from "./routes/backup.js";
+import { createSetupRoutes } from "./routes/setup.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import type { Broadcaster } from "./broadcast.js";
 import type { AgentServer } from "../server/server.js";
@@ -115,6 +116,9 @@ export class WebServer {
     if (this.opts.pairing) {
       this.app.route("/api/pairing", createPairingRoutes(this.opts.pairing));
     }
+
+    // Wi-Fi setup / onboarding
+    this.app.route("/api/setup", createSetupRoutes());
 
     const startedAt = Date.now();
     this.app.get("/api/health", (c) => {

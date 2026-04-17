@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "./components/Layout.tsx";
 import { api } from "./lib/api.ts";
@@ -13,15 +13,30 @@ const Logs = lazy(() => import("./pages/Logs.tsx"));
 const Agents = lazy(() => import("./pages/Agents.tsx"));
 const Modes = lazy(() => import("./pages/Modes.tsx"));
 const Login = lazy(() => import("./pages/Login.tsx"));
+const Setup = lazy(() => import("./pages/Setup.tsx"));
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const location = useLocation();
+  const isSetupRoute = location.pathname.startsWith("/setup");
 
   const { data: authStatus, isLoading, isError, refetch } = useQuery({
     queryKey: ["auth", "status"],
     queryFn: api.auth.status,
     retry: 2,
+    enabled: !isSetupRoute,
   });
+
+  // Setup flow bypasses auth entirely — served from captive portal in AP mode.
+  if (isSetupRoute) {
+    return (
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/setup" element={<Setup />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (isLoading) return null;
 

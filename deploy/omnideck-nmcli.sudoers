@@ -1,0 +1,10 @@
+# Allow the OmniDeck hub user to run nmcli without a password, limited to the
+# commands the Wi-Fi setup flow needs.
+#
+# Installed by deploy/install.sh at /etc/sudoers.d/omnideck-nmcli and edited
+# in place to substitute %%USER%%. Do not edit the installed copy by hand —
+# rerun the installer instead.
+%%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli device wifi rescan
+%%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli device wifi connect *
+%%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli connection up omnideck-setup-ap
+%%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli connection down omnideck-setup-ap

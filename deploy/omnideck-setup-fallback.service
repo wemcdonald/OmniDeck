@@ -1,0 +1,19 @@
+[Unit]
+Description=OmniDeck Wi-Fi fallback supervisor
+Documentation=https://github.com/wemcdonald/OmniDeck
+After=NetworkManager.service
+Requires=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=%%INSTALL_DIR%%/scripts/omnideck-wifi-fallback.sh
+Restart=on-failure
+RestartSec=10
+# Only needs nmcli + coreutils — no elevated filesystem access required
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -384,4 +384,28 @@ export const api = {
     revokeAgent: (id: string) =>
       request<{ ok: boolean }>(`/api/pairing/agents/${id}`, { method: "DELETE" }),
   },
+  setup: {
+    state: () => request<NetworkStateResponse>("/api/setup/state"),
+    scan: () => request<{ networks: WifiNetwork[] }>("/api/setup/scan"),
+    connect: (input: { ssid: string; password: string }) =>
+      request<{ ok: boolean; error?: string }>("/api/setup/connect", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  },
 };
+
+export interface NetworkStateResponse {
+  mode: "client" | "ap" | "connecting" | "offline" | "unavailable";
+  ssid: string | null;
+  ip: string | null;
+  nmAvailable: boolean;
+  setup_ssid: string;
+}
+
+export interface WifiNetwork {
+  ssid: string;
+  signal: number;
+  security: string;
+  inUse: boolean;
+}

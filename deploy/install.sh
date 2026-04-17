@@ -41,13 +41,27 @@ SERVICE_DEST="/etc/systemd/system/${SERVICE_NAME}.service"
 UDEV_DEST="/etc/udev/rules.d/50-omnideck.rules"
 HUB_PORT=28120
 
+# Wi-Fi setup / AP fallback
+AP_CONNECTION="omnideck-setup-ap"
+AP_SSID="OmniDeck Setup"
+AP_PSK="omnideck"
+AP_IP="192.168.50.1/24"
+FALLBACK_SERVICE_NAME="omnideck-setup-fallback"
+FALLBACK_SERVICE_DEST="/etc/systemd/system/${FALLBACK_SERVICE_NAME}.service"
+DNSMASQ_SHARED_DIR="/etc/NetworkManager/dnsmasq-shared.d"
+DNSMASQ_SHARED_DEST="${DNSMASQ_SHARED_DIR}/omnideck-captive.conf"
+SUDOERS_DEST="/etc/sudoers.d/omnideck-nmcli"
+
 # ---------------------------------------------------------------------------
 # Flags
 # ---------------------------------------------------------------------------
 UPGRADE=0
+WITH_HOTSPOT=1
 for arg in "$@"; do
   case "$arg" in
     --upgrade) UPGRADE=1 ;;
+    --no-hotspot) WITH_HOTSPOT=0 ;;
+    --with-hotspot) WITH_HOTSPOT=1 ;;
   esac
 done
 
@@ -261,7 +275,84 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 11: Generate and install systemd service
+# Step 11: Wi-Fi setup AP (optional)
+# ---------------------------------------------------------------------------
+if [ "$WITH_HOTSPOT" -eq 1 ]; then
+  info "Configuring Wi-Fi setup hotspot..."
+
+  if ! command -v nmcli >/dev/null 2>&1; then
+    info "Installing NetworkManager..."
+    sudo apt-get install -y network-manager
+  fi
+
+  sudo systemctl enable --now NetworkManager >/dev/null 2>&1 || \
+    warn "Could not enable NetworkManager — Wi-Fi setup may not work until it is running."
+
+  # Dnsmasq hijack so phones hit our captive portal regardless of host
+  sudo mkdir -p "$DNSMASQ_SHARED_DIR"
+  sudo cp "${INSTALL_DIR}/deploy/nm-dnsmasq-shared-omnideck.conf" "$DNSMASQ_SHARED_DEST"
+  sudo chmod 644 "$DNSMASQ_SHARED_DEST"
+
+  # Create (or update) the AP profile. We *define* it here; the fallback
+  # service decides when to bring it up.
+  if sudo nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$AP_CONNECTION"; then
+    info "AP profile '${AP_CONNECTION}' already exists — updating settings."
+    sudo nmcli connection modify "$AP_CONNECTION" \
+      802-11-wireless.mode ap \
+      802-11-wireless.ssid "$AP_SSID" \
+      802-11-wireless.band bg \
+      ipv4.method shared \
+      ipv4.addresses "$AP_IP" \
+      ipv6.method ignore \
+      wifi-sec.key-mgmt wpa-psk \
+      wifi-sec.psk "$AP_PSK" \
+      connection.autoconnect no \
+      connection.interface-name wlan0 >/dev/null
+  else
+    info "Creating AP profile '${AP_CONNECTION}'..."
+    sudo nmcli connection add \
+      type wifi \
+      ifname wlan0 \
+      con-name "$AP_CONNECTION" \
+      autoconnect no \
+      ssid "$AP_SSID" \
+      -- \
+      802-11-wireless.mode ap \
+      802-11-wireless.band bg \
+      ipv4.method shared \
+      ipv4.addresses "$AP_IP" \
+      ipv6.method ignore \
+      wifi-sec.key-mgmt wpa-psk \
+      wifi-sec.psk "$AP_PSK" >/dev/null
+  fi
+
+  # Sudoers drop-in so the hub user can run the narrow set of nmcli commands
+  # needed for scanning + connecting + toggling the AP.
+  SUDOERS_TMP="$(mktemp /tmp/omnideck-nmcli.sudoers.XXXXXX)"
+  sed -e "s|%%USER%%|${USER}|g" \
+    "${INSTALL_DIR}/deploy/omnideck-nmcli.sudoers" > "$SUDOERS_TMP"
+  if sudo visudo -cf "$SUDOERS_TMP" >/dev/null; then
+    sudo install -m 0440 -o root -g root "$SUDOERS_TMP" "$SUDOERS_DEST"
+    info "Installed sudoers drop-in at ${SUDOERS_DEST}"
+  else
+    warn "visudo rejected ${SUDOERS_TMP} — not installing. Wi-Fi setup may require manual sudo."
+  fi
+  rm -f "$SUDOERS_TMP"
+
+  # Fallback supervisor service
+  FALLBACK_TEMPLATE="${INSTALL_DIR}/deploy/omnideck-setup-fallback.service"
+  FALLBACK_GEN="$(mktemp /tmp/omnideck-setup-fallback.service.XXXXXX)"
+  sed -e "s|%%INSTALL_DIR%%|${INSTALL_DIR}|g" "$FALLBACK_TEMPLATE" > "$FALLBACK_GEN"
+  sudo install -m 0644 -o root -g root "$FALLBACK_GEN" "$FALLBACK_SERVICE_DEST"
+  rm -f "$FALLBACK_GEN"
+
+  info "Wi-Fi setup AP configured. SSID='${AP_SSID}' password='${AP_PSK}' IP=${AP_IP%/*}"
+else
+  info "Skipping Wi-Fi setup hotspot (--no-hotspot)."
+fi
+
+# ---------------------------------------------------------------------------
+# Step 12: Generate and install systemd service
 # ---------------------------------------------------------------------------
 info "Installing systemd service..."
 
@@ -283,6 +374,11 @@ rm -f "$GENERATED_SERVICE"
 sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
+
+if [ "$WITH_HOTSPOT" -eq 1 ]; then
+  sudo systemctl enable "$FALLBACK_SERVICE_NAME" >/dev/null 2>&1 || true
+  sudo systemctl restart "$FALLBACK_SERVICE_NAME" >/dev/null 2>&1 || true
+fi
 
 # Give the service a moment to start, then check it's actually running
 sleep 2
@@ -311,4 +407,11 @@ echo "  Config directory : ${CONFIG_DIR}"
 echo "  Install directory: ${INSTALL_DIR}"
 echo "  Service status   : sudo systemctl status ${SERVICE_NAME}"
 echo "  Service logs     : journalctl -u ${SERVICE_NAME} -f"
+if [ "$WITH_HOTSPOT" -eq 1 ]; then
+  echo ""
+  echo "  Setup hotspot    : SSID='${AP_SSID}' password='${AP_PSK}'"
+  echo "                     (broadcasts automatically if Wi-Fi fails)"
+  echo "  Setup URL        : http://${AP_IP%/*}/setup"
+  echo "  Fallback logs    : journalctl -u ${FALLBACK_SERVICE_NAME} -f"
+fi
 echo "============================================================"

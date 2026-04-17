@@ -49,6 +49,41 @@ The **hub** runs on a Raspberry Pi, manages the Stream Deck hardware, loads plug
 
 → [Full install guide](docs/getting-started.md) · [Documentation](docs/) · [Plugin guide](docs/plugin-guide.md)
 
+## Wi-Fi setup mode
+
+If the Pi cannot join a known Wi-Fi network within ~30 seconds of boot, it broadcasts its own onboarding hotspot:
+
+- SSID: **OmniDeck Setup**
+- Password: **omnideck**
+- Setup page: any URL in your browser (iOS/Android will pop the captive-portal UI automatically), or `http://192.168.50.1/setup`
+
+From the setup page, pick a nearby network, enter its password, and the Pi will join it and drop the hotspot. Credentials are saved via NetworkManager, so the next reboot connects normally. If the saved network disappears later, the hotspot returns automatically.
+
+To skip hotspot setup on a fresh install (e.g. headless Ethernet-only deployments):
+
+```bash
+curl -sSf .../install.sh | bash -s -- --no-hotspot
+```
+
+**Troubleshooting**
+
+- `journalctl -u omnideck-setup-fallback -f` — fallback supervisor decisions
+- `nmcli -t -f NAME,TYPE,DEVICE connection show --active` — what is using wlan0 right now
+- `sudo nmcli connection up omnideck-setup-ap` — force hotspot on for debugging
+- `sudo nmcli connection down omnideck-setup-ap` — drop hotspot (NM will retry saved Wi-Fi)
+- `sudo nmcli connection delete "<network-name>"` — forget a stored Wi-Fi network
+
+**Recovery**
+
+To wipe all stored Wi-Fi networks and return to setup mode on next boot:
+
+```bash
+sudo nmcli -t -f NAME,TYPE connection show \
+  | awk -F: '$2 == "802-11-wireless" && $1 != "omnideck-setup-ap" { print $1 }' \
+  | xargs -r -I{} sudo nmcli connection delete "{}"
+sudo reboot
+```
+
 ## Plugins
 
 The [OmniDeck-plugins](https://github.com/wemcdonald/OmniDeck-plugins) repository contains the full plugin library — Spotify, Discord, Slack, Google Meet, Zoom, Weather, Clock, and more. Plugins are installed directly from the web UI; no manual file copying needed.

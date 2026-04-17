@@ -14,6 +14,11 @@ Environment=NODE_ENV=production
 Environment=OMNIDECK_CONFIG_DIR=%%HOME%%/.omnideck/config
 Environment=OMNIDECK_SECRETS_PATH=%%HOME%%/.omnideck/secrets.yaml
 Environment=OMNIDECK_DATA_DIR=%%HOME%%/.omnideck
+# Allow the hub to bind port 80 for the captive portal while the setup AP is
+# active. The cap is only used while omnideck-setup-ap is up; the rest of the
+# time no privileged port is bound.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 StandardOutput=journal
 StandardError=journal
 

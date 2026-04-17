@@ -16,6 +16,7 @@ import { homeAssistantPlugin } from "./plugins/builtin/home-assistant/index.js";
 import { osControlPlugin } from "./plugins/builtin/os-control/index.js";
 import { createLogger, setLogBroadcaster } from "./logger.js";
 import { WebServer } from "./web/server.js";
+import { SetupPortal } from "./web/setup-portal.js";
 import { Broadcaster } from "./web/broadcast.js";
 import { ConfigWatcher } from "./config/watcher.js";
 import { AgentServer } from "./server/server.js";
@@ -74,6 +75,7 @@ export class Hub {
   private currentPageId = "";
   private previewRenderer: ButtonRenderer;
   private webServer: WebServer | null = null;
+  private setupPortal: SetupPortal | null = null;
   private agentServer: AgentServer | null = null;
   private configWatcher: ConfigWatcher | null = null;
   private discovery: HubDiscovery | null = null;
@@ -374,6 +376,11 @@ export class Hub {
     });
     await this.webServer.start();
 
+    // Captive portal listener (only binds :80 while setup AP is active)
+    const hubPort = this.opts.webPort ?? 28120;
+    this.setupPortal = new SetupPortal(hubPort);
+    this.setupPortal.start();
+
     // Watch config directory for page changes
     if (this.opts.configDir) {
       this.configWatcher = new ConfigWatcher(this.opts.configDir);
@@ -663,6 +670,10 @@ export class Hub {
     if (this.agentServer) {
       await this.agentServer.stop();
       this.agentServer = null;
+    }
+    if (this.setupPortal) {
+      await this.setupPortal.stop();
+      this.setupPortal = null;
     }
     if (this.webServer) {
       await this.webServer.stop();
