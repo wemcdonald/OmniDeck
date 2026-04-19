@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --config '{\"identifier\":\"com.omnideck.agent.dev\",\"productName\":\"OmniDeck Agent (dev)\"}'",
+    "tauri:build:local": "tauri build --config '{\"identifier\":\"com.omnideck.agent.dev\",\"productName\":\"OmniDeck Agent (dev)\"}'"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
