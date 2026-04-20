@@ -142,7 +142,10 @@ export class Hub {
 
     // Initialize pairing manager
     if (this.opts.agentsRegistryPath) {
-      this.pairing = new PairingManager(this.opts.agentsRegistryPath);
+      this.pairing = new PairingManager(
+        this.opts.agentsRegistryPath,
+        (agents) => this.broadcaster.send({ type: "pairing:update", data: agents }),
+      );
     }
 
     // Start agent WebSocket server

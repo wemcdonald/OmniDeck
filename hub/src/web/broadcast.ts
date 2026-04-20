@@ -1,3 +1,5 @@
+import type { PairedAgent } from "../server/pairing.js";
+
 interface BrowserWs {
   readyState: number;
   send(data: string): void;
@@ -6,6 +8,7 @@ interface BrowserWs {
 export type BroadcastMessage =
   | { type: "config:reloaded" }
   | { type: "agent:update"; data: unknown }
+  | { type: "pairing:update"; data: PairedAgent[] }
   | { type: "plugin:status"; data: unknown }
   | { type: "deck:update"; data: { page: string; images: Record<number, string> } }
   | { type: "deck:disconnected" }
