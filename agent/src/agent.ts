@@ -94,7 +94,13 @@ export class Agent {
         }
         opts.onConnected?.(opts.hubUrl, opts.hubUrl);
       },
-      onDisconnected: (reason) => opts.onDisconnected?.(reason),
+      onDisconnected: (reason) => {
+        if (reason === "revoked") {
+          opts.onAuthFailed?.();
+          return;
+        }
+        opts.onDisconnected?.(reason);
+      },
       onReconnecting: () => opts.onReconnecting?.(),
     });
 
@@ -139,6 +145,12 @@ export class Agent {
         opts.onAuthFailed!();
       });
     }
+
+    // Revoked handler — hub signalled that our token is no longer valid
+    this.client.onMessage("revoked", () => {
+      log.warn("Hub revoked this agent");
+      opts.onAuthFailed?.();
+    });
   }
 
   async start(): Promise<void> {

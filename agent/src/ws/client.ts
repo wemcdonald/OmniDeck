@@ -1,4 +1,5 @@
 import { createMessage, parseMessage, type WsMessage } from "./protocol.js";
+import { WS_CLOSE_CODE_REVOKED } from "./protocol.js";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("ws");
@@ -155,8 +156,13 @@ export class AgentClient {
         reject(new Error(`WebSocket error connecting to ${this.opts.hubUrl}`));
       };
 
-      this.ws.onclose = () => {
-        log.warn("Disconnected from hub");
+      this.ws.onclose = (event: CloseEvent) => {
+        log.warn("Disconnected from hub", { code: event.code, reason: event.reason });
+        if (event.code === WS_CLOSE_CODE_REVOKED) {
+          this.opts.onDisconnected?.("revoked");
+          // Do not reconnect — credentials are invalid.
+          return;
+        }
         this.opts.onDisconnected?.(this.closing ? "shutdown" : "connection_lost");
         if (!this.closing) {
           this.scheduleReconnect();
