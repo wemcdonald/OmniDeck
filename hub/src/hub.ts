@@ -141,10 +141,12 @@ export class Hub {
     }
 
     // Initialize pairing manager
+    let agentServerRef: AgentServer | null = null;
     if (this.opts.agentsRegistryPath) {
       this.pairing = new PairingManager(
         this.opts.agentsRegistryPath,
         (agents) => this.broadcaster.send({ type: "pairing:update", data: agents }),
+        (agentId) => agentServerRef?.revokeConnectedAgent(agentId),
       );
     }
 
@@ -159,6 +161,7 @@ export class Hub {
       caFingerprint: this.opts.tls?.caFingerprint,
       hubName: this.opts.hubName,
     });
+    agentServerRef = this.agentServer;
     const actualAgentPort = await this.agentServer.start();
 
     // mDNS discovery

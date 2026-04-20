@@ -32,6 +32,7 @@ export class PairingManager {
   constructor(
     registryPath: string,
     private onChange?: (agents: PairedAgent[]) => void,
+    private onRevoke?: (agentId: string) => void,
   ) {
     this.registryPath = registryPath;
     this.loadRegistry();
@@ -126,6 +127,7 @@ export class PairingManager {
     const [removed] = this.agents.splice(idx, 1);
     this.saveRegistry();
     log.info({ agentId, name: removed.name }, "Agent revoked");
+    this.onRevoke?.(agentId);
     this.onChange?.(this.listAgents());
     return true;
   }

@@ -11,6 +11,7 @@ import {
   type AuthenticateData,
   type AuthenticateResponseData,
   type PluginLogData,
+  WS_CLOSE_CODE_REVOKED,
 } from "./protocol.js";
 import type { PairingManager } from "./pairing.js";
 import { createLogger } from "../logger.js";
@@ -66,6 +67,7 @@ export class AgentServer {
   private wss: WebSocketServer | null = null;
   private httpsServer: ReturnType<typeof createHttpsServer> | null = null;
   private agents = new Map<string, ConnectedAgent>();
+  private connectionsByAgentId = new Map<string, WebSocket>();
   private pendingCommands = new Map<string, PendingCommand>();
   private agentLoggers = new Map<string, ReturnType<typeof createLogger>>();
   private connectionStates = new Map<WebSocket, ConnectionState>();
@@ -227,6 +229,17 @@ export class AgentServer {
     });
   }
 
+  /** Close a revoked agent's connection with a specific close code. */
+  revokeConnectedAgent(agentId: string): void {
+    const ws = this.connectionsByAgentId.get(agentId);
+    if (!ws) return;
+    try {
+      ws.send(JSON.stringify(createMessage("revoked", {})));
+    } catch { /* ignore send errors on closing socket */ }
+    ws.close(WS_CLOSE_CODE_REVOKED, "Agent revoked");
+    this.connectionsByAgentId.delete(agentId);
+  }
+
   private handleConnection(ws: WebSocket): void {
     let agentHostname: string | undefined;
 
@@ -260,6 +273,7 @@ export class AgentServer {
     ws.on("close", () => {
       this.connectionStates.delete(ws);
       this.lastPong.delete(ws);
+      if (connState.agentId) this.connectionsByAgentId.delete(connState.agentId);
       if (agentHostname) {
         this.agents.delete(agentHostname);
         log.info({ hostname: agentHostname }, "Agent disconnected");
@@ -400,6 +414,24 @@ export class AgentServer {
         log.warn("Pair request from already-authenticated agent, ignoring");
         break;
       }
+      case "unpair_request": {
+        if (!connState.agentId || !this.pairing) {
+          ws.send(JSON.stringify(createMessage("unpair_response",
+            { success: false, error: "Not authenticated" }, msg.id)));
+          break;
+        }
+        const agentId = connState.agentId;
+        // Send the ack first so the agent sees success before we close.
+        // In production, onRevoke (wired in hub.ts) will also close the socket —
+        // sending after that is tolerated (CLOSING state) or swallowed by try/catch.
+        try {
+          ws.send(JSON.stringify(createMessage("unpair_response", { success: true }, msg.id)));
+        } catch { /* socket may already be closing via onRevoke */ }
+        this.pairing.revokeAgent(agentId);
+        ws.close(WS_CLOSE_CODE_REVOKED, "Agent unpaired");
+        this.connectionsByAgentId.delete(agentId);
+        break;
+      }
       default:
         log.warn({ type: msg.type }, "Unknown message type");
     }
@@ -439,6 +471,7 @@ export class AgentServer {
     connState.authenticated = true;
     log.info({ agentId, hostname: data.hostname, authenticated: connState.authenticated }, "Connection authenticated after pairing");
     connState.agentId = agentId;
+    this.connectionsByAgentId.set(agentId, ws);
 
     const response: PairResponseData = {
       success: true,
@@ -478,6 +511,7 @@ export class AgentServer {
     connState.authenticated = true;
     connState.agentId = agent.agent_id;
     this.pairing.updateLastSeen(agent.agent_id);
+    this.connectionsByAgentId.set(agent.agent_id, ws);
 
     const response: AuthenticateResponseData = { success: true };
     ws.send(JSON.stringify(createMessage("authenticate_response", response, msg.id)));
