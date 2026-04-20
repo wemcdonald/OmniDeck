@@ -76,6 +76,7 @@ fn build_menu(app: &AppHandle, state: &AgentState) -> tauri::Result<Menu<tauri::
 
     let open_hub = MenuItem::with_id(app, "open_hub", "Open OmniDeck", is_paired, None::<&str>)?;
     let pair_item = MenuItem::with_id(app, "pair", "Pair with Hub...", !is_paired, None::<&str>)?;
+    let unpair_item = MenuItem::with_id(app, "unpair", "Unpair Hub...", is_paired, None::<&str>)?;
 
     let separator2 = PredefinedMenuItem::separator(app)?;
 
@@ -95,6 +96,7 @@ fn build_menu(app: &AppHandle, state: &AgentState) -> tauri::Result<Menu<tauri::
         &separator1,
         &open_hub,
         &pair_item,
+        &unpair_item,
         &separator2,
         &autostart_item,
         &about_item,
@@ -118,6 +120,24 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         }
         "pair" => {
             let _ = app.emit("show-pairing-window", ());
+        }
+        "unpair" => {
+            let app_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let confirmed = tauri_plugin_dialog::MessageDialogBuilder::new(
+                    app_handle.dialog().clone(),
+                    "Unpair OmniDeck Agent",
+                    "This will remove this agent from the hub and delete local credentials. Continue?",
+                )
+                .kind(tauri_plugin_dialog::MessageDialogKind::Warning)
+                .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel)
+                .blocking_show();
+                if confirmed {
+                    if let Err(e) = crate::cmd_unpair(app_handle.clone()).await {
+                        eprintln!("Unpair failed: {}", e);
+                    }
+                }
+            });
         }
         "toggle_autostart" => {
             let autolaunch = app.state::<tauri_plugin_autostart::AutoLaunchManager>();
