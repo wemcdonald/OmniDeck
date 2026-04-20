@@ -8,3 +8,4 @@
 %%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli device wifi connect *
 %%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli connection up omnideck-setup-ap
 %%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli connection down omnideck-setup-ap
+%%USER%% ALL=(root) NOPASSWD: /usr/bin/nmcli connection delete *

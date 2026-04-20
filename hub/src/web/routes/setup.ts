@@ -4,6 +4,8 @@ import {
   scanWifi,
   connectWifi,
   isApActive,
+  apDown,
+  apUp,
   SETUP_AP_SSID,
 } from "../../services/network.js";
 import { createLogger } from "../../logger.js";
@@ -38,11 +40,14 @@ export function createSetupRoutes(): Hono {
     if (ssid.length > 32) return c.json({ ok: false, error: "SSID too long" }, 400);
 
     const onAp = await isApActive();
+    if (onAp) await apDown();
+
     const result = await connectWifi(ssid, password);
 
     log.info({ ssid, ok: result.ok, onAp }, "connect attempt");
 
     if (!result.ok) {
+      if (onAp) await apUp();
       return c.json({ ok: false, error: result.error ?? "Connect failed" }, 400);
     }
     return c.json({ ok: true });

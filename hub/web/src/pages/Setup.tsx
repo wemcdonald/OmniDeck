@@ -80,7 +80,7 @@ export default function Setup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f1f5f9] dark:bg-background p-4">
+    <div className="min-h-screen flex items-start justify-center bg-[#f1f5f9] dark:bg-background p-4 sm:items-center">
       <Card className="w-full max-w-md border-border dark:border-primary/30">
         <CardContent className="pt-8 pb-6 px-6">
           <div className="flex flex-col items-center gap-1 mb-6">

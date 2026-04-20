@@ -1,8 +1,4 @@
 import { execFile } from "node:child_process";
-import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { randomBytes } from "node:crypto";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("network");
@@ -99,11 +95,6 @@ function parseTerse(line: string, fieldCount: number): string[] {
 }
 
 export async function isNmAvailable(): Promise<boolean> {
-  try {
-    await fs.access(NMCLI);
-  } catch {
-    return false;
-  }
   const res = await run(NMCLI, ["-t", "general", "status"], { timeoutMs: 5000 });
   return res.code === 0;
 }
@@ -202,7 +193,8 @@ export async function scanWifi(): Promise<WifiNetwork[]> {
 
 /**
  * Connect to Wi-Fi. SSID and password are never logged.
- * Password is passed via --passwd-file (tempfile 0600) to avoid argv exposure.
+ * Any existing profile with the same name is deleted first so a stale/wrong
+ * password from a prior boot doesn't block the new credentials.
  */
 export async function connectWifi(ssid: string, password: string): Promise<{ ok: boolean; error?: string }> {
   if (!ssid || ssid.length > 32) return { ok: false, error: "Invalid SSID" };
@@ -210,32 +202,24 @@ export async function connectWifi(ssid: string, password: string): Promise<{ ok:
     return { ok: false, error: "Password must be 8–63 characters" };
   }
 
-  const hasPassword = password.length > 0;
-  const pwFile = hasPassword ? join(tmpdir(), `omnideck-pw-${randomBytes(8).toString("hex")}`) : null;
-
-  try {
-    if (pwFile) {
-      await fs.writeFile(pwFile, `wifi-sec.psk:${password}\n`, { mode: 0o600 });
-    }
-
-    const args = ["device", "wifi", "connect", ssid, "ifname", "wlan0"];
-    if (pwFile) args.push("--passwd-file", pwFile);
-
-    const res = await run(NMCLI, args, { timeoutMs: 45_000, sudo: true });
-
-    if (res.code !== 0) {
-      const msg = (res.stderr || res.stdout).split("\n")[0] || "connect failed";
-      log.warn({ code: res.code, msg }, "connectWifi failed");
-      return { ok: false, error: msg };
-    }
-
-    log.info({ ssid }, "connectWifi succeeded");
-    return { ok: true };
-  } finally {
-    if (pwFile) {
-      await fs.rm(pwFile, { force: true }).catch(() => {});
-    }
+  // Remove any prior profile for this SSID. Ignore errors — profile may not exist.
+  if (ssid !== SETUP_AP_CONNECTION) {
+    await run(NMCLI, ["connection", "delete", ssid], { timeoutMs: 10_000, sudo: true });
   }
+
+  const args = ["device", "wifi", "connect", ssid, "ifname", "wlan0"];
+  if (password) args.push("password", password);
+
+  const res = await run(NMCLI, args, { timeoutMs: 45_000, sudo: true });
+
+  if (res.code !== 0) {
+    const msg = (res.stderr || res.stdout).split("\n")[0] || "connect failed";
+    log.warn({ code: res.code, msg }, "connectWifi failed");
+    return { ok: false, error: msg };
+  }
+
+  log.info({ ssid }, "connectWifi succeeded");
+  return { ok: true };
 }
 
 export async function apUp(): Promise<boolean> {

@@ -5,7 +5,7 @@ import { isApActive, SETUP_AP_IP } from "../services/network.js";
 const log = createLogger("portal");
 
 const CAPTIVE_PORT = parseInt(process.env["OMNIDECK_PORTAL_PORT"] ?? "80", 10);
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 2_000;
 const DISABLED = CAPTIVE_PORT === 0;
 
 /**
