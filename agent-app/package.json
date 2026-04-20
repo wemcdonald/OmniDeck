@@ -8,12 +8,14 @@
     "build": "vite build",
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config '{\"identifier\":\"com.omnideck.agent.dev\",\"productName\":\"OmniDeck Agent (dev)\"}'",
-    "tauri:build:local": "tauri build --config '{\"identifier\":\"com.omnideck.agent.dev\",\"productName\":\"OmniDeck Agent (dev)\"}'"
+    "tauri:build:local": "tauri build --config '{\"identifier\":\"com.omnideck.agent.dev\",\"productName\":\"OmniDeck Agent (dev)\"}'",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-shell": "^2",
     "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-shell": "^2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -22,7 +24,10 @@
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "jsdom": "^29.0.2",
     "typescript": "^5.9.3",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "vitest": "^4.1.4"
   }
 }

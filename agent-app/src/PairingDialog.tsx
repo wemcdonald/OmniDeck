@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { normalizeHubUrl } from "./hubUrl";
 
 interface Hub {
   name: string;
@@ -30,9 +31,7 @@ export default function PairingDialog() {
 
   const hubUrl = selectedHub
     ? `wss://${selectedHub.address}:${selectedHub.port}`
-    : manualAddress
-    ? (manualAddress.startsWith("wss://") ? manualAddress : `wss://${manualAddress}`)
-    : "";
+    : normalizeHubUrl(manualAddress);
 
   const canPair = hubUrl && code.trim().length > 0;
 
@@ -102,7 +101,7 @@ export default function PairingDialog() {
         <div style={styles.manualEntry}>
           <input
             type="text"
-            placeholder="Or enter hub address manually (e.g., 192.168.1.50:9210)"
+            placeholder="myhub.local or 192.168.1.50"
             value={manualAddress}
             onChange={(e) => { setManualAddress(e.target.value); setSelectedHub(null); }}
             style={styles.input}
