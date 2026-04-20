@@ -883,6 +883,15 @@ export class Hub {
   /** Cache of last-rendered state hash per key index. */
   private stateCache = new Map<number, string>();
 
+  /**
+   * Cache of the last raw image bytes pushed per key index. Scroll-label
+   * tiles invalidate the state hash every tick (so we re-render the marquee),
+   * but when the label fits the tile the re-render produces identical bytes.
+   * Byte-level dedup here avoids hammering the deck's USB/LCD with redundant
+   * pushes — a perceptible flicker at 2.5 Hz × 5 tiles.
+   */
+  private imageCache = new Map<number, Buffer>();
+
   /** Global scroll tick — drives all scrolling labels across all plugins. */
   private scrollTick = 0;
 
@@ -1068,6 +1077,9 @@ export class Hub {
       // State changed — re-render this button
       this.stateCache.set(keyIndex, hash);
       const image = await this.renderer.render(state, this.scrollTick);
+      const cachedImage = this.imageCache.get(keyIndex);
+      if (cachedImage && cachedImage.equals(image)) continue;
+      this.imageCache.set(keyIndex, image);
       await this.deck.setKeyImage(keyIndex, image);
       anyChanged = true;
     }
