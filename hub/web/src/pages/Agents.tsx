@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Copy, Check, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useWebSocket } from "../hooks/useWebSocket.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +32,14 @@ export default function Agents() {
       queryClient.invalidateQueries({ queryKey: ["pairing", "agents"] });
     },
   });
+
+  const { subscribe } = useWebSocket();
+
+  useEffect(() => {
+    return subscribe("pairing:update", (msg) => {
+      queryClient.setQueryData(["pairing", "agents"], msg.data);
+    });
+  }, [queryClient, subscribe]);
 
   // Countdown timer for pairing code
   useEffect(() => {
