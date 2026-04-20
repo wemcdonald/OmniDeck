@@ -139,18 +139,13 @@ export class Agent {
       });
     }
 
-    // Auth failure handler
+    // Auth failure handler. Revocation reaches the same path via the
+    // "revoked" onDisconnected reason (see AgentClient onclose for close code 4401).
     if (opts.onAuthFailed) {
       this.client.onMessage("auth_failed", () => {
         opts.onAuthFailed!();
       });
     }
-
-    // Revoked handler — hub signalled that our token is no longer valid
-    this.client.onMessage("revoked", () => {
-      log.warn("Hub revoked this agent");
-      opts.onAuthFailed?.();
-    });
   }
 
   async start(): Promise<void> {

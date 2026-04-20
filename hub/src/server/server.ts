@@ -421,15 +421,12 @@ export class AgentServer {
           break;
         }
         const agentId = connState.agentId;
-        // Send the ack first so the agent sees success before we close.
-        // In production, onRevoke (wired in hub.ts) will also close the socket —
-        // sending after that is tolerated (CLOSING state) or swallowed by try/catch.
+        // Send the ack before revokeAgent, since onRevoke (wired in hub.ts)
+        // will close the socket synchronously as part of revokeAgent.
         try {
           ws.send(JSON.stringify(createMessage("unpair_response", { success: true }, msg.id)));
-        } catch { /* socket may already be closing via onRevoke */ }
+        } catch { /* socket may already be closing */ }
         this.pairing.revokeAgent(agentId);
-        ws.close(WS_CLOSE_CODE_REVOKED, "Agent unpaired");
-        this.connectionsByAgentId.delete(agentId);
         break;
       }
       default:
