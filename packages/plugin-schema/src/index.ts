@@ -19,6 +19,12 @@ export {
 } from "./field.js";
 
 export {
+  parseDuration,
+  formatDuration,
+  type DurationUnit,
+} from "./duration.js";
+
+export {
   type PluginContext,
   type PluginStateStore,
   type PluginLogger,

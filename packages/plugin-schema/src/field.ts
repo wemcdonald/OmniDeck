@@ -17,13 +17,25 @@ export interface FieldMeta {
     | "icon"
     | "color"
     | "action_list"
-    | "condition";
+    | "condition"
+    | "radio"
+    | "slider"
+    | "duration"
+    | "multi_select";
   /** For ha_entity: filter to a specific HA domain (e.g., "light"). */
   domain?: string;
   placeholder?: string;
   /** Visual grouping key in the editor (fields with the same group render together). */
   group?: string;
   secret?: boolean;
+  /**
+   * For fieldType="duration": what unit the underlying number is in.
+   * Defaults to "ms". The UI displays/parses human strings ("5s", "24h") and
+   * converts to/from this unit when posting to the backend.
+   */
+  durationUnit?: "ms" | "s" | "m" | "h";
+  /** For fieldType="slider": step size. Defaults to 1. */
+  step?: number;
 }
 
 /**
@@ -75,6 +87,7 @@ export interface CatalogField {
   placeholder?: string;
   group?: string;
   secret?: boolean;
+  durationUnit?: "ms" | "s" | "m" | "h";
   /** From Zod checks (number type): */
   min?: number;
   max?: number;
@@ -132,10 +145,14 @@ function extractNumberChecks(schema: z.ZodType): { min?: number; max?: number } 
   return { min, max };
 }
 
-/** Extract enum values from a ZodEnum. */
+/** Extract enum values from a ZodEnum or a ZodArray<ZodEnum>. */
 function extractEnumValues(schema: z.ZodType): string[] | undefined {
   if (schema instanceof z.ZodEnum) {
     return schema._def.values as string[];
+  }
+  if (schema instanceof z.ZodArray) {
+    const inner = (schema._def as { type: z.ZodType }).type;
+    if (inner instanceof z.ZodEnum) return inner._def.values as string[];
   }
   return undefined;
 }
@@ -171,6 +188,8 @@ export function extractFields(schema: z.ZodObject<any>): CatalogField[] {
       placeholder: meta?.placeholder,
       group: meta?.group,
       secret: meta?.secret,
+      durationUnit: meta?.durationUnit,
+      step: meta?.step,
       ...numChecks,
     });
   }
