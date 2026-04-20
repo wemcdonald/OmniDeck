@@ -19,14 +19,23 @@ export default function PairingDialog() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const runDiscovery = async () => {
+    setDiscovering(true);
+    setHubs([]);
+    try {
+      const found = await invoke<Hub[]>("cmd_discover_hubs");
+      setHubs(found);
+      if (found.length === 1) setSelectedHub(found[0]);
+    } catch {
+      // no-op — empty state handles this
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
   useEffect(() => {
-    invoke<Hub[]>("cmd_discover_hubs")
-      .then((found) => {
-        setHubs(found);
-        if (found.length === 1) setSelectedHub(found[0]);
-      })
-      .catch(() => {})
-      .finally(() => setDiscovering(false));
+    void runDiscovery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const hubUrl = selectedHub
@@ -95,7 +104,24 @@ export default function PairingDialog() {
             ))}
           </div>
         ) : (
-          <p style={styles.discovering}>No hubs found on your network.</p>
+          <div style={styles.emptyState}>
+            <p style={styles.discovering}>
+              No hubs found. Check the hub is running and on the same network, or enter an address below.
+            </p>
+            <div style={styles.emptyActions}>
+              <button type="button" onClick={() => void runDiscovery()} style={styles.secondaryButton}>
+                Retry scan
+              </button>
+              {isMacOS() && (
+                <a
+                  href="x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork"
+                  style={styles.settingsLink}
+                >
+                  Open Local Network settings
+                </a>
+              )}
+            </div>
+          </div>
         )}
 
         <div style={styles.manualEntry}>
@@ -141,6 +167,10 @@ export default function PairingDialog() {
       </form>
     </div>
   );
+}
+
+function isMacOS(): boolean {
+  return typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -258,5 +288,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 20,
     fontWeight: 600,
     textAlign: "center" as const,
+  },
+  emptyState: {
+    padding: "8px 0",
+  },
+  emptyActions: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  secondaryButton: {
+    padding: "6px 12px",
+    borderRadius: 6,
+    border: "1px solid #27272a",
+    background: "#18181b",
+    color: "#fafafa",
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  settingsLink: {
+    fontSize: 12,
+    color: "#60a5fa",
+    textDecoration: "none",
   },
 };
