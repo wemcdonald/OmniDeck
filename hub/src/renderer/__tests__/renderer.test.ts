@@ -111,4 +111,87 @@ describe("ButtonRenderer", () => {
     expect(buf).toBeInstanceOf(Buffer);
     expect(buf.length).toBe(expectedBytes);
   });
+
+  it("renders a bodyLabel", async () => {
+    const renderer = new ButtonRenderer(size);
+    const buf = await renderer.render({
+      background: "#0f172a",
+      bodyLabel: "OmniDeck",
+      bodyLabelColor: "#ffffff",
+    });
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBe(expectedBytes);
+    // White text on the dark body — at least one pixel in the body row band
+    // should be significantly brighter than the background.
+    let brightCount = 0;
+    for (let y = 40; y < 80; y++) {
+      for (let x = 20; x < 76; x++) {
+        if (buf[(y * 96 + x) * 3]! > 180) brightCount++;
+      }
+    }
+    expect(brightCount).toBeGreaterThan(20);
+  });
+
+  it("wraps long bodyLabel at separators", async () => {
+    const renderer = new ButtonRenderer(size);
+    // Should not throw; wrap algorithm splits on "-".
+    const buf = await renderer.render({
+      background: "#0f172a",
+      bodyLabel: "internal-skills",
+    });
+    expect(buf.length).toBe(expectedBytes);
+  });
+
+  it("bodyLabel suppresses the main icon layer", async () => {
+    const renderer = new ButtonRenderer(size);
+    // If the main icon still rendered, a white square would dominate the
+    // center. With bodyLabel set, the text should be the only foreground.
+    const whiteJpeg = await sharp({
+      create: { width: 300, height: 300, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    }).jpeg().toBuffer();
+    const buf = await renderer.render({
+      background: "#000000",
+      icon: whiteJpeg,
+      iconFullBleed: true,
+      bodyLabel: "x",
+    });
+    // Center pixel column: with icon suppressed and only a small "x" drawn,
+    // most of the tile should be near-black. The icon would have painted it
+    // bright white.
+    const sample = (x: number, y: number) => buf[(y * 96 + x) * 3]!;
+    // Sample four off-center points.
+    const pixels = [sample(10, 10), sample(80, 10), sample(10, 80), sample(80, 80)];
+    for (const p of pixels) expect(p).toBeLessThan(50);
+  });
+
+  it("composites a cornerIcon (ms:)", async () => {
+    const renderer = new ButtonRenderer(size);
+    const buf = await renderer.render({
+      background: "#000000",
+      cornerIcon: "ms:star",
+      cornerIconColor: "#ffffff",
+    });
+    expect(buf.length).toBe(expectedBytes);
+    // Top-left region should have a bright pixel from the star.
+    const topLeftRegion = [
+      buf[(12 * 96 + 12) * 3]!,
+      buf[(14 * 96 + 14) * 3]!,
+      buf[(16 * 96 + 16) * 3]!,
+    ];
+    expect(topLeftRegion.some((p) => p > 150)).toBe(true);
+  });
+
+  it("places cornerIcon at the requested corner", async () => {
+    const renderer = new ButtonRenderer(size);
+    const buf = await renderer.render({
+      background: "#000000",
+      cornerIcon: "ms:star",
+      cornerIconColor: "#ffffff",
+      cornerIconPosition: "br",
+    });
+    // Bottom-right should be bright; top-left should be dark.
+    const tl = buf[(12 * 96 + 12) * 3]!;
+    const br = buf[(80 * 96 + 80) * 3]!;
+    expect(br).toBeGreaterThan(tl + 80);
+  });
 });

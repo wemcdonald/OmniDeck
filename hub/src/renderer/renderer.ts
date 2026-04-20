@@ -136,6 +136,131 @@ function createBadge(
   return Buffer.from(svg);
 }
 
+// ── Body-label rendering ────────────────────────────────────────────────────
+// Large centered text that fills the tile body. Wraps at natural separators
+// and auto-sizes to fit. Used for tiles where the text IS the content.
+
+const BODY_SEPARATORS = ["-", "_", ".", "/", " "];
+
+function wrapBodyText(text: string): string[] {
+  if (text.length <= 8) return [text];
+  let best: [string, string] | undefined;
+  let bestDelta = Infinity;
+  for (let i = 1; i < text.length - 1; i++) {
+    if (!BODY_SEPARATORS.includes(text[i]!)) continue;
+    const left = text.slice(0, i);
+    const right = text.slice(i + 1);
+    const delta = Math.abs(left.length - right.length);
+    if (delta < bestDelta) {
+      best = [left, right];
+      bestDelta = delta;
+    }
+  }
+  if (best && Math.max(best[0].length, best[1].length) <= 12) return best;
+  const mid = Math.ceil(text.length / 2);
+  return [text.slice(0, mid), text.slice(mid)];
+}
+
+function createBodyLabelBuffer(
+  text: string,
+  width: number,
+  height: number,
+  color: string,
+): Buffer {
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const lines = wrapBodyText(text);
+  const maxWidth = width - Math.round(width * 0.12);
+  const maxFont = Math.round(width * 0.35);
+  const minFont = Math.max(10, Math.round(width * 0.12));
+  let fontSize = minFont;
+  for (let size = maxFont; size >= minFont; size -= 2) {
+    ctx.font = `bold ${size}px sans-serif`;
+    const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+    if (widest <= maxWidth) {
+      fontSize = size;
+      break;
+    }
+  }
+
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  ctx.fillStyle = color;
+  const lineHeight = Math.round(fontSize * 1.1);
+  const totalHeight = lineHeight * lines.length;
+  // Center vertically in the area below the corner-icon reservation (~22% top).
+  const topReserved = Math.round(height * 0.22);
+  const centerY = topReserved + (height - topReserved) / 2;
+  const firstY = centerY - totalHeight / 2 + lineHeight / 2;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i]!, width / 2, firstY + i * lineHeight);
+  }
+  return canvas.toBuffer("image/png");
+}
+
+/** Resolve any icon value (Buffer, `ms:*`, emoji/text) to a square PNG buffer. */
+async function resolveIconBuffer(
+  icon: string | Buffer | undefined,
+  size: number,
+  fillColor?: string,
+): Promise<Buffer | undefined> {
+  if (!icon || size <= 0) return undefined;
+  if (Buffer.isBuffer(icon)) {
+    return sharp(icon)
+      .resize(size, size, { fit: "cover", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+  }
+  if (typeof icon !== "string" || icon.length === 0) return undefined;
+  if (icon.startsWith("ms:")) {
+    const iconName = icon.slice(3);
+    const iconData = getIconData(materialSymbolsData, iconName);
+    if (!iconData) return undefined;
+    const renderData = iconToSVG(iconData);
+    const [vx1 = 0, vy1 = 0, vw = 24, vh = 24] = renderData.viewBox ?? [0, 0, 24, 24];
+    const color = fillColor ?? "#ffffff";
+    const coloredBody = renderData.body.replace(/fill="currentColor"/g, `fill="${escapeXml(color)}"`);
+    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx1} ${vy1} ${vw} ${vh}" width="${size}" height="${size}">
+      <g fill="${escapeXml(color)}">${coloredBody}</g>
+    </svg>`;
+    return sharp(Buffer.from(svgStr))
+      .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+  }
+  // Emoji / arbitrary text: rasterize with canvas.
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext("2d");
+  const fontSize = Math.round(size * 0.78);
+  ctx.font = `${fontSize}px NotoColorEmoji, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(icon, size / 2, size / 2);
+  return canvas.toBuffer("image/png");
+}
+
+function cornerOffsets(
+  position: "tl" | "tr" | "bl" | "br",
+  tileWidth: number,
+  tileHeight: number,
+  iconSize: number,
+  inset: number,
+): { top: number; left: number } {
+  switch (position) {
+    case "tr":
+      return { top: inset, left: tileWidth - iconSize - inset };
+    case "bl":
+      return { top: tileHeight - iconSize - inset, left: inset };
+    case "br":
+      return { top: tileHeight - iconSize - inset, left: tileWidth - iconSize - inset };
+    case "tl":
+    default:
+      return { top: inset, left: inset };
+  }
+}
+
 function createProgressBar(width: number, height: number, progress: number): Buffer {
   const barHeight = 6;
   const barY = height - barHeight;
@@ -179,46 +304,22 @@ export class ButtonRenderer {
 
     const overlays: sharp.OverlayOptions[] = [];
 
-    // Layer 2: Icon (Buffer = image, string = emoji/text)
-    if (Buffer.isBuffer(state.icon)) {
+    // Layer 2: Icon (Buffer = image, string = emoji/text). Suppressed when a
+    // bodyLabel is set — the big text IS the tile in that mode.
+    if (!state.bodyLabel) {
       const iconPadding = state.iconFullBleed ? 0 : Math.round(width * 0.15);
       const iconSize = width - iconPadding * 2;
-      const resizedIcon = await sharp(state.icon)
-        .resize(iconSize, iconSize, {
-          fit: "cover",
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .png()
-        .toBuffer();
-      overlays.push({ input: resizedIcon, gravity: "centre" });
-    } else if (typeof state.icon === "string" && state.icon.startsWith("ms:")) {
-      const iconName = state.icon.slice(3);
-      const iconData = getIconData(materialSymbolsData, iconName);
-      if (iconData) {
-        const renderData = iconToSVG(iconData);
-        const [vx1 = 0, vy1 = 0, vw = 24, vh = 24] = renderData.viewBox ?? [0, 0, 24, 24];
-        const iconSize = Math.round(width * 0.7);
-        const padding = Math.round((width - iconSize) / 2);
-        const fillColor = state.iconColor ?? "#ffffff";
-        const coloredBody = renderData.body.replace(/fill="currentColor"/g, `fill="${escapeXml(fillColor)}"`);
-        const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx1} ${vy1} ${vw} ${vh}" width="${iconSize}" height="${iconSize}">
-          <g fill="${escapeXml(fillColor)}">${coloredBody}</g>
-        </svg>`;
-        const svgBuf = await sharp(Buffer.from(svgStr))
-          .resize(iconSize, iconSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-          .png()
-          .toBuffer();
-        overlays.push({ input: svgBuf, top: padding, left: padding });
+      const iconBuf = await resolveIconBuffer(state.icon, iconSize, state.iconColor);
+      if (iconBuf) {
+        overlays.push({ input: iconBuf, top: iconPadding, left: iconPadding });
       }
-    } else if (typeof state.icon === "string" && state.icon.length > 0) {
-      const canvas = createCanvas(width, height);
-      const ctx = canvas.getContext("2d");
-      const fontSize = Math.round(width * 0.55);
-      ctx.font = `${fontSize}px NotoColorEmoji, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(state.icon, width / 2, height / 2);
-      overlays.push({ input: canvas.toBuffer("image/png"), gravity: "centre" });
+    }
+
+    // Layer 2.5: Body label — large auto-sized wrapped text filling the tile.
+    if (state.bodyLabel) {
+      overlays.push({
+        input: createBodyLabelBuffer(state.bodyLabel, width, height, state.bodyLabelColor ?? "#ffffff"),
+      });
     }
 
     // Layer 3: Label text (bottom)
@@ -237,6 +338,23 @@ export class ButtonRenderer {
           ? createScrollingSvgText(state.topLabel, width, height, "top", scrollTick, state.topLabelColor)
           : createSvgText(state.topLabel, width, height, "top", state.topLabelColor),
       });
+    }
+
+    // Layer 4.5: Corner icon — small plugin/state identifier in a tile corner.
+    if (state.cornerIcon !== undefined) {
+      const cornerSize = Math.round(width * 0.22);
+      const cornerInset = Math.round(width * 0.08);
+      const cornerBuf = await resolveIconBuffer(state.cornerIcon, cornerSize, state.cornerIconColor);
+      if (cornerBuf) {
+        const { top, left } = cornerOffsets(
+          state.cornerIconPosition ?? "tl",
+          width,
+          height,
+          cornerSize,
+          cornerInset,
+        );
+        overlays.push({ input: cornerBuf, top, left });
+      }
     }
 
     // Layer 5: Badge

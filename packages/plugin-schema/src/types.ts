@@ -121,6 +121,23 @@ export interface ButtonStateResult {
   scrollLabel?: boolean;
   /** If true, topLabel scrolls horizontally when it overflows the button width. */
   scrollTopLabel?: boolean;
+  /**
+   * Large centered text that fills the body of the tile, wrapped at separators
+   * (-/_/./space) and auto-sized to fit. When set, the main `icon` layer is
+   * suppressed — the name IS the tile. Use with `cornerIcon` to keep a small
+   * plugin/state identifier in a corner.
+   */
+  bodyLabel?: string;
+  bodyLabelColor?: string;
+  /**
+   * Small icon composited into a chosen tile corner. Same formats as `icon`
+   * (Material Symbol `ms:name`, emoji/text, or PNG Buffer). When the value is
+   * an `ms:` icon, `cornerIconColor` tints it; Buffer icons composite as-is.
+   */
+  cornerIcon?: string | Buffer;
+  cornerIconColor?: string;
+  /** Corner for cornerIcon. Defaults to "tl" (top-left). */
+  cornerIconPosition?: "tl" | "tr" | "bl" | "br";
 }
 
 // ── Presets ─────────────────────────────────────────────────────────────────
