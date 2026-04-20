@@ -3,7 +3,8 @@ import { useMutation } from "@tanstack/react-query";
 import { stringify as toYaml } from "yaml";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { api } from "../lib/api.ts";
+import { api, type CatalogField } from "../lib/api.ts";
+import ParamField from "./ParamField.tsx";
 import { ChevronDown, ChevronUp, Download } from "lucide-react";
 
 interface PluginDownload {
@@ -11,16 +12,6 @@ interface PluginDownload {
   label: string;
   path: string;
   description?: string;
-}
-
-interface CatalogField {
-  key: string;
-  label?: string;
-  required?: boolean;
-  fieldType?: string;
-  zodType?: string;
-  placeholder?: string;
-  secret?: boolean;
 }
 
 interface PluginConfigCardProps {
@@ -92,92 +83,70 @@ export default function PluginConfigCard({ id, name, version, icon: _icon, healt
           // Build ordered field list: schema fields first, then any extra stored keys
           const schemaKeys = new Set(configFields?.map(f => f.key) ?? []);
           const extraKeys = Object.keys(draft).filter(k => !schemaKeys.has(k));
-          const allFields = [
-            ...(configFields ?? []).map(f => ({
-              key: f.key,
-              label: f.label ?? f.key,
-              fieldType: f.fieldType,
-              placeholder: f.placeholder,
-              secret: f.secret === true,
-              fromSchema: true,
-            })),
-            ...extraKeys.map(k => ({
-              key: k,
-              label: k,
-              fieldType: undefined as string | undefined,
-              placeholder: undefined as string | undefined,
-              secret: false,
+          type Row = { field: CatalogField; fromSchema: boolean };
+          const allRows: Row[] = [
+            ...(configFields ?? []).map((f): Row => ({ field: f, fromSchema: true })),
+            ...extraKeys.map((k): Row => ({
+              field: {
+                key: k,
+                zodType: typeof draft[k] === "number" ? "number"
+                  : typeof draft[k] === "boolean" ? "boolean"
+                  : "string",
+                required: false,
+                label: k,
+              },
               fromSchema: false,
             })),
           ];
 
-          if (allFields.length === 0) {
+          if (allRows.length === 0) {
             return <p className="text-xs text-muted-foreground">No configuration options</p>;
           }
 
           return (
             <>
-              {allFields.map((field) => {
-                const value = draft[field.key];
-                const isSecret = field.secret || secretFieldSet.has(field.key);
-                const isEditing = editingSecrets.has(field.key);
+              {allRows.map(({ field: f }) => {
+                const value = draft[f.key];
+                const isSecret = f.secret === true || secretFieldSet.has(f.key);
+                const isEditing = editingSecrets.has(f.key);
+                const showMaskedStub = isSecret && secretFieldSet.has(f.key) && !isEditing;
 
                 return (
-                  <div key={field.key}>
-                    <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">
-                      {field.label}
-                      {isSecret && (
-                        <span className="ml-1.5 text-xs normal-case tracking-normal font-normal text-muted-foreground">(secret)</span>
-                      )}
-                    </label>
-                    {field.fieldType === "color" ? (
-                      <input
-                        type="color"
-                        className="h-8 w-16 rounded bg-surface-container-high border border-outline-variant px-1 py-0.5"
-                        value={String(value ?? "#000000")}
-                        onChange={(e) => setField(field.key, e.target.value)}
-                      />
-                    ) : isSecret && secretFieldSet.has(field.key) && !isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground tracking-widest">••••••••</span>
-                        <button
-                          type="button"
-                          onClick={() => startEditingSecret(field.key)}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    ) : isSecret ? (
-                      <input
-                        type="password"
-                        className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
-                        value={String(value ?? "")}
-                        placeholder={field.placeholder ?? "Enter value"}
-                        onChange={(e) => setField(field.key, e.target.value)}
-                      />
-                    ) : typeof value === "boolean" ? (
-                      <input
-                        type="checkbox"
-                        checked={value}
-                        onChange={(e) => setField(field.key, e.target.checked)}
-                        className="h-4 w-4 rounded bg-surface-container-high border border-outline-variant"
-                      />
-                    ) : typeof value === "number" ? (
-                      <input
-                        type="number"
-                        className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
-                        value={value}
-                        placeholder={field.placeholder}
-                        onChange={(e) => setField(field.key, parseFloat(e.target.value))}
-                      />
+                  <div key={f.key}>
+                    {/* Secret fields keep the uppercase label + (secret) tag + masked stub UI.
+                        Everything else delegates to ParamField (duration/radio/slider/etc.). */}
+                    {isSecret ? (
+                      <>
+                        <label className="text-xs font-display font-semibold uppercase tracking-wide text-muted-foreground block mb-1">
+                          {f.label ?? f.key}
+                          <span className="ml-1.5 text-xs normal-case tracking-normal font-normal text-muted-foreground">(secret)</span>
+                        </label>
+                        {showMaskedStub ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground tracking-widest">••••••••</span>
+                            <button
+                              type="button"
+                              onClick={() => startEditingSecret(f.key)}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Change
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            type="password"
+                            className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
+                            value={String(value ?? "")}
+                            placeholder={f.placeholder ?? "Enter value"}
+                            onChange={(e) => setField(f.key, e.target.value)}
+                          />
+                        )}
+                      </>
                     ) : (
-                      <input
-                        type="text"
-                        className="w-full rounded bg-surface-container-high border border-outline-variant px-2 py-1 text-sm"
-                        value={String(value ?? "")}
-                        placeholder={field.placeholder}
-                        onChange={(e) => setField(field.key, e.target.value)}
+                      <ParamField
+                        field={f}
+                        value={value}
+                        onChange={(v) => setField(f.key, v)}
                       />
                     )}
                   </div>
