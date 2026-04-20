@@ -10,6 +10,23 @@ import { createInterface } from "node:readline";
 
 const log = createLogger("main");
 
+let currentAgent: Agent | null = null;
+
+function handleUnpairCommand(): void {
+  const agent = currentAgent;
+  if (!agent) {
+    emit({ type: "unpaired", success: false, error: "not_connected" });
+    return;
+  }
+  agent.requestUnpair()
+    .then(() => {
+      emit({ type: "unpaired", success: true });
+    })
+    .catch((err: unknown) => {
+      emit({ type: "unpaired", success: false, error: String(err) });
+    });
+}
+
 // ── CLI argument parsing ────────────────────────────────────────────────────
 
 interface CliArgs {
@@ -108,6 +125,8 @@ function startStdinListener(): void {
               pending.resolve(msg.result);
             }
           }
+        } else if (msg.type === "unpair") {
+          handleUnpairCommand();
         }
       } catch {
         // Not JSON — ignore
@@ -236,6 +255,7 @@ async function runManaged(args: CliArgs) {
       },
     });
 
+    currentAgent = agent;
     await agent.start();
     setupShutdown(agent);
     return;
@@ -277,6 +297,7 @@ async function runManaged(args: CliArgs) {
     },
   });
 
+  currentAgent = agent;
   await agent.start();
   setupShutdown(agent);
 }

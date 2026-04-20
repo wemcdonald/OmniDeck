@@ -222,6 +222,33 @@ export class Agent {
     this.client.close();
   }
 
+  /**
+   * Request unpairing from the hub over the authenticated WebSocket.
+   * Resolves when the hub acknowledges. Rejects on timeout (3s default) or
+   * if the send fails because the socket is not open.
+   */
+  async requestUnpair(timeoutMs = 3000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error("unpair timeout"));
+      }, timeoutMs);
+
+      this.client.onMessage("unpair_response", (msg) => {
+        clearTimeout(timer);
+        const data = msg.data as { success: boolean; error?: string };
+        if (data.success) resolve();
+        else reject(new Error(data.error ?? "unpair failed"));
+      });
+
+      try {
+        this.client.send(createMessage("unpair_request", {}));
+      } catch (err) {
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+  }
+
   private async handlePluginManifest(msg: WsMessage): Promise<void> {
     const parsed = PluginManifestSchema.safeParse(msg.data);
     if (!parsed.success) {
