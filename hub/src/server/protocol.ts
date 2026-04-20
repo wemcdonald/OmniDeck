@@ -60,6 +60,14 @@ export interface AuthenticateResponseData {
   error?: string;
 }
 
+export interface UnpairResponseData {
+  success: boolean;
+  error?: string;
+}
+
+/** WebSocket close code sent to an agent whose credentials were revoked. */
+export const WS_CLOSE_CODE_REVOKED = 4401;
+
 export function createMessage(type: string, data: unknown, id?: string): WsMessage {
   return {
     v: 1,

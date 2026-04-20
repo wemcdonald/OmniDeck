@@ -75,3 +75,11 @@ export interface AuthenticateResponseData {
   success: boolean;
   error?: string;
 }
+
+export interface UnpairResponseData {
+  success: boolean;
+  error?: string;
+}
+
+/** WebSocket close code sent by hub when the agent's token is revoked. */
+export const WS_CLOSE_CODE_REVOKED = 4401;
