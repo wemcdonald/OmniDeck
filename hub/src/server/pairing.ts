@@ -29,7 +29,10 @@ export class PairingManager {
   private agents: PairedAgent[] = [];
   private registryPath: string;
 
-  constructor(registryPath: string) {
+  constructor(
+    registryPath: string,
+    private onChange?: (agents: PairedAgent[]) => void,
+  ) {
     this.registryPath = registryPath;
     this.loadRegistry();
   }
@@ -101,6 +104,7 @@ export class PairingManager {
     this.agents.push(agent);
     this.saveRegistry();
     log.info({ agentId, hostname, deviceName, platform }, "Agent registered");
+    this.onChange?.(this.listAgents());
     return { agentId, token };
   }
 
@@ -122,6 +126,7 @@ export class PairingManager {
     const [removed] = this.agents.splice(idx, 1);
     this.saveRegistry();
     log.info({ agentId, name: removed.name }, "Agent revoked");
+    this.onChange?.(this.listAgents());
     return true;
   }
 
