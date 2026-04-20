@@ -136,11 +136,35 @@ fn cmd_get_state(app: tauri::AppHandle) -> AgentState {
 }
 
 #[tauri::command]
-fn cmd_unpair(app: tauri::AppHandle) -> Result<(), String> {
+pub(crate) async fn cmd_unpair(app: tauri::AppHandle) -> Result<(), String> {
+    use std::time::Duration;
+    use tokio::time::timeout;
+
     let config_dir = get_config_dir();
     let creds_path = std::path::Path::new(&config_dir).join("credentials.json");
 
-    // Stop the agent
+    // Ask the sidecar to notify the hub. Fire-and-forget with a 3-second deadline;
+    // we clear local state regardless of the result.
+    {
+        let manager = app.state::<SidecarState>();
+
+        // Set up a one-shot listener BEFORE sending so we don't miss the reply.
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let tx_cell = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
+        let tx_cell_cb = tx_cell.clone();
+        let listener_id = app.once("agent-unpaired", move |_event| {
+            if let Some(tx) = tx_cell_cb.lock().unwrap().take() {
+                let _ = tx.send(());
+            }
+        });
+
+        manager.0.write_to_child(&serde_json::json!({ "type": "unpair" }));
+
+        let _ = timeout(Duration::from_secs(3), rx).await;
+        app.unlisten(listener_id);
+    }
+
+    // Stop the agent sidecar
     let manager = app.state::<SidecarState>();
     manager.0.stop();
 
@@ -149,7 +173,12 @@ fn cmd_unpair(app: tauri::AppHandle) -> Result<(), String> {
         std::fs::remove_file(&creds_path).map_err(|e| e.to_string())?;
     }
 
+    // Update state + tray
     let _ = app.emit("agent-status", &AgentState::NotPaired);
+
+    // Show pairing window so the user can re-pair
+    show_pairing_window(&app);
+
     Ok(())
 }
 

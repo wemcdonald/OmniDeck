@@ -147,6 +147,9 @@ fn handle_agent_message(
             let _ = app.emit("agent-status", &AgentState::NotPaired);
             let _ = app.emit("agent-auth-failed", msg);
         }
+        "unpaired" => {
+            let _ = app.emit("agent-unpaired", msg);
+        }
         "platform_request" => {
             handle_platform_request(app, msg);
         }
