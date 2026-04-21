@@ -1,6 +1,6 @@
 import { Agent } from "./agent.js";
 import { createLogger, setStderrOnly } from "./logger.js";
-import { loadCredentials, saveCredentials, deleteCredentials } from "./credentials.js";
+import { loadHubs, addHub, removeHub, deleteAllHubs } from "./credentials.js";
 import {
   getCredentialsPath,
   ensureConfigDir,
@@ -12,15 +12,20 @@ const log = createLogger("main");
 
 let currentAgent: Agent | null = null;
 
-function handleUnpairCommand(): void {
+function handleUnpairCommand(agentId?: string): void {
   const agent = currentAgent;
   if (!agent) {
     emit({ type: "unpaired", success: false, error: "not_connected" });
     return;
   }
-  agent.requestUnpair()
+  agent.requestUnpair(agentId)
     .then(() => {
-      emit({ type: "unpaired", success: true });
+      // Drop the specific hub from the creds file (or the whole file if no
+      // hubs remain). If no agentId was supplied we fall back to removing all.
+      const credsPath = getCredentialsPath();
+      if (agentId) removeHub(credsPath, agentId);
+      else deleteAllHubs(credsPath);
+      emit({ type: "unpaired", success: true, agent_id: agentId });
     })
     .catch((err: unknown) => {
       emit({ type: "unpaired", success: false, error: String(err) });
@@ -126,7 +131,8 @@ function startStdinListener(): void {
             }
           }
         } else if (msg.type === "unpair") {
-          handleUnpairCommand();
+          const agentId = typeof msg.agent_id === "string" ? msg.agent_id : undefined;
+          handleUnpairCommand(agentId);
         }
       } catch {
         // Not JSON — ignore
@@ -236,7 +242,7 @@ async function runManaged(args: CliArgs) {
       hubUrl: args.hubUrl,
       pairingCode: args.pairCode,
       onPaired: (response) => {
-        saveCredentials(credsPath, {
+        addHub(credsPath, {
           agent_id: response.agent_id!,
           token: response.token!,
           hub_address: args.hubUrl!,
@@ -261,10 +267,10 @@ async function runManaged(args: CliArgs) {
     return;
   }
 
-  // Normal managed mode: connect with stored credentials
-  const creds = loadCredentials(credsPath);
+  // Normal managed mode: connect with every stored hub credential.
+  const hubs = loadHubs(credsPath);
 
-  if (!creds) {
+  if (hubs.length === 0) {
     emit({ type: "status", state: "not_paired" });
     // In managed mode, don't prompt — wait for the Tauri shell to
     // restart us with --pair args after the user completes the pairing dialog.
@@ -273,16 +279,21 @@ async function runManaged(args: CliArgs) {
     return;
   }
 
-  const hubUrl = process.env["OMNIDECK_HUB_URL"] ?? creds.hub_address;
+  // Per-hub address override via env var is legacy behaviour — it only makes
+  // sense when exactly one hub is paired, so apply it only in that case.
+  const envOverride = process.env["OMNIDECK_HUB_URL"];
+  const effectiveHubs =
+    envOverride && hubs.length === 1
+      ? [{ ...hubs[0], hub_address: envOverride }]
+      : hubs;
+
   emit({ type: "status", state: "connecting" });
 
   const agent = new Agent({
-    hubUrl,
-    auth: { agentId: creds.agent_id, token: creds.token },
-    caCert: creds.ca_cert,
+    credentialsList: effectiveHubs,
     platformRequest,
-    onConnected: () => {
-      emit({ type: "status", state: "connected", hub: creds.hub_name, hub_url: hubUrl });
+    onConnected: (hubName, hubUrl) => {
+      emit({ type: "status", state: "connected", hub: hubName, hub_url: hubUrl });
     },
     onDisconnected: (reason) => {
       emit({ type: "status", state: "disconnected", reason });
@@ -291,7 +302,9 @@ async function runManaged(args: CliArgs) {
       emit({ type: "status", state: "connecting" });
     },
     onAuthFailed: () => {
-      deleteCredentials(credsPath);
+      // Note: with multiple hubs this can't tell which one was revoked. Phase 3
+      // will thread the originating hub through and remove only that entry.
+      deleteAllHubs(credsPath);
       emit({ type: "auth_failed", message: "Token revoked — credentials deleted" });
       process.exit(1);
     },
@@ -307,19 +320,25 @@ async function runManaged(args: CliArgs) {
 async function runCli() {
   const credsPath = getCredentialsPath();
   const explicitUrl = process.env["OMNIDECK_HUB_URL"];
-  const creds = loadCredentials(credsPath);
+  const hubs = loadHubs(credsPath);
 
-  if (creds) {
-    const hubUrl = explicitUrl ?? creds.hub_address;
-    log.info("Reconnecting with stored credentials", { hubUrl, agentId: creds.agent_id, hubName: creds.hub_name });
+  if (hubs.length > 0) {
+    // Reconnect to every paired hub. OMNIDECK_HUB_URL only applies when exactly
+    // one hub is paired — it's a legacy override and ambiguous otherwise.
+    const effectiveHubs =
+      explicitUrl && hubs.length === 1
+        ? [{ ...hubs[0], hub_address: explicitUrl }]
+        : hubs;
+
+    log.info("Reconnecting with stored credentials", {
+      hubs: effectiveHubs.map((h) => ({ agentId: h.agent_id, hubName: h.hub_name, hubUrl: h.hub_address })),
+    });
 
     const agent = new Agent({
-      hubUrl,
-      auth: { agentId: creds.agent_id, token: creds.token },
-      caCert: creds.ca_cert,
+      credentialsList: effectiveHubs,
       onAuthFailed: () => {
         log.warn("Token rejected — agent may have been revoked. Deleting credentials.");
-        deleteCredentials(credsPath);
+        deleteAllHubs(credsPath);
         log.info("Please restart the agent to re-pair.");
         process.exit(1);
       },
@@ -337,8 +356,8 @@ async function runCli() {
   if (explicitUrl) {
     hubUrl = explicitUrl;
   } else {
-    const hubs = await discoverHubs({ firstOnly: true });
-    const hub = hubs[0];
+    const discovered = await discoverHubs({ firstOnly: true });
+    const hub = discovered[0];
     if (!hub) {
       log.error("No OmniDeck Hub found on the local network.");
       log.error("Set OMNIDECK_HUB_URL environment variable to connect manually.");
@@ -359,7 +378,7 @@ async function runCli() {
     hubUrl,
     pairingCode: code,
     onPaired: (response) => {
-      saveCredentials(credsPath, {
+      addHub(credsPath, {
         agent_id: response.agent_id!,
         token: response.token!,
         hub_address: hubUrl,
