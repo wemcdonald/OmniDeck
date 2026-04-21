@@ -8,6 +8,8 @@ import {
   PluginDownloadResponseSchema,
 } from "./ws/protocol.js";
 import { PluginLoader } from "./plugins/loader.js";
+import type { LoaderOptions } from "./plugins/loader.js";
+import { StateCache } from "./state-cache.js";
 import { ensureFfi } from "./primitives/ffi.js";
 import {
   detectPlatform,
@@ -71,6 +73,8 @@ export class Agent {
   private stateTimer: ReturnType<typeof setInterval> | null = null;
   /** Plugins currently being unloaded+reloaded — commands for these are rejected. */
   private loadingPlugins = new Set<string>();
+  /** Last value each plugin emitted per state key, replayed to the hub on (re)connect. */
+  private stateCache = new StateCache();
 
   constructor(opts: AgentOptions) {
     this.opts = opts;
@@ -88,6 +92,9 @@ export class Agent {
       auth: opts.auth,
       skipHelloOnConnect: !!opts.pairingCode,
       onConnected: () => {
+        // Replay cached plugin state so the hub's store is repopulated
+        // without every plugin having to implement its own re-push.
+        this.replayStateCache();
         // Start polling once authenticated (for token auth flow)
         if (!this.stateTimer) {
           this.startStatePolling();
@@ -214,7 +221,47 @@ export class Agent {
       this.stateTimer = null;
     }
     await this.loader.unloadAll();
+    this.stateCache.clearAll();
     this.client.close();
+  }
+
+  /**
+   * Options passed to every plugin load. Centralizes the agent→hub callbacks
+   * so state, log, and active messages all flow through a single choke point.
+   */
+  private buildLoaderOptions(deviceName: string): LoaderOptions {
+    return {
+      hostname: deviceName,
+      onStateUpdate: (pluginId, key, value) => {
+        this.stateCache.set(pluginId, key, value);
+        this.client.send(
+          createMessage("plugin_state", { pluginId, key, value }),
+        );
+      },
+      onLog: (pluginId, level, msg, data) => {
+        this.client.send(
+          createMessage("plugin_log", { hostname: deviceName, pluginId, level, msg, data }),
+        );
+      },
+      platformRequest: this.opts.platformRequest,
+      onActiveUpdate: (pluginId, active, metadata) => {
+        this.client.send(
+          createMessage("plugin_active", { pluginId, active, metadata }),
+        );
+      },
+    };
+  }
+
+  /** Replay every cached plugin state entry to the hub. */
+  private replayStateCache(): void {
+    const size = this.stateCache.size();
+    if (size === 0) return;
+    log.info("Replaying cached plugin state to hub", { entries: size });
+    for (const [pluginId, key, value] of this.stateCache.entries()) {
+      this.client.send(
+        createMessage("plugin_state", { pluginId, key, value }),
+      );
+    }
   }
 
   /**
@@ -274,29 +321,12 @@ export class Agent {
         if (this.loader.getPlugin(plugin.id)) {
           this.loadingPlugins.add(plugin.id);
           await this.loader.unloadPlugin(plugin.id);
+          this.stateCache.clearPlugin(plugin.id);
         }
 
         if (this.loader.hasCached(plugin.id, plugin.sha256)) {
           // Load from cache
-          await this.loader.loadFromCache(plugin.id, {
-            hostname: deviceName,
-            onStateUpdate: (pId, key, value) => {
-              this.client.send(
-                createMessage("plugin_state", { pluginId: pId, key, value }),
-              );
-            },
-            onLog: (pluginId, level, msg, data) => {
-              this.client.send(
-                createMessage("plugin_log", { hostname: deviceName, pluginId, level, msg, data }),
-              );
-            },
-            platformRequest: this.opts.platformRequest,
-            onActiveUpdate: (pluginId, active, metadata) => {
-              this.client.send(
-                createMessage("plugin_active", { pluginId, active, metadata }),
-              );
-            },
-          });
+          await this.loader.loadFromCache(plugin.id, this.buildLoaderOptions(deviceName));
           this.loadingPlugins.delete(plugin.id);
           statuses.push({ id: plugin.id, version: plugin.version, status: "active" });
         } else {
@@ -336,27 +366,10 @@ export class Agent {
       if (this.loader.getPlugin(id)) {
         this.loadingPlugins.add(id);
         await this.loader.unloadPlugin(id);
+        this.stateCache.clearPlugin(id);
       }
 
-      await this.loader.loadFromCode(id, code, sha256, {
-        hostname: deviceName,
-        onStateUpdate: (pId, key, value) => {
-          this.client.send(
-            createMessage("plugin_state", { pluginId: pId, key, value }),
-          );
-        },
-        onLog: (pluginId, level, msg, data) => {
-          this.client.send(
-            createMessage("plugin_log", { hostname: deviceName, pluginId, level, msg, data }),
-          );
-        },
-        platformRequest: this.opts.platformRequest,
-        onActiveUpdate: (pluginId, active, metadata) => {
-          this.client.send(
-            createMessage("plugin_active", { pluginId, active, metadata }),
-          );
-        },
-      });
+      await this.loader.loadFromCode(id, code, sha256, this.buildLoaderOptions(deviceName));
       this.loadingPlugins.delete(id);
       this.client.send(
         createMessage("plugin_status", {

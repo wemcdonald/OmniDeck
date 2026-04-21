@@ -11,7 +11,7 @@ interface CacheMeta {
   loadedAt: string;
 }
 
-interface LoaderOptions {
+export interface LoaderOptions {
   config?: Record<string, unknown>;
   hostname?: string;
   onStateUpdate?: (pluginId: string, key: string, value: unknown) => void;
