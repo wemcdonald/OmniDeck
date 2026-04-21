@@ -5,6 +5,10 @@ import { createLogger } from "../logger.js";
 const log = createLogger("ws");
 
 const RECONNECT_DELAY_MS = 5000;
+// Watchdog: if the hub calls ws.terminate() (abrupt close), Bun may not fire
+// onclose. Poll readyState every WATCHDOG_INTERVAL_MS; if the socket is dead
+// and no reconnect is already scheduled, kick one off.
+const WATCHDOG_INTERVAL_MS = 5000;
 
 export interface AgentClientOptions {
   hubUrl: string;
@@ -31,6 +35,7 @@ export class AgentClient {
   private opts: AgentClientOptions;
   private handlers = new Map<string, MessageHandler>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks whether close() was explicitly called to suppress auto-reconnect */
   private closing = false;
 
@@ -86,6 +91,7 @@ export class AgentClient {
 
       this.ws.onopen = () => {
         log.info("Connected to hub", { url: this.opts.hubUrl });
+        this.startWatchdog();
 
         if (this.opts.auth) {
           // Send authenticate message first
@@ -213,7 +219,25 @@ export class AgentClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
     this.ws?.close();
+  }
+
+  private startWatchdog(): void {
+    if (this.watchdogTimer) return;
+    this.watchdogTimer = setInterval(() => {
+      if (this.closing) return;
+      const state = this.ws?.readyState;
+      // CLOSING=2, CLOSED=3 — connection is dead without onclose having
+      // triggered a reconnect (Bun bug with server-side terminate()).
+      if ((state === 2 || state === 3) && !this.reconnectTimer) {
+        log.warn("Watchdog: WS dead without onclose firing — forcing reconnect");
+        this.scheduleReconnect();
+      }
+    }, WATCHDOG_INTERVAL_MS);
   }
 
   private scheduleReconnect(): void {
