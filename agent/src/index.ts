@@ -302,12 +302,21 @@ async function runManaged(args: CliArgs) {
     onReconnecting: () => {
       emit({ type: "status", state: "connecting" });
     },
-    onAuthFailed: () => {
-      // Note: with multiple hubs this can't tell which one was revoked. Phase 3
-      // will thread the originating hub through and remove only that entry.
-      deleteAllHubs(credsPath);
-      emit({ type: "auth_failed", message: "Token revoked — credentials deleted" });
-      process.exit(1);
+    onAuthFailed: (agentId) => {
+      if (agentId) {
+        removeHub(credsPath, agentId);
+        emit({ type: "auth_failed", agent_id: agentId, message: "Token revoked for this hub" });
+        // Only terminate the process if no paired hubs remain.
+        const remaining = loadHubs(credsPath);
+        if (remaining.length === 0) {
+          emit({ type: "status", state: "not_paired" });
+          process.exit(1);
+        }
+      } else {
+        deleteAllHubs(credsPath);
+        emit({ type: "auth_failed", message: "Token revoked — credentials deleted" });
+        process.exit(1);
+      }
     },
   });
 
@@ -337,11 +346,19 @@ async function runCli() {
 
     const agent = new Agent({
       credentialsList: effectiveHubs,
-      onAuthFailed: () => {
-        log.warn("Token rejected — agent may have been revoked. Deleting credentials.");
-        deleteAllHubs(credsPath);
-        log.info("Please restart the agent to re-pair.");
-        process.exit(1);
+      onAuthFailed: (agentId) => {
+        if (agentId) {
+          log.warn("Token revoked for hub — removing its credentials", { agentId });
+          removeHub(credsPath, agentId);
+          if (loadHubs(credsPath).length === 0) {
+            log.info("No paired hubs remain — exiting.");
+            process.exit(1);
+          }
+        } else {
+          log.warn("Token rejected — agent may have been revoked. Deleting credentials.");
+          deleteAllHubs(credsPath);
+          process.exit(1);
+        }
       },
     });
 

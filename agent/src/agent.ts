@@ -62,8 +62,9 @@ interface AgentOptions {
   onPaired?: (response: PairResponseData) => void;
   /** Called when pairing fails */
   onPairFailed?: (error: string) => void;
-  /** Called when token auth fails (revoked) */
-  onAuthFailed?: () => void;
+  /** Called when a specific hub revokes the agent's token. Receives the
+   *  agent_id of the revoked connection. */
+  onAuthFailed?: (agentId?: string) => void;
   /** Called when any hub connects. */
   onConnected?: (hubName: string, hubUrl: string) => void;
   /** Called when a hub disconnects. */
@@ -87,6 +88,10 @@ export class Agent {
   private loadingPlugins = new Set<string>();
   /** Last value each plugin emitted per state key, replayed to hubs on (re)connect. */
   private stateCache = new StateCache();
+  /** Set of plugin IDs each paired hub has announced in its plugin_manifest.
+   *  Drives per-hub fan-out: plugin_state/log/active messages only reach hubs
+   *  that asked for that plugin. */
+  private hubPlugins = new Map<string, Set<string>>();
 
   constructor(opts: AgentOptions) {
     this.opts = opts;
@@ -117,16 +122,21 @@ export class Agent {
     }
 
     this.manager.onAnyConnect((conn) => {
-      // Replay cached plugin state so the hub's store is repopulated without
-      // every plugin having to implement its own re-push logic.
-      this.replayStateCache();
+      // Replay cached plugin state to the hub that just (re)connected so its
+      // store is repopulated without every plugin having to implement its
+      // own re-push logic. Already-connected peers are unaffected.
+      this.replayStateCache(conn);
       // Start the host-state poll on first connect across any hub.
       if (!this.stateTimer) this.startStatePolling();
       opts.onConnected?.(conn.credentials.hub_name, conn.credentials.hub_address);
     });
-    this.manager.onAnyDisconnect((_conn, reason) => {
+    this.manager.onAnyDisconnect((conn, reason) => {
       if (reason === "revoked") {
-        opts.onAuthFailed?.();
+        // Drop this hub from in-memory state. The caller persists the
+        // credential removal via onAuthFailed. Other paired hubs are
+        // unaffected.
+        void this.forgetHub(conn.agentId);
+        opts.onAuthFailed?.(conn.agentId);
         return;
       }
       opts.onDisconnected?.(reason);
@@ -273,6 +283,18 @@ export class Agent {
   }
 
   /**
+   * Drop a hub from the agent's in-memory state (manager + hubPlugins) and
+   * unload any plugins that no remaining hub wants. Does NOT delete the
+   * credentials entry on disk — callers persist that separately. Called both
+   * on explicit unpair and on auth revocation.
+   */
+  async forgetHub(agentId: string): Promise<void> {
+    await this.manager.removeHub(agentId);
+    this.hubPlugins.delete(agentId);
+    await this.unloadOrphanedPlugins();
+  }
+
+  /**
    * Request unpairing from a specific paired hub. If agentId is omitted and
    * there is exactly one connection, that one is used. Resolves when the hub
    * acknowledges; rejects on timeout or if the connection is not open.
@@ -324,6 +346,24 @@ export class Agent {
   }
 
   /**
+   * Fan out a plugin-scoped message (plugin_state / plugin_log /
+   * plugin_active) only to hubs that announced this plugin in their
+   * manifest. Hubs that never asked for the plugin shouldn't be billed for
+   * the traffic and shouldn't end up with state for plugins they don't render.
+   */
+  private broadcastForPlugin(pluginId: string, msg: WsMessage): void {
+    if (this.pairClient) {
+      this.pairClient.send(msg);
+      return;
+    }
+    for (const conn of this.manager.all()) {
+      if (!conn.isConnected()) continue;
+      const wants = this.hubPlugins.get(conn.agentId);
+      if (wants && wants.has(pluginId)) conn.send(msg);
+    }
+  }
+
+  /**
    * Options passed to every plugin load. Centralizes the agent→hub callbacks
    * so state, log, and active messages all flow through a single choke point.
    */
@@ -332,33 +372,47 @@ export class Agent {
       hostname: deviceName,
       onStateUpdate: (pluginId, key, value) => {
         this.stateCache.set(pluginId, key, value);
-        this.sendAll(
+        this.broadcastForPlugin(
+          pluginId,
           createMessage("plugin_state", { pluginId, key, value }),
         );
       },
       onLog: (pluginId, level, msg, data) => {
-        this.sendAll(
+        this.broadcastForPlugin(
+          pluginId,
           createMessage("plugin_log", { hostname: deviceName, pluginId, level, msg, data }),
         );
       },
       platformRequest: this.opts.platformRequest,
       onActiveUpdate: (pluginId, active, metadata) => {
-        this.sendAll(
+        this.broadcastForPlugin(
+          pluginId,
           createMessage("plugin_active", { pluginId, active, metadata }),
         );
       },
     };
   }
 
-  /** Replay every cached plugin state entry to all currently active channels. */
-  private replayStateCache(): void {
-    const size = this.stateCache.size();
-    if (size === 0) return;
-    log.info("Replaying cached plugin state to hub", { entries: size });
+  /**
+   * Replay cached plugin state to the given hub only. Entries for plugins
+   * that this hub didn't ask for are skipped — a hub should never receive
+   * state for a plugin it has no button for.
+   */
+  private replayStateCache(conn: HubConnection): void {
+    const wants = this.hubPlugins.get(conn.agentId);
+    if (!wants || this.stateCache.size() === 0) return;
+    let sent = 0;
     for (const [pluginId, key, value] of this.stateCache.entries()) {
-      this.sendAll(
-        createMessage("plugin_state", { pluginId, key, value }),
-      );
+      if (!wants.has(pluginId)) continue;
+      conn.send(createMessage("plugin_state", { pluginId, key, value }));
+      sent++;
+    }
+    if (sent > 0) {
+      log.info("Replayed cached plugin state to hub", {
+        agentId: conn.agentId,
+        hub: conn.credentials.hub_name,
+        entries: sent,
+      });
     }
   }
 
@@ -369,7 +423,11 @@ export class Agent {
       return;
     }
     const { plugins } = parsed.data;
-    log.debug(`Hub announced ${plugins.length} plugins`);
+    log.debug(`Hub ${conn.credentials.hub_name} announced ${plugins.length} plugins`);
+
+    // Record what this hub is asking for. Used to filter fan-out and to
+    // compute the union of plugins we need loaded across all hubs.
+    this.hubPlugins.set(conn.agentId, new Set(plugins.map((p) => p.id)));
 
     const statuses: Array<{
       id: string;
@@ -422,6 +480,33 @@ export class Agent {
     }
 
     conn.send(createMessage("plugin_status", { plugins: statuses }));
+
+    // Unload anything no hub still wants. Done after the load loop so we
+    // never drop a plugin we're about to reload.
+    await this.unloadOrphanedPlugins();
+  }
+
+  /**
+   * Remove plugins that are loaded but no longer present in any hub's
+   * desired set. Safe to call after each manifest update. Evicts cached
+   * state for unloaded plugins.
+   */
+  private async unloadOrphanedPlugins(): Promise<void> {
+    const union = new Set<string>();
+    for (const set of this.hubPlugins.values()) {
+      for (const id of set) union.add(id);
+    }
+    for (const id of this.loader.getLoadedPluginIds()) {
+      if (!union.has(id)) {
+        log.info("Unloading plugin no hub still wants", { pluginId: id });
+        try {
+          await this.loader.unloadPlugin(id);
+          this.stateCache.clearPlugin(id);
+        } catch (err) {
+          log.error("Failed to unload orphaned plugin", { pluginId: id, err: String(err) });
+        }
+      }
+    }
   }
 
   private async handleDownloadResponse(msg: WsMessage, conn: HubConnection): Promise<void> {
