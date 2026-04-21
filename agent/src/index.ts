@@ -12,6 +12,39 @@ const log = createLogger("main");
 
 let currentAgent: Agent | null = null;
 
+function handleAddHubCommand(credentials: unknown): void {
+  const agent = currentAgent;
+  if (!agent) {
+    log.warn("add_hub received but no agent is running");
+    return;
+  }
+  if (!isValidCredentials(credentials)) {
+    log.error("add_hub received invalid credentials");
+    return;
+  }
+  agent
+    .addPairedHub(credentials)
+    .then(() => {
+      log.info("Hot-added paired hub", { agent_id: credentials.agent_id });
+    })
+    .catch((err: unknown) => {
+      log.error("Failed to hot-add paired hub", { err: String(err) });
+    });
+}
+
+function isValidCredentials(
+  x: unknown,
+): x is import("./credentials.js").AgentCredentials {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.agent_id === "string" &&
+    typeof o.token === "string" &&
+    typeof o.hub_address === "string" &&
+    typeof o.hub_name === "string"
+  );
+}
+
 function handleUnpairCommand(agentId?: string): void {
   const agent = currentAgent;
   if (!agent) {
@@ -133,6 +166,8 @@ function startStdinListener(): void {
         } else if (msg.type === "unpair") {
           const agentId = typeof msg.agent_id === "string" ? msg.agent_id : undefined;
           handleUnpairCommand(agentId);
+        } else if (msg.type === "add_hub") {
+          handleAddHubCommand(msg.credentials);
         }
       } catch {
         // Not JSON — ignore
@@ -242,18 +277,24 @@ async function runManaged(args: CliArgs) {
       hubUrl: args.hubUrl,
       pairingCode: args.pairCode,
       onPaired: (response) => {
-        addHub(credsPath, {
+        const creds = {
           agent_id: response.agent_id!,
           token: response.token!,
           hub_address: args.hubUrl!,
           hub_name: response.hub_name ?? "OmniDeck",
           ca_cert: response.ca_cert,
           cert_fingerprint_sha256: response.ca_fingerprint,
-        });
+        };
+        addHub(credsPath, creds);
+        // Emit the full credentials payload so the Tauri shell can hot-add
+        // this hub into an already-running main sidecar via `add_hub` IPC,
+        // instead of killing and restarting it (which would drop every
+        // existing hub connection briefly).
         emit({
           type: "paired",
           agent_id: response.agent_id,
           hub_name: response.hub_name ?? "OmniDeck",
+          credentials: creds,
         });
       },
       onPairFailed: (error) => {

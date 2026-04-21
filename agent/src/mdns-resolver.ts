@@ -36,28 +36,36 @@ export class HubResolver {
     this.bonjour = new Bonjour();
     this.browser = this.bonjour.find({ type: "omnideck-hub" });
 
-    this.browser.on("up", (service: Service) => {
-      const ep = toEndpoint(service);
-      if (!ep) return;
-      log.info("Hub up", { name: ep.name, fp: ep.fingerprint?.slice(0, 16), address: ep.address });
-      if (!ep.fingerprint) return; // can't key it without a fingerprint
-      this.byFingerprint.set(ep.fingerprint, ep);
-      for (const cb of this.upListeners.get(ep.fingerprint) ?? []) {
-        try { cb(ep); } catch (err) { log.error("up listener threw", { err: String(err) }); }
-      }
-    });
-
-    this.browser.on("down", (service: Service) => {
-      const ep = toEndpoint(service);
-      if (!ep || !ep.fingerprint) return;
-      log.info("Hub down", { name: ep.name, fp: ep.fingerprint.slice(0, 16) });
-      this.byFingerprint.delete(ep.fingerprint);
-      for (const cb of this.downListeners.get(ep.fingerprint) ?? []) {
-        try { cb(ep); } catch (err) { log.error("down listener threw", { err: String(err) }); }
-      }
-    });
+    this.browser.on("up", (service: Service) => this.handleUp(service));
+    this.browser.on("down", (service: Service) => this.handleDown(service));
 
     this.browser.start();
+  }
+
+  /**
+   * Dispatch an "up" event. Exposed for tests so fingerprint-keyed listener
+   * routing can be exercised without binding to a real Bonjour browser.
+   */
+  handleUp(service: Service): void {
+    const ep = toEndpoint(service);
+    if (!ep) return;
+    log.info("Hub up", { name: ep.name, fp: ep.fingerprint?.slice(0, 16), address: ep.address });
+    if (!ep.fingerprint) return; // can't key it without a fingerprint
+    this.byFingerprint.set(ep.fingerprint, ep);
+    for (const cb of this.upListeners.get(ep.fingerprint) ?? []) {
+      try { cb(ep); } catch (err) { log.error("up listener threw", { err: String(err) }); }
+    }
+  }
+
+  /** Dispatch a "down" event. See handleUp for rationale. */
+  handleDown(service: Service): void {
+    const ep = toEndpoint(service);
+    if (!ep || !ep.fingerprint) return;
+    log.info("Hub down", { name: ep.name, fp: ep.fingerprint.slice(0, 16) });
+    this.byFingerprint.delete(ep.fingerprint);
+    for (const cb of this.downListeners.get(ep.fingerprint) ?? []) {
+      try { cb(ep); } catch (err) { log.error("down listener threw", { err: String(err) }); }
+    }
   }
 
   stop(): void {

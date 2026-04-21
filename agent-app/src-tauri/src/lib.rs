@@ -102,9 +102,27 @@ async fn cmd_pair(
                 let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 match msg_type {
                     "paired" => {
-                        // Success — restart the main agent sidecar
+                        // Success. If the main sidecar is already running
+                        // (this is a 2nd-hub pair), hot-add the new hub via
+                        // stdin IPC so existing hub connections stay live. If
+                        // it isn't running yet (first pair from a fresh
+                        // install), cold-start it so it picks the creds file
+                        // up normally.
                         let manager = app.state::<SidecarState>();
-                        manager.0.start(&app, &config_dir);
+                        if manager.0.is_running() {
+                            if let Some(creds) = msg.get("credentials") {
+                                let mut payload = serde_json::json!({ "type": "add_hub" });
+                                payload["credentials"] = creds.clone();
+                                manager.0.write_to_child(&payload);
+                                let _ = app.emit("agent-hubs-changed", ());
+                            } else {
+                                // No creds in the paired message — fall back
+                                // to restart so the agent re-reads disk.
+                                manager.0.start(&app, &config_dir);
+                            }
+                        } else {
+                            manager.0.start(&app, &config_dir);
+                        }
                         return Ok(msg);
                     }
                     "pair_failed" => {

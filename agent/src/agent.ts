@@ -92,6 +92,13 @@ export class Agent {
    *  Drives per-hub fan-out: plugin_state/log/active messages only reach hubs
    *  that asked for that plugin. */
   private hubPlugins = new Map<string, Set<string>>();
+  /** Last applied plugin config per plugin id, with the source hub's agentId.
+   *  Used to detect cross-hub config divergence — last-writer-wins still, but
+   *  the user should know when two paired hubs disagree on a plugin's config. */
+  private lastAppliedConfig = new Map<
+    string,
+    { config: unknown; hubAgentId: string }
+  >();
 
   constructor(opts: AgentOptions) {
     this.opts = opts;
@@ -109,9 +116,9 @@ export class Agent {
       log.debug("Received command", msg.data as Record<string, unknown>);
       return this.handleCommand(msg, conn);
     });
-    this.manager.onMessage("plugin_config_update", (msg) => {
+    this.manager.onMessage("plugin_config_update", (msg, conn) => {
       log.debug("Received plugin_config_update", msg.data as Record<string, unknown>);
-      return this.handleConfigUpdate(msg);
+      return this.handleConfigUpdate(msg, conn);
     });
     this.manager.onMessage("plugin_download_response", (msg, conn) => {
       log.debug("Received plugin_download_response", { id: (msg.data as { id: string }).id });
@@ -280,6 +287,34 @@ export class Agent {
   /** Hub connections currently in the manager. */
   hubs(): HubConnection[] {
     return this.manager.all();
+  }
+
+  /**
+   * Hot-add a newly-paired hub into the running agent without a full restart.
+   * Existing hub connections stay live; the new hub gets a fresh connection,
+   * the usual onConnected lifecycle (including state replay), and future
+   * fan-out. Caller is responsible for having already persisted the
+   * credentials entry to disk (cmd_pair does).
+   */
+  async addPairedHub(credentials: AgentCredentials): Promise<void> {
+    if (this.manager.get(credentials.agent_id)) {
+      log.info("addPairedHub: hub already connected, skipping", {
+        agent_id: credentials.agent_id,
+      });
+      return;
+    }
+    const deviceName = getDeviceName();
+    const hostname = this.opts.hostname ?? getAgentHostname();
+    const platform = detectPlatform();
+    await this.manager.addHub({
+      credentials,
+      clientOptions: {
+        hostname,
+        deviceName,
+        platform,
+        agentVersion: AGENT_VERSION,
+      },
+    });
   }
 
   /**
@@ -616,17 +651,59 @@ export class Agent {
     }
   }
 
-  private handleConfigUpdate(msg: WsMessage): void {
+  private handleConfigUpdate(msg: WsMessage, conn?: HubConnection): void {
     const parsed = PluginConfigUpdateSchema.safeParse(msg.data);
     if (!parsed.success) {
       log.error("Invalid plugin_config_update payload", { error: parsed.error.message });
       return;
     }
     const { id, config } = parsed.data;
+
+    // Cross-hub divergence check: if a previously-paired hub already sent a
+    // config for this plugin and the new value differs, warn so the user
+    // knows their hubs disagree. We keep last-writer-wins semantics — there
+    // is no correct merge, and blocking would leave plugins misconfigured —
+    // but silent drift is worse than a noisy warning.
+    if (conn) {
+      const prev = this.lastAppliedConfig.get(id);
+      if (
+        prev &&
+        prev.hubAgentId !== conn.agentId &&
+        !sameJson(prev.config, config)
+      ) {
+        log.warn(
+          `Plugin config divergence for ${id}: hub ${conn.credentials.hub_name} (${conn.agentId}) disagrees with hub ${prev.hubAgentId}. Applying new value (last-writer-wins); fix the older hub's config to silence this.`,
+        );
+      }
+      this.lastAppliedConfig.set(id, { config, hubAgentId: conn.agentId });
+    }
+
     const plugin = this.loader.getPlugin(id);
     if (plugin) {
       plugin.reloadConfig(config);
       log.info(`Config reloaded for plugin ${id}`);
     }
   }
+}
+
+/** Cheap structural equality for JSON-serializable plugin configs. Sorts keys
+ *  so {a:1,b:2} and {b:2,a:1} compare equal. */
+function sameJson(a: unknown, b: unknown): boolean {
+  return stableStringify(a) === stableStringify(b);
+}
+
+function stableStringify(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(stableStringify).join(",") + "]";
+  const keys = Object.keys(v as Record<string, unknown>).sort();
+  return (
+    "{" +
+    keys
+      .map(
+        (k) =>
+          JSON.stringify(k) + ":" + stableStringify((v as Record<string, unknown>)[k]),
+      )
+      .join(",") +
+    "}"
+  );
 }

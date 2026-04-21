@@ -83,6 +83,12 @@ impl SidecarManager {
         }
     }
 
+    /// Whether the main sidecar is currently spawned. Used by the pair flow
+    /// to decide between a hot-add IPC and a full sidecar (re)start.
+    pub fn is_running(&self) -> bool {
+        self.child.lock().unwrap().is_some()
+    }
+
     pub fn start(&self, app: &AppHandle, config_dir: &str) {
         // Stop existing if running
         self.stop();
