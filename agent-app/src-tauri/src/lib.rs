@@ -136,8 +136,12 @@ fn cmd_list_paired_hubs(app: tauri::AppHandle) -> Vec<sidecar::PairedHubStatus> 
     manager.0.paired_hubs()
 }
 
-#[tauri::command]
-pub(crate) async fn cmd_unpair(
+/// Internal unpair helper. `#[tauri::command]` on a `pub(crate) async fn`
+/// collides with the handler-registration macro expansion (E0255 on the
+/// generated `__cmd__cmd_unpair` item), so the IPC entry point and the
+/// tray-callable path are split: `cmd_unpair` is the thin IPC wrapper,
+/// `do_unpair` is the callable helper shared with `tray.rs`.
+pub(crate) async fn do_unpair(
     app: tauri::AppHandle,
     agent_id: Option<String>,
 ) -> Result<(), String> {
@@ -185,6 +189,14 @@ pub(crate) async fn cmd_unpair(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+async fn cmd_unpair(
+    app: tauri::AppHandle,
+    agent_id: Option<String>,
+) -> Result<(), String> {
+    do_unpair(app, agent_id).await
 }
 
 // ── App entry ───────────────────────────────────────────────────────────────

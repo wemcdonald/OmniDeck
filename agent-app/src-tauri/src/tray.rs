@@ -216,7 +216,7 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel)
                 .blocking_show();
                 if confirmed {
-                    if let Err(e) = crate::cmd_unpair(app_handle.clone(), agent_id).await {
+                    if let Err(e) = crate::do_unpair(app_handle.clone(), agent_id).await {
                         eprintln!("Unpair failed: {}", e);
                     }
                 }
