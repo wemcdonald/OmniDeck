@@ -83,6 +83,16 @@ export class AgentClient {
         delete process.env["NODE_TLS_REJECT_UNAUTHORIZED"];
       }
 
+      // Silence stale events from the previous WebSocket before replacing it.
+      // Bun may fire onclose late (after a server-side terminate()), which would
+      // emit a "disconnected" status after the new connection already succeeded
+      // and flip the tray back to "Offline". Nulling handlers prevents that.
+      if (this.ws) {
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.onmessage = null;
+      }
+
       // Pass pinned CA cert via Bun's WebSocket TLS extension
       const wsOptions = this.opts.caCert
         ? ({ tls: { ca: this.opts.caCert } } as unknown as string[])
