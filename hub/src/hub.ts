@@ -27,7 +27,11 @@ import { ModeEngine } from "./modes/engine.js";
 import type { ModeDefinition, ModeCheck } from "./modes/types.js";
 import type { ResolvedState } from "./modes/evaluator.js";
 import { Orchestrator, type OrchestratorConfig } from "./orchestrator/orchestrator.js";
+import { isButtonAvailable } from "./orchestrator/availability.js";
+import type { AgentRoutingConfig } from "./orchestrator/resolver.js";
 import type { FullConfig } from "./config/validator.js";
+
+const AGENT_BACKED_BUILTINS = new Set<string>(["sound", "os-control"]);
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -87,6 +91,10 @@ export class Hub {
   private orchestrator: Orchestrator | null = null;
   private opts: HubOptions;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectedAgents = new Set<string>();
+  private routingConfig: AgentRoutingConfig = {};
+  private pluginRegistry: PluginRegistry | null = null;
+  private pluginConfigs: Record<string, Record<string, unknown>> = {};
 
   constructor(opts: HubOptions) {
     this.opts = opts;
@@ -124,6 +132,7 @@ export class Hub {
     }
 
     // Init plugins with their configuration
+    this.pluginConfigs = pluginConfigs;
     await this.pluginHost.initAll(pluginConfigs);
 
     // Load external plugin registry
@@ -131,6 +140,7 @@ export class Hub {
     if (this.opts.pluginsDir) {
       registry = new PluginRegistry(this.opts.pluginsDir);
       await registry.loadAll();
+      this.pluginRegistry = registry;
       log.info({ plugins: registry.getManifests().map((m) => m.id) }, "Plugin registry loaded");
 
       // Register and initialize hub-side code from external plugins
@@ -172,6 +182,12 @@ export class Hub {
     });
     this.discovery.advertise();
 
+    // Routing config for availability checks (same shape resolveTarget uses)
+    this.routingConfig = {
+      agent_order: orchestratorConfig?.agent_order,
+      plugins: orchestratorConfig?.plugins,
+    };
+
     // Initialize orchestrator (focus tracking, media routing)
     if (orchestratorConfig) {
       const focusCfg = orchestratorConfig.focus;
@@ -194,7 +210,7 @@ export class Hub {
     }
 
     // Track connected agent hostnames for smart routing
-    const connectedAgents = new Set<string>();
+    const connectedAgents = this.connectedAgents;
 
     // Bridge agent state into the state store so plugins can read it
     this.agentServer.onAgentStateUpdate((hostname, state) => {
@@ -575,7 +591,8 @@ export class Hub {
       if (
         stateKey.startsWith("entity:") ||
         stateKey.startsWith("agent:") ||
-        stateKey === "active_mode"
+        stateKey === "active_mode" ||
+        (pluginId === "orchestrator" && stateKey === "connected_agents")
       ) {
         scheduleRender();
       }
@@ -621,6 +638,7 @@ export class Hub {
         const button = this.findButtonByKeyIndex(page, key);
         if (!button) return;
         const effectiveButton = this.applyModeOverrides(button);
+        if (!this.isButtonAvailableNow(effectiveButton)) return;
         const resolved = this.resolveButton(effectiveButton);
         if (!resolved.pressAction) return;
 
@@ -834,6 +852,10 @@ export class Hub {
     }
 
     const effectiveButton = this.applyModeOverrides(button);
+    if (!this.isButtonAvailableNow(effectiveButton)) {
+      log.debug({ pos: button.pos, isLongPress }, "Key press ignored — dependent agent offline");
+      return;
+    }
     const resolved = this.resolveButton(effectiveButton);
 
     // Choose between long press action and normal action
@@ -1240,6 +1262,26 @@ export class Hub {
     };
   }
 
+  private isAgentBackedPlugin = (pluginId: string): boolean => {
+    if (AGENT_BACKED_BUILTINS.has(pluginId)) return true;
+    return this.pluginRegistry?.getAgentBundle(pluginId) !== undefined;
+  };
+
+  private isButtonAvailableNow(button: ButtonConfig): boolean {
+    return isButtonAvailable(button, {
+      connectedAgents: this.connectedAgents,
+      state: this.store,
+      routingConfig: this.routingConfig,
+      isAgentBackedPlugin: this.isAgentBackedPlugin,
+      pluginDefaultTarget: this.pluginDefaultTarget,
+    });
+  }
+
+  private pluginDefaultTarget = (pluginId: string): string | undefined => {
+    const v = this.pluginConfigs[pluginId]?.default_target;
+    return typeof v === "string" ? v : undefined;
+  };
+
   private resolveButtonState(button: ButtonConfig): ButtonState {
     // Apply mode overrides before resolving
     const effectiveButton = this.applyModeOverrides(button);
@@ -1303,6 +1345,14 @@ export class Hub {
     // Button-level explicit flags always win.
     if (effectiveButton.scroll_label !== undefined) state.scrollLabel = effectiveButton.scroll_label;
     if (effectiveButton.scroll_top_label !== undefined) state.scrollTopLabel = effectiveButton.scroll_top_label;
+
+    // Dim buttons whose dependent agent is not currently connected so it's
+    // visually obvious that pressing them will do nothing. Never raise a
+    // lower opacity a state provider has already set.
+    if (!this.isButtonAvailableNow(effectiveButton)) {
+      const current = state.opacity ?? 1;
+      if (current > 0.4) state.opacity = 0.4;
+    }
 
     // If the button has meaningful config but resolved to nothing visible, show an
     // "unavailable" indicator so the deck doesn't silently show a black button.

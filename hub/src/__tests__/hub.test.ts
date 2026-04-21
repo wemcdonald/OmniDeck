@@ -104,4 +104,78 @@ describe("Hub", () => {
     // Images should have changed (media page rendered)
     expect(deck.images.get(0)).not.toEqual(imagesBefore.get(0));
   });
+
+  it("disables agent-backed buttons when target agent is offline", async () => {
+    await hub.start([
+      {
+        page: "home",
+        name: "Home",
+        buttons: [
+          {
+            pos: [0, 0] as [number, number],
+            action: "sound.mute",
+            target: "macbook",
+            label: "Mute",
+          },
+        ],
+      },
+    ]);
+
+    const internals = hub as unknown as {
+      connectedAgents: Set<string>;
+      store: { get: (p: string, k: string) => unknown; set: (p: string, k: string, v: unknown) => void };
+    };
+
+    // Pressing while macbook is offline should NOT set the pending dispatch key.
+    deck.simulateKeyDown(0);
+    deck.simulateKeyUp(0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(internals.store.get("sound", "pending:macbook:mute")).toBeUndefined();
+
+    // Simulate macbook connecting. The same field AgentServer mutates is
+    // referenced, so adding here mimics the onAgentConnection handler path.
+    internals.connectedAgents.add("macbook");
+    internals.store.set("orchestrator", "connected_agents", ["macbook"]);
+
+    deck.simulateKeyDown(0);
+    deck.simulateKeyUp(0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(internals.store.get("sound", "pending:macbook:mute")).toBeDefined();
+  });
+
+  it("dims disabled buttons by re-rendering on agent disconnect", async () => {
+    await hub.start([
+      {
+        page: "home",
+        name: "Home",
+        buttons: [
+          {
+            pos: [0, 0] as [number, number],
+            action: "sound.mute",
+            target: "macbook",
+            label: "Mute",
+            icon: "ms:volume-off",
+          },
+        ],
+      },
+    ]);
+
+    const internals = hub as unknown as {
+      connectedAgents: Set<string>;
+      store: { set: (p: string, k: string, v: unknown) => void };
+      resolveButtonState: (b: unknown) => { opacity?: number };
+    };
+
+    const button = { pos: [0, 0] as [number, number], action: "sound.mute", target: "macbook", label: "Mute", icon: "ms:volume-off" };
+
+    // Offline → opacity 0.4
+    const offlineState = internals.resolveButtonState(button);
+    expect(offlineState.opacity).toBe(0.4);
+
+    // Online → opacity undefined (no dim applied)
+    internals.connectedAgents.add("macbook");
+    internals.store.set("orchestrator", "connected_agents", ["macbook"]);
+    const onlineState = internals.resolveButtonState(button);
+    expect(onlineState.opacity).toBeUndefined();
+  });
 });
