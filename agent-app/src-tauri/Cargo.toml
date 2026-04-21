@@ -1,6 +1,6 @@
 [package]
 name = "omnideck-agent-app"
-version = "0.6.0"
+version = "0.7.0"
 description = "OmniDeck Agent desktop application"
 edition = "2021"
 
