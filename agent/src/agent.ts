@@ -13,6 +13,7 @@ import { PluginLoader } from "./plugins/loader.js";
 import type { LoaderOptions } from "./plugins/loader.js";
 import { StateCache } from "./state-cache.js";
 import type { AgentCredentials } from "./credentials.js";
+import { HubResolver } from "./mdns-resolver.js";
 import { ensureFfi } from "./primitives/ffi.js";
 import {
   detectPlatform,
@@ -75,6 +76,7 @@ interface AgentOptions {
 
 export class Agent {
   private manager: HubConnectionManager;
+  private resolver = new HubResolver();
   /** Only set during pairing flow — pairing has no agent_id yet, so it runs its
    *  own AgentClient outside the manager. */
   private pairClient: AgentClient | null = null;
@@ -90,7 +92,7 @@ export class Agent {
     this.opts = opts;
     const cacheDir = opts.cacheDir ?? getPluginsCacheDir();
     this.loader = new PluginLoader(cacheDir);
-    this.manager = new HubConnectionManager();
+    this.manager = new HubConnectionManager({ resolver: this.resolver });
 
     // Register shared message handlers on the manager. Each connection picks
     // them up automatically (including connections added later at runtime).
@@ -186,6 +188,10 @@ export class Agent {
       throw new Error("Agent started in normal mode with no credentials");
     }
 
+    // Start mDNS browsing if any paired hub can be matched by fingerprint.
+    const needsResolver = credsList.some((c) => !!c.cert_fingerprint_sha256);
+    if (needsResolver) this.resolver.start();
+
     const deviceName = getDeviceName();
     const hostname = this.opts.hostname ?? getAgentHostname();
     const platform = detectPlatform();
@@ -256,6 +262,7 @@ export class Agent {
     await this.loader.unloadAll();
     this.stateCache.clearAll();
     this.manager.closeAll();
+    this.resolver.stop();
     this.pairClient?.close();
     this.pairClient = null;
   }

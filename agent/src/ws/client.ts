@@ -38,6 +38,16 @@ export class AgentClient {
     this.opts = opts;
   }
 
+  /** Current hub URL. May be mutated between connect attempts to follow
+   *  mDNS re-resolution when the hub's address changes. */
+  get hubUrl(): string {
+    return this.opts.hubUrl;
+  }
+
+  set hubUrl(url: string) {
+    this.opts.hubUrl = url;
+  }
+
   createHelloMessage(): WsMessage {
     return createMessage("state_update", {
       hostname: this.opts.hostname,

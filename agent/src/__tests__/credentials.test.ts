@@ -75,6 +75,20 @@ describe("credentials", () => {
     expect(existsSync(path)).toBe(false);
   });
 
+  it("preserves optional cert_fingerprint_sha256 through round-trip", () => {
+    const entry = {
+      agent_id: "a1",
+      token: "t1",
+      hub_address: "wss://home.local:9210",
+      hub_name: "Home",
+      ca_cert: "-----BEGIN CERTIFICATE-----\nMII...\n-----END CERTIFICATE-----",
+      cert_fingerprint_sha256: "AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89",
+    };
+    saveHubs(path, [entry]);
+    const loaded = loadHubs(path);
+    expect(loaded[0].cert_fingerprint_sha256).toBe(entry.cert_fingerprint_sha256);
+  });
+
   it("drops entries missing required fields", () => {
     const bad = { version: 2, hubs: [{ agent_id: "ok", token: "tok", hub_address: "x", hub_name: "X" }, { token: "no-id" }] };
     writeFileSync(path, JSON.stringify(bad));

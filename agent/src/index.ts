@@ -248,6 +248,7 @@ async function runManaged(args: CliArgs) {
           hub_address: args.hubUrl!,
           hub_name: response.hub_name ?? "OmniDeck",
           ca_cert: response.ca_cert,
+          cert_fingerprint_sha256: response.ca_fingerprint,
         });
         emit({
           type: "paired",
@@ -384,6 +385,7 @@ async function runCli() {
         hub_address: hubUrl,
         hub_name: response.hub_name ?? hubName,
         ca_cert: response.ca_cert,
+        cert_fingerprint_sha256: response.ca_fingerprint,
       });
       log.info("Paired successfully! Credentials saved.", { agentId: response.agent_id });
     },

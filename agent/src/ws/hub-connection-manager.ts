@@ -2,6 +2,7 @@ import { HubConnection, type HubMessageHandler } from "./hub-connection.js";
 import type { WsMessage } from "./protocol.js";
 import type { AgentCredentials } from "../credentials.js";
 import type { AgentClientOptions } from "./client.js";
+import type { HubResolver } from "../mdns-resolver.js";
 import { createLogger } from "../logger.js";
 
 const log = createLogger("hub-manager");
@@ -26,6 +27,11 @@ export class HubConnectionManager {
   private onConnectCbs: ConnectionLifecycleCb[] = [];
   private onDisconnectCbs: DisconnectCb[] = [];
   private onReconnectingCbs: ConnectionLifecycleCb[] = [];
+  private resolver?: HubResolver;
+
+  constructor(opts: { resolver?: HubResolver } = {}) {
+    this.resolver = opts.resolver;
+  }
 
   /** Register a handler for a given message type. Applied to every connection. */
   onMessage(type: string, handler: HubMessageHandler): void {
@@ -55,6 +61,7 @@ export class HubConnectionManager {
     const conn = new HubConnection({
       credentials: opts.credentials,
       clientOptions: opts.clientOptions,
+      resolver: this.resolver,
       onConnected: (c) => {
         log.info("Hub connected", { agentId: c.agentId, hub: c.credentials.hub_name });
         for (const cb of this.onConnectCbs) cb(c);

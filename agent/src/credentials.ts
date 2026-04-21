@@ -11,6 +11,14 @@ export interface AgentCredentials {
   hub_address: string;
   hub_name: string;
   ca_cert?: string;
+  /**
+   * SHA-256 fingerprint of the hub's CA cert (hex, colon-separated). Captured
+   * during pairing from the hub's pair_response. Used both to match hubs
+   * discovered via mDNS (hub advertises it in its TXT record as `fp`) and to
+   * disambiguate hubs with the same display name. When absent (e.g. creds
+   * migrated from v1), the agent falls back to dialing hub_address directly.
+   */
+  cert_fingerprint_sha256?: string;
 }
 
 interface CredentialsFileV2 {
