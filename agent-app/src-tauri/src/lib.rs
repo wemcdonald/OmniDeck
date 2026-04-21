@@ -1,3 +1,4 @@
+mod credentials;
 mod sidecar;
 mod tray;
 #[cfg(target_os = "macos")]
@@ -30,12 +31,6 @@ fn get_config_dir() -> String {
             .unwrap_or_else(|_| format!("{}/.config", std::env::var("HOME").unwrap_or_default()));
         format!("{}/omnideck", config)
     }
-}
-
-/// Check if credentials exist in the config directory.
-fn credentials_exist(config_dir: &str) -> bool {
-    let path = std::path::Path::new(config_dir).join("credentials.json");
-    path.exists()
 }
 
 // ── Tauri commands (invokable from frontend) ────────────────────────────────
@@ -136,15 +131,22 @@ fn cmd_get_state(app: tauri::AppHandle) -> AgentState {
 }
 
 #[tauri::command]
-pub(crate) async fn cmd_unpair(app: tauri::AppHandle) -> Result<(), String> {
+fn cmd_list_paired_hubs(app: tauri::AppHandle) -> Vec<sidecar::PairedHubStatus> {
+    let manager = app.state::<SidecarState>();
+    manager.0.paired_hubs()
+}
+
+#[tauri::command]
+pub(crate) async fn cmd_unpair(
+    app: tauri::AppHandle,
+    agent_id: Option<String>,
+) -> Result<(), String> {
     use std::time::Duration;
     use tokio::time::timeout;
 
     let config_dir = get_config_dir();
-    let creds_path = std::path::Path::new(&config_dir).join("credentials.json");
 
-    // Ask the sidecar to notify the hub. Fire-and-forget with a 3-second deadline;
-    // we clear local state regardless of the result.
+    // Ask the sidecar to notify the hub and remove just this hub's creds.
     {
         let manager = app.state::<SidecarState>();
 
@@ -158,26 +160,29 @@ pub(crate) async fn cmd_unpair(app: tauri::AppHandle) -> Result<(), String> {
             }
         });
 
-        manager.0.write_to_child(&serde_json::json!({ "type": "unpair" }));
+        let mut payload = serde_json::json!({ "type": "unpair" });
+        if let Some(ref aid) = agent_id {
+            payload["agent_id"] = serde_json::Value::String(aid.clone());
+        }
+        manager.0.write_to_child(&payload);
 
         let _ = timeout(Duration::from_secs(3), rx).await;
         app.unlisten(listener_id);
     }
 
-    // Stop the agent sidecar
-    let manager = app.state::<SidecarState>();
-    manager.0.stop();
-
-    // Delete credentials
-    if creds_path.exists() {
-        std::fs::remove_file(&creds_path).map_err(|e| e.to_string())?;
+    // If other paired hubs remain, keep the sidecar running — the agent itself
+    // has already forgotten the revoked hub and kept connections to the others.
+    let remaining = crate::credentials::read_paired_hubs(&config_dir);
+    if remaining.is_empty() {
+        let manager = app.state::<SidecarState>();
+        manager.0.stop();
+        let _ = app.emit("agent-status", &AgentState::NotPaired);
+        // Show pairing window so the user can re-pair
+        show_pairing_window(&app);
+    } else {
+        // Refresh tray for per-hub list.
+        let _ = app.emit("agent-hubs-changed", ());
     }
-
-    // Update state + tray
-    let _ = app.emit("agent-status", &AgentState::NotPaired);
-
-    // Show pairing window so the user can re-pair
-    show_pairing_window(&app);
 
     Ok(())
 }
@@ -235,6 +240,14 @@ pub fn run() {
                 }
             });
 
+            // Per-hub events: tray renders from the paired-hubs list, so any
+            // change to the list should re-draw the menu.
+            let app_handle_hubs = app.handle().clone();
+            app.handle().listen("agent-hubs-changed", move |_event| {
+                let manager = app_handle_hubs.state::<SidecarState>();
+                let _ = tray::update_tray(&app_handle_hubs, &manager.0.state());
+            });
+
             // Listen for deep link URLs
             let app_handle2 = app.handle().clone();
             app.handle().listen("deep-link://new-url", move |event| {
@@ -252,10 +265,14 @@ pub fn run() {
                 show_pairing_window(&app_handle3);
             });
 
-            // Start agent if already paired
-            if credentials_exist(&config_dir) {
+            // Start agent if any paired hub remains
+            let paired = credentials::read_paired_hubs(&config_dir);
+            if !paired.is_empty() {
                 let manager = app.state::<SidecarState>();
                 manager.0.start(app.handle(), &config_dir);
+                // Seed tray with paired list (connection flags start as false
+                // until the sidecar reports actual status).
+                let _ = tray::update_tray(app.handle(), &manager.0.state());
             } else {
                 // Show pairing window on first launch
                 show_pairing_window(app.handle());
@@ -273,6 +290,7 @@ pub fn run() {
             cmd_discover_hubs,
             cmd_pair,
             cmd_get_state,
+            cmd_list_paired_hubs,
             cmd_unpair,
         ])
         .run(tauri::generate_context!())

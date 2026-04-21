@@ -65,12 +65,12 @@ interface AgentOptions {
   /** Called when a specific hub revokes the agent's token. Receives the
    *  agent_id of the revoked connection. */
   onAuthFailed?: (agentId?: string) => void;
-  /** Called when any hub connects. */
-  onConnected?: (hubName: string, hubUrl: string) => void;
-  /** Called when a hub disconnects. */
-  onDisconnected?: (reason: string) => void;
-  /** Called when a hub is reconnecting. */
-  onReconnecting?: () => void;
+  /** Called when a hub connects. Receives the hub name, URL, and agent_id. */
+  onConnected?: (hubName: string, hubUrl: string, agentId: string) => void;
+  /** Called when a hub disconnects. Receives the reason and agent_id. */
+  onDisconnected?: (reason: string, agentId: string) => void;
+  /** Called when a hub is reconnecting. Receives its agent_id. */
+  onReconnecting?: (agentId: string) => void;
   /** Platform request handler (managed mode IPC to Tauri host) */
   platformRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
 }
@@ -128,7 +128,7 @@ export class Agent {
       this.replayStateCache(conn);
       // Start the host-state poll on first connect across any hub.
       if (!this.stateTimer) this.startStatePolling();
-      opts.onConnected?.(conn.credentials.hub_name, conn.credentials.hub_address);
+      opts.onConnected?.(conn.credentials.hub_name, conn.credentials.hub_address, conn.agentId);
     });
     this.manager.onAnyDisconnect((conn, reason) => {
       if (reason === "revoked") {
@@ -139,9 +139,9 @@ export class Agent {
         opts.onAuthFailed?.(conn.agentId);
         return;
       }
-      opts.onDisconnected?.(reason);
+      opts.onDisconnected?.(reason, conn.agentId);
     });
-    this.manager.onAnyReconnecting(() => opts.onReconnecting?.());
+    this.manager.onAnyReconnecting((conn) => opts.onReconnecting?.(conn.agentId));
   }
 
   async start(): Promise<void> {

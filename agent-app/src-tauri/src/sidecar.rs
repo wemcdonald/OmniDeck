@@ -1,8 +1,18 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandChild;
+
+use crate::credentials::{read_paired_hubs, PairedHub};
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PairedHubStatus {
+    #[serde(flatten)]
+    pub hub: PairedHub,
+    pub connected: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "state")]
@@ -29,6 +39,10 @@ pub enum AgentState {
 pub struct SidecarManager {
     child: Mutex<Option<CommandChild>>,
     state: Arc<Mutex<AgentState>>,
+    /// Per-hub connected flag, keyed by agent_id. Populated from the sidecar's
+    /// status events once it reports them.
+    hub_connected: Arc<Mutex<HashMap<String, bool>>>,
+    config_dir: Mutex<String>,
 }
 
 impl SidecarManager {
@@ -36,11 +50,29 @@ impl SidecarManager {
         Self {
             child: Mutex::new(None),
             state: Arc::new(Mutex::new(AgentState::NotPaired)),
+            hub_connected: Arc::new(Mutex::new(HashMap::new())),
+            config_dir: Mutex::new(String::new()),
         }
     }
 
     pub fn state(&self) -> AgentState {
         self.state.lock().unwrap().clone()
+    }
+
+    /// List of paired hubs, each annotated with its current connection state.
+    pub fn paired_hubs(&self) -> Vec<PairedHubStatus> {
+        let config_dir = self.config_dir.lock().unwrap().clone();
+        if config_dir.is_empty() {
+            return Vec::new();
+        }
+        let connected = self.hub_connected.lock().unwrap().clone();
+        read_paired_hubs(&config_dir)
+            .into_iter()
+            .map(|h| PairedHubStatus {
+                connected: *connected.get(&h.agent_id).unwrap_or(&false),
+                hub: h,
+            })
+            .collect()
     }
 
     /// Write a JSON line to the sidecar's stdin.
@@ -54,6 +86,8 @@ impl SidecarManager {
     pub fn start(&self, app: &AppHandle, config_dir: &str) {
         // Stop existing if running
         self.stop();
+        *self.config_dir.lock().unwrap() = config_dir.to_string();
+        self.hub_connected.lock().unwrap().clear();
 
         let sidecar = app.shell().sidecar("omnideck-agent").unwrap();
         let (mut rx, child) = sidecar
@@ -79,7 +113,13 @@ impl SidecarManager {
                             continue;
                         }
                         if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line) {
-                            handle_agent_message(&app_handle, &state, &msg);
+                            let manager_ref = app_handle.state::<crate::SidecarState>();
+                            handle_agent_message(
+                                &app_handle,
+                                &state,
+                                &manager_ref.0.hub_connected,
+                                &msg,
+                            );
                         }
                     }
                     CommandEvent::Stderr(line) => {
@@ -109,13 +149,29 @@ impl SidecarManager {
 fn handle_agent_message(
     app: &AppHandle,
     state: &Arc<Mutex<AgentState>>,
+    hub_connected: &Arc<Mutex<HashMap<String, bool>>>,
     msg: &serde_json::Value,
 ) {
     let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
     match msg_type {
         "status" => {
-            let new_state = match msg.get("state").and_then(|s| s.as_str()).unwrap_or("") {
+            let state_str = msg.get("state").and_then(|s| s.as_str()).unwrap_or("");
+            let agent_id = msg.get("agent_id").and_then(|a| a.as_str());
+
+            // Per-hub event: update the map keyed by agent_id. Coarse
+            // AgentState is then derived from whether any hub is connected.
+            if let Some(aid) = agent_id {
+                let mut map = hub_connected.lock().unwrap();
+                match state_str {
+                    "connected" => { map.insert(aid.to_string(), true); }
+                    "disconnected" | "connecting" => { map.insert(aid.to_string(), false); }
+                    _ => {}
+                }
+                let _ = app.emit("agent-hubs-changed", ());
+            }
+
+            let new_state = match state_str {
                 "connecting" => AgentState::Connecting,
                 "connected" => AgentState::Connected {
                     hub: msg.get("hub").and_then(|h| h.as_str()).unwrap_or("OmniDeck").to_string(),
@@ -129,12 +185,29 @@ fn handle_agent_message(
                     message: format!("Unknown state: {}", other),
                 },
             };
-            *state.lock().unwrap() = new_state.clone();
-            let _ = app.emit("agent-status", &new_state);
+
+            // With per-hub events, coarse "disconnected" only makes sense if no
+            // hub is currently connected. Otherwise promote to Connected using
+            // whichever hub is up so the tray stays green.
+            let current_state = if matches!(new_state, AgentState::Disconnected { .. }) {
+                let map = hub_connected.lock().unwrap();
+                if map.values().any(|&c| c) {
+                    // Some other hub is still connected — keep overall state Connected.
+                    state.lock().unwrap().clone()
+                } else {
+                    new_state.clone()
+                }
+            } else {
+                new_state.clone()
+            };
+
+            *state.lock().unwrap() = current_state.clone();
+            let _ = app.emit("agent-status", &current_state);
         }
         "paired" => {
             let hub_name = msg.get("hub_name").and_then(|h| h.as_str()).unwrap_or("OmniDeck");
             let _ = app.emit("agent-paired", msg);
+            let _ = app.emit("agent-hubs-changed", ());
             eprintln!("Agent paired with hub: {}", hub_name);
         }
         "pair_failed" => {
@@ -143,12 +216,25 @@ fn handle_agent_message(
             eprintln!("Pairing failed: {}", error);
         }
         "auth_failed" => {
-            *state.lock().unwrap() = AgentState::NotPaired;
-            let _ = app.emit("agent-status", &AgentState::NotPaired);
-            let _ = app.emit("agent-auth-failed", msg);
+            if let Some(aid) = msg.get("agent_id").and_then(|a| a.as_str()) {
+                hub_connected.lock().unwrap().remove(aid);
+                let _ = app.emit("agent-auth-failed", msg);
+                let _ = app.emit("agent-hubs-changed", ());
+            } else {
+                // Legacy: no agent_id means all creds got nuked.
+                *state.lock().unwrap() = AgentState::NotPaired;
+                hub_connected.lock().unwrap().clear();
+                let _ = app.emit("agent-status", &AgentState::NotPaired);
+                let _ = app.emit("agent-auth-failed", msg);
+                let _ = app.emit("agent-hubs-changed", ());
+            }
         }
         "unpaired" => {
+            if let Some(aid) = msg.get("agent_id").and_then(|a| a.as_str()) {
+                hub_connected.lock().unwrap().remove(aid);
+            }
             let _ = app.emit("agent-unpaired", msg);
+            let _ = app.emit("agent-hubs-changed", ());
         }
         "platform_request" => {
             handle_platform_request(app, msg);

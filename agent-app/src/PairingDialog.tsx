@@ -7,10 +7,20 @@ interface Hub {
   name: string;
   address: string;
   port: number;
+  fingerprint?: string;
+}
+
+interface PairedHubStatus {
+  agent_id: string;
+  hub_name: string;
+  hub_address: string;
+  cert_fingerprint_sha256?: string;
+  connected: boolean;
 }
 
 export default function PairingDialog() {
   const [hubs, setHubs] = useState<Hub[]>([]);
+  const [pairedFingerprints, setPairedFingerprints] = useState<Set<string>>(new Set());
   const [discovering, setDiscovering] = useState(true);
   const [selectedHub, setSelectedHub] = useState<Hub | null>(null);
   const [manualAddress, setManualAddress] = useState("");
@@ -23,15 +33,29 @@ export default function PairingDialog() {
     setDiscovering(true);
     setHubs([]);
     try {
-      const found = await invoke<Hub[]>("cmd_discover_hubs");
+      const [found, paired] = await Promise.all([
+        invoke<Hub[]>("cmd_discover_hubs"),
+        invoke<PairedHubStatus[]>("cmd_list_paired_hubs").catch(() => [] as PairedHubStatus[]),
+      ]);
       setHubs(found);
-      if (found.length === 1) setSelectedHub(found[0]);
+      const fps = new Set(
+        paired
+          .map((h) => h.cert_fingerprint_sha256)
+          .filter((fp): fp is string => !!fp),
+      );
+      setPairedFingerprints(fps);
+      // Auto-select the only discovered hub that isn't already paired.
+      const unpaired = found.filter((h) => !h.fingerprint || !fps.has(h.fingerprint));
+      if (unpaired.length === 1) setSelectedHub(unpaired[0]);
     } catch {
       // no-op — empty state handles this
     } finally {
       setDiscovering(false);
     }
   };
+
+  const isHubPaired = (hub: Hub): boolean =>
+    !!hub.fingerprint && pairedFingerprints.has(hub.fingerprint);
 
   useEffect(() => {
     void runDiscovery();
@@ -89,19 +113,26 @@ export default function PairingDialog() {
           <p style={styles.discovering}>Searching for hubs on your network...</p>
         ) : hubs.length > 0 ? (
           <div style={styles.hubList}>
-            {hubs.map((hub) => (
-              <button
-                key={`${hub.address}:${hub.port}`}
-                style={{
-                  ...styles.hubItem,
-                  ...(selectedHub === hub ? styles.hubItemSelected : {}),
-                }}
-                onClick={() => { setSelectedHub(hub); setManualAddress(""); }}
-              >
-                <strong>{hub.name}</strong>
-                <span style={styles.hubAddress}>{hub.address}:{hub.port}</span>
-              </button>
-            ))}
+            {hubs.map((hub) => {
+              const paired = isHubPaired(hub);
+              return (
+                <button
+                  key={`${hub.address}:${hub.port}`}
+                  disabled={paired}
+                  style={{
+                    ...styles.hubItem,
+                    ...(selectedHub === hub ? styles.hubItemSelected : {}),
+                    ...(paired ? styles.hubItemDisabled : {}),
+                  }}
+                  onClick={() => { if (!paired) { setSelectedHub(hub); setManualAddress(""); } }}
+                >
+                  <strong>{hub.name}</strong>
+                  <span style={styles.hubAddress}>
+                    {paired ? "already paired" : `${hub.address}:${hub.port}`}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div style={styles.emptyState}>
@@ -232,6 +263,10 @@ const styles: Record<string, React.CSSProperties> = {
   hubItemSelected: {
     border: "1px solid #3b82f6",
     background: "#1e293b",
+  },
+  hubItemDisabled: {
+    opacity: 0.5,
+    cursor: "not-allowed",
   },
   hubAddress: {
     fontSize: 12,

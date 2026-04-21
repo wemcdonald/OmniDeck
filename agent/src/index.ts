@@ -293,14 +293,14 @@ async function runManaged(args: CliArgs) {
   const agent = new Agent({
     credentialsList: effectiveHubs,
     platformRequest,
-    onConnected: (hubName, hubUrl) => {
-      emit({ type: "status", state: "connected", hub: hubName, hub_url: hubUrl });
+    onConnected: (hubName, hubUrl, agentId) => {
+      emit({ type: "status", state: "connected", agent_id: agentId, hub: hubName, hub_url: hubUrl });
     },
-    onDisconnected: (reason) => {
-      emit({ type: "status", state: "disconnected", reason });
+    onDisconnected: (reason, agentId) => {
+      emit({ type: "status", state: "disconnected", agent_id: agentId, reason });
     },
-    onReconnecting: () => {
-      emit({ type: "status", state: "connecting" });
+    onReconnecting: (agentId) => {
+      emit({ type: "status", state: "connecting", agent_id: agentId });
     },
     onAuthFailed: (agentId) => {
       if (agentId) {
