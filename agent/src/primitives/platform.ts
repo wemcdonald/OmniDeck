@@ -19,7 +19,7 @@ export function detectPlatform(): "darwin" | "windows" | "linux" {
 }
 
 export function getAgentHostname(): string {
-  return process.env["OMNIDECK_HOSTNAME"] ?? getHostname();
+  return process.env["OMNIDECK_HOSTNAME"] ?? getHostname().split(".")[0];
 }
 
 /** Returns a stable, network-independent device name. */
