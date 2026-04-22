@@ -9,6 +9,11 @@ const RECONNECT_DELAY_MS = 5000;
 // onclose. Poll readyState every WATCHDOG_INTERVAL_MS; if the socket is dead
 // and no reconnect is already scheduled, kick one off.
 const WATCHDOG_INTERVAL_MS = 5000;
+// Heartbeat timeout: hub pings every 15s. If we haven't seen any inbound
+// message in this window, assume the socket is silently dead (Wi-Fi hop,
+// laptop sleep/wake, hard hub kill — cases where readyState stays OPEN
+// because TCP never delivered FIN) and force a reconnect.
+const HEARTBEAT_TIMEOUT_MS = 30_000;
 
 export interface AgentClientOptions {
   hubUrl: string;
@@ -38,6 +43,15 @@ export class AgentClient {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks whether close() was explicitly called to suppress auto-reconnect */
   private closing = false;
+  /** Wall-clock of the last inbound message. Reset on each successful open
+   *  and updated in onmessage. Watchdog uses this to detect silent TCP
+   *  black-holes where readyState stays OPEN after the connection is dead. */
+  private lastMessageAt = 0;
+  /** agent_id for the connection, used in log lines to disambiguate hubs in
+   *  the multi-hub case. Undefined during pairing (no auth yet). */
+  private get logAgentId(): string | undefined {
+    return this.opts.auth?.agentId;
+  }
 
   constructor(opts: AgentClientOptions) {
     this.opts = opts;
@@ -71,6 +85,13 @@ export class AgentClient {
 
   async connect(): Promise<void> {
     this.closing = false;
+    // A pending reconnect timer and an explicit connect() would race two
+    // sockets. Cancel the timer; this call takes precedence.
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    log.info("connect() called", { agentId: this.logAgentId, url: this.opts.hubUrl });
     return new Promise((resolve, reject) => {
       // TLS handling for self-signed certs:
       // During pairing (no CA cert yet) we disable TLS verification so the
@@ -86,11 +107,14 @@ export class AgentClient {
       // Silence stale events from the previous WebSocket before replacing it.
       // Bun may fire onclose late (after a server-side terminate()), which would
       // emit a "disconnected" status after the new connection already succeeded
-      // and flip the tray back to "Offline". Nulling handlers prevents that.
+      // and flip the tray back to "Offline". Nulling handlers prevents that,
+      // and close() releases the underlying socket so it doesn't leak.
       if (this.ws) {
         this.ws.onclose = null;
         this.ws.onerror = null;
         this.ws.onmessage = null;
+        this.ws.onopen = null;
+        try { this.ws.close(); } catch { /* already closing */ }
       }
 
       // Pass pinned CA cert via Bun's WebSocket TLS extension
@@ -100,7 +124,8 @@ export class AgentClient {
       this.ws = new WebSocket(this.opts.hubUrl, wsOptions);
 
       this.ws.onopen = () => {
-        log.info("Connected to hub", { url: this.opts.hubUrl });
+        log.info("WS open", { agentId: this.logAgentId, url: this.opts.hubUrl });
+        this.lastMessageAt = Date.now();
         this.startWatchdog();
 
         if (this.opts.auth) {
@@ -120,6 +145,9 @@ export class AgentClient {
       };
 
       this.ws.onmessage = (event: MessageEvent) => {
+        // Any inbound message is proof the socket is alive. Reset the
+        // heartbeat clock before parsing so even malformed frames count.
+        this.lastMessageAt = Date.now();
         try {
           const raw =
             typeof event.data === "string" ? event.data : String(event.data);
@@ -136,11 +164,11 @@ export class AgentClient {
           if (msg.type === "authenticate_response") {
             const data = msg.data as { success: boolean; error?: string };
             if (data.success) {
-              log.info("Authentication successful");
+              log.info("Authentication successful — firing onConnected", { agentId: this.logAgentId });
               this.send(this.createHelloMessage());
               this.opts.onConnected?.();
             } else {
-              log.error("Authentication failed", { error: data.error });
+              log.error("Authentication failed", { agentId: this.logAgentId, error: data.error });
               // Trigger auth_failed handler if registered
               const handler = this.handlers.get("auth_failed");
               if (handler) {
@@ -148,8 +176,8 @@ export class AgentClient {
                   log.error("Handler error", { type: "auth_failed", err: String(err) }),
                 );
               }
-              return;
             }
+            return;
           }
 
           // Handle pair_response
@@ -183,7 +211,11 @@ export class AgentClient {
       };
 
       this.ws.onclose = (event: CloseEvent) => {
-        log.warn("Disconnected from hub", { code: event.code, reason: event.reason });
+        log.warn("Disconnected from hub", {
+          agentId: this.logAgentId,
+          code: event.code,
+          reason: event.reason,
+        });
         if (event.code === WS_CLOSE_CODE_REVOKED) {
           this.opts.onDisconnected?.("revoked");
           // Do not reconnect — credentials are invalid.
@@ -244,19 +276,47 @@ export class AgentClient {
       // CLOSING=2, CLOSED=3 — connection is dead without onclose having
       // triggered a reconnect (Bun bug with server-side terminate()).
       if ((state === 2 || state === 3) && !this.reconnectTimer) {
-        log.warn("Watchdog: WS dead without onclose firing — forcing reconnect");
-        this.scheduleReconnect();
+        log.warn("Watchdog: WS dead without onclose firing — forcing reconnect", {
+          agentId: this.logAgentId,
+          state,
+        });
+        this.forceReconnect();
+        return;
+      }
+      // Heartbeat timeout — socket may still claim OPEN, but no traffic in
+      // HEARTBEAT_TIMEOUT_MS means TCP is black-holed. Force-close and retry.
+      if (state === 1 && this.lastMessageAt > 0) {
+        const idleMs = Date.now() - this.lastMessageAt;
+        if (idleMs > HEARTBEAT_TIMEOUT_MS && !this.reconnectTimer) {
+          log.warn("Watchdog: heartbeat timeout — forcing reconnect", {
+            agentId: this.logAgentId,
+            idleMs,
+            timeoutMs: HEARTBEAT_TIMEOUT_MS,
+          });
+          this.forceReconnect();
+        }
       }
     }, WATCHDOG_INTERVAL_MS);
   }
 
+  /** Tear the current socket down so its onclose schedules a reconnect.
+   *  If onclose doesn't fire (the very case that got us here), schedule one
+   *  directly so we never deadlock. */
+  private forceReconnect(): void {
+    try { this.ws?.close(); } catch { /* already closing */ }
+    // Even if close() ends up firing onclose, scheduleReconnect is idempotent
+    // against a pending timer — connect() cancels it at the top.
+    if (!this.reconnectTimer) this.scheduleReconnect();
+  }
+
   private scheduleReconnect(): void {
-    log.info(`Reconnecting in ${RECONNECT_DELAY_MS}ms…`);
+    if (this.reconnectTimer) return;
+    log.info(`Reconnecting in ${RECONNECT_DELAY_MS}ms…`, { agentId: this.logAgentId });
     this.opts.onReconnecting?.();
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((err: unknown) =>
-        log.error("Reconnect failed", { err: String(err) }),
+        log.error("Reconnect failed", { agentId: this.logAgentId, err: String(err) }),
       );
     }, RECONNECT_DELAY_MS);
   }
