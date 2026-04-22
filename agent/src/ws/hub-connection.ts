@@ -64,10 +64,21 @@ export class HubConnection {
       auth: { agentId: this.credentials.agent_id, token: this.credentials.token },
       caCert: this.credentials.ca_cert,
       onConnected: () => {
+        log.info("HubConnection.onConnected fired", {
+          agentId: this.agentId,
+          hub: this.credentials.hub_name,
+          wasConnected: this.connected,
+        });
         this.connected = true;
         this.lifecycleCallbacks.onConnected?.(this);
       },
       onDisconnected: (reason) => {
+        log.info("HubConnection.onDisconnected fired", {
+          agentId: this.agentId,
+          hub: this.credentials.hub_name,
+          reason,
+          wasConnected: this.connected,
+        });
         this.connected = false;
         this.lifecycleCallbacks.onDisconnected?.(this, reason);
       },
