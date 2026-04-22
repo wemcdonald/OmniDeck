@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { getIconData, iconToSVG } from "@iconify/utils";
 import type { ButtonState } from "./types.js";
+import { getPluginIcon, parsePluginIconRef } from "../plugins/icons.js";
 
 const _require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -214,6 +215,27 @@ async function resolveIconBuffer(
       .toBuffer();
   }
   if (typeof icon !== "string" || icon.length === 0) return undefined;
+  const pluginRef = parsePluginIconRef(icon);
+  if (pluginRef) {
+    const asset = getPluginIcon(pluginRef.pluginId, pluginRef.name);
+    if (!asset) return undefined;
+    let input: Buffer;
+    if (asset.svg) {
+      // Tint via currentColor substitution when a fillColor is supplied.
+      const svg = fillColor
+        ? asset.svg.replace(/currentColor/g, escapeXml(fillColor))
+        : asset.svg;
+      input = Buffer.from(svg);
+    } else if (asset.buffer) {
+      input = asset.buffer;
+    } else {
+      return undefined;
+    }
+    return sharp(input, { density: 400 })
+      .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+  }
   if (icon.startsWith("ms:")) {
     const iconName = icon.slice(3);
     const iconData = getIconData(materialSymbolsData, iconName);

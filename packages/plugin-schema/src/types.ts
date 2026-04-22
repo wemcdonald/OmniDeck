@@ -39,6 +39,12 @@ export interface PluginContext {
   scaffoldPage(id: string, config: { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> }): void;
   /** Register a dynamic page provider. The resolve function is called whenever the page needs to render. */
   registerPageProvider(id: string, resolve: () => { page: string; name?: string; columns?: number; buttons: Array<Record<string, unknown>> } | undefined): void;
+  /**
+   * Register a named icon asset that becomes available to any button as
+   * `plugin:<pluginId>/<name>`. Pass an SVG string (preferred — scales and
+   * accepts `currentColor` tints) or a pre-rasterized PNG Buffer.
+   */
+  registerIcon(name: string, asset: string | Buffer): void;
   /** Schedule a recurring callback. Automatically cleared when the plugin is reloaded or destroyed. */
   setInterval(fn: () => void, ms: number): ReturnType<typeof setInterval>;
 }

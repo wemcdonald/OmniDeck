@@ -20,6 +20,7 @@ export async function bundleHubPlugin(
   outFile: string,
 ): Promise<void> {
   mkdirSync(dirname(outFile), { recursive: true });
+  const loader = { ".svg": "text" } as const;
   try {
     await build({
       entryPoints: [entryPoint],
@@ -29,6 +30,7 @@ export async function bundleHubPlugin(
       platform: "node",
       target: "es2023",
       external: ["@omnideck/plugin-schema", "zod"],
+      loader,
       logLevel: "silent",
     });
   } catch {
@@ -42,6 +44,7 @@ export async function bundleHubPlugin(
       target: "es2023",
       external: ["@omnideck/plugin-schema", "zod"],
       packages: "external",
+      loader,
       logLevel: "silent",
     });
   }

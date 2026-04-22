@@ -12,6 +12,7 @@ import { createHaRoutes } from "./routes/ha.js";
 import { createAuthRoutes } from "./routes/auth.js";
 import { createPairingRoutes } from "./routes/pairing.js";
 import { createPluginInstallRoutes } from "./routes/plugins.js";
+import { createPluginIconRoutes } from "./routes/plugin-icons.js";
 import { createBackupRoutes } from "./routes/backup.js";
 import { createSetupRoutes } from "./routes/setup.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
@@ -157,6 +158,8 @@ export class WebServer {
         onInstalled: this.opts.onPluginInstalled,
       }));
     }
+
+    this.app.route("/api/plugin-icons", createPluginIconRoutes());
 
     if (store) {
       this.app.route("/api/ha", createHaRoutes(store));

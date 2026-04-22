@@ -75,6 +75,13 @@ export interface PluginCatalogEntry {
   presets: CatalogPreset[];
   actions: CatalogAction[];
   stateProviders: CatalogStateProvider[];
+  icons: CatalogPluginIcon[];
+}
+
+export interface CatalogPluginIcon {
+  name: string;
+  ref: string;
+  url: string;
 }
 
 export interface CatalogAction {

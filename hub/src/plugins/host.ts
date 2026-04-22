@@ -13,6 +13,11 @@ import { createLogger } from "../logger.js";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { stringify as yamlStringify } from "yaml";
+import {
+  clearPluginIcons,
+  listPluginIcons,
+  registerPluginIcon,
+} from "./icons.js";
 
 type OrchestratorCallback = (data: unknown) => void;
 
@@ -44,6 +49,8 @@ export class PluginHost {
     const prev = this.pluginIntervals.get(id) ?? [];
     for (const h of prev) clearInterval(h);
     this.pluginIntervals.set(id, []);
+    // Reset the plugin's icon registrations; init() will repopulate.
+    clearPluginIcons(id);
 
     return {
       config,
@@ -74,6 +81,9 @@ export class PluginHost {
       },
       registerPageProvider: (pageId, resolve) => {
         this.pageProviders.set(`${id}.${pageId}`, resolve);
+      },
+      registerIcon: (name, asset) => {
+        registerPluginIcon(id, name, asset);
       },
       scaffoldPage: (pageId, pageConfig) => {
         if (!this.configDir) {
@@ -238,6 +248,11 @@ export class PluginHost {
         presets: [],
         actions: [],
         stateProviders: [],
+        icons: listPluginIcons(plugin.id).map((name) => ({
+          name,
+          ref: `plugin:${plugin.id}/${name}`,
+          url: `/api/plugin-icons/${plugin.id}/${encodeURIComponent(name)}`,
+        })),
       });
     }
 
@@ -313,6 +328,16 @@ export interface PluginCatalogEntry {
   presets: CatalogPreset[];
   actions: CatalogAction[];
   stateProviders: CatalogStateProvider[];
+  icons: CatalogPluginIcon[];
+}
+
+export interface CatalogPluginIcon {
+  /** Short asset name (e.g. "logo"). */
+  name: string;
+  /** The value to put in a button's `icon` field (e.g. "plugin:spotify/logo"). */
+  ref: string;
+  /** URL for the web UI to render a preview (served by the hub). */
+  url: string;
 }
 
 interface CatalogAction {

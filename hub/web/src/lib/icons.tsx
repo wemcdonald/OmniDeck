@@ -14,5 +14,20 @@ export function msIcon(name?: string) {
       />
     );
   }
+  if (name.startsWith("plugin:")) {
+    const rest = name.slice("plugin:".length);
+    const slash = rest.indexOf("/");
+    if (slash > 0) {
+      const pluginId = rest.slice(0, slash);
+      const iconName = rest.slice(slash + 1);
+      return (
+        <img
+          src={`/api/plugin-icons/${encodeURIComponent(pluginId)}/${encodeURIComponent(iconName)}`}
+          alt={iconName}
+          className="w-4 h-4 shrink-0 object-contain"
+        />
+      );
+    }
+  }
   return <span className="text-sm shrink-0">{name}</span>;
 }

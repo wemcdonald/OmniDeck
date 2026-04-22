@@ -21,6 +21,7 @@ import AgentPicker from "./AgentPicker";
 import TemplateVariableChips from "./TemplateVariableChips";
 import EmojiPicker from "./EmojiPicker";
 import MaterialSymbolsPicker from "./MaterialSymbolsPicker";
+import PluginIconsPicker from "./PluginIconsPicker";
 
 interface ButtonConfigEditorProps {
   pos: [number, number];
@@ -385,13 +386,14 @@ export default function ButtonConfigEditor({
                   />
                   <EmojiPicker value={icon} onSelect={setIcon} />
                   <MaterialSymbolsPicker value={icon} onSelect={setIcon} />
-                  {icon.startsWith("ms:") && (
+                  <PluginIconsPicker value={icon} catalog={catalog} onSelect={setIcon} />
+                  {(icon.startsWith("ms:") || icon.startsWith("plugin:")) && (
                     <input
                       type="color"
                       value={iconColor}
                       onChange={(e) => setIconColor(e.target.value)}
                       className="w-9 h-9 shrink-0 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
-                      title="Icon color"
+                      title="Icon color (tints SVG icons via currentColor)"
                     />
                   )}
                 </div>
