@@ -12,7 +12,15 @@ export function createPluginIconRoutes(): Hono {
     c.header("Content-Type", asset.contentType);
     c.header("Cache-Control", "public, max-age=300");
 
-    if (asset.svg) return c.body(asset.svg);
+    if (asset.svg) {
+      // Optional ?color=... swaps currentColor so the SVG renders that tint
+      // when used in an <img> tag (which can't inherit CSS color).
+      const colorParam = c.req.query("color");
+      const svg = colorParam
+        ? asset.svg.replaceAll("currentColor", colorParam)
+        : asset.svg;
+      return c.body(svg);
+    }
     if (asset.buffer) return c.body(asset.buffer as unknown as ArrayBuffer);
     return c.notFound();
   });

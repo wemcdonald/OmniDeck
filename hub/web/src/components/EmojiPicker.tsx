@@ -43,7 +43,7 @@ export default function EmojiPicker({ value, onSelect }: Props) {
         className="text-xl w-9 h-9 flex items-center justify-center rounded border hover:border-primary transition-colors shrink-0"
         title="Pick emoji"
       >
-        {value && !value.startsWith("ms:") ? value : "😀"}
+        {value && !value.startsWith("ms:") && !value.startsWith("plugin:") ? value : "😀"}
       </button>
       {open && createPortal(
         <div

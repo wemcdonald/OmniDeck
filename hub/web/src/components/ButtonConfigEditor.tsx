@@ -377,25 +377,27 @@ export default function ButtonConfigEditor({
                     </span>
                   )}
                 </label>
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
-                    className="flex-1 rounded bg-surface-container-high border border-outline-variant px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="rounded bg-surface-container-high border border-outline-variant px-3 py-2 text-sm focus:outline-none focus:border-primary"
                     placeholder={providesIcon ? "Leave blank for dynamic icon" : "emoji or ms:icon_name"}
                     value={icon}
                     onChange={(e) => setIcon(e.target.value)}
                   />
-                  <EmojiPicker value={icon} onSelect={setIcon} />
-                  <MaterialSymbolsPicker value={icon} onSelect={setIcon} />
-                  <PluginIconsPicker value={icon} catalog={catalog} onSelect={setIcon} />
-                  {(icon.startsWith("ms:") || icon.startsWith("plugin:")) && (
-                    <input
-                      type="color"
-                      value={iconColor}
-                      onChange={(e) => setIconColor(e.target.value)}
-                      className="w-9 h-9 shrink-0 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
-                      title="Icon color (tints SVG icons via currentColor)"
-                    />
-                  )}
+                  <div className="flex gap-1">
+                    <EmojiPicker value={icon} onSelect={setIcon} />
+                    <MaterialSymbolsPicker value={icon} onSelect={setIcon} />
+                    <PluginIconsPicker value={icon} catalog={catalog} onSelect={setIcon} />
+                    {(icon.startsWith("ms:") || icon.startsWith("plugin:")) && (
+                      <input
+                        type="color"
+                        value={iconColor}
+                        onChange={(e) => setIconColor(e.target.value)}
+                        className="w-9 h-9 shrink-0 rounded bg-surface-container-high border border-outline-variant cursor-pointer p-0.5"
+                        title="Icon color (tints SVG icons via currentColor)"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 

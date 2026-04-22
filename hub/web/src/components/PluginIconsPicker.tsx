@@ -50,7 +50,7 @@ export default function PluginIconsPicker({ value, catalog, onSelect }: Props) {
       >
         {currentIsPlugin ? (
           <img
-            src={`/api/plugin-icons/${value!.slice("plugin:".length).replace("/", "/")}`}
+            src={`/api/plugin-icons/${value!.slice("plugin:".length)}?color=%23ffffff`}
             alt=""
             className="w-5 h-5 object-contain"
           />
@@ -81,7 +81,7 @@ export default function PluginIconsPicker({ value, catalog, onSelect }: Props) {
                     }`}
                   >
                     <img
-                      src={ico.url}
+                      src={`${ico.url}?color=%23ffffff`}
                       alt={ico.name}
                       className="w-6 h-6 object-contain"
                     />
