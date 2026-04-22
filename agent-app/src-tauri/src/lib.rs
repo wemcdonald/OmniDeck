@@ -261,21 +261,31 @@ pub fn run() {
             tray::setup_tray(app.handle())?;
             eprintln!("[omnideck] System tray initialized successfully");
 
-            // Listen for state changes to update tray
+            // Listen for state changes to update tray. Tauri runs listener
+            // callbacks on a worker thread; NSStatusItem menu/icon updates
+            // have to hit the main thread or the tray silently keeps its
+            // previous state (so the menu stays on whatever was drawn in
+            // setup(), i.e. "offline", even after the agent reconnects).
             let app_handle = app.handle().clone();
             app.handle().listen("agent-status", move |event| {
-                let payload = event.payload();
-                if let Ok(state) = serde_json::from_str::<AgentState>(payload) {
-                    let _ = tray::update_tray(&app_handle, &state);
-                }
+                let payload = event.payload().to_string();
+                let ah = app_handle.clone();
+                let _ = app_handle.run_on_main_thread(move || {
+                    if let Ok(state) = serde_json::from_str::<AgentState>(&payload) {
+                        let _ = tray::update_tray(&ah, &state);
+                    }
+                });
             });
 
             // Per-hub events: tray renders from the paired-hubs list, so any
             // change to the list should re-draw the menu.
             let app_handle_hubs = app.handle().clone();
             app.handle().listen("agent-hubs-changed", move |_event| {
-                let manager = app_handle_hubs.state::<SidecarState>();
-                let _ = tray::update_tray(&app_handle_hubs, &manager.0.state());
+                let ah = app_handle_hubs.clone();
+                let _ = app_handle_hubs.run_on_main_thread(move || {
+                    let manager = ah.state::<SidecarState>();
+                    let _ = tray::update_tray(&ah, &manager.0.state());
+                });
             });
 
             // Listen for deep link URLs
