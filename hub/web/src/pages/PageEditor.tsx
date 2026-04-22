@@ -195,6 +195,7 @@ export default function PageEditor() {
               onDrop={handleDrop}
               previews={previews}
               displayAreas={displayAreas}
+              keySize={deckInfo?.keySize}
             />
           </div>
         </div>

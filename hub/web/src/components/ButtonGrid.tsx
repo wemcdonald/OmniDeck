@@ -14,6 +14,7 @@ interface ButtonGridProps {
   previews?: Record<string, string>;
   displayAreas?: DisplayAreaInfo[];
   displayAreaPreviews?: Record<string, string>;
+  keySize?: { width: number; height: number };
 }
 
 export default function ButtonGrid({
@@ -26,6 +27,7 @@ export default function ButtonGrid({
   previews = {},
   displayAreas = [],
   displayAreaPreviews = {},
+  keySize = { width: 1, height: 1 },
 }: ButtonGridProps) {
   const [dragOverPos, setDragOverPos] = useState<string | null>(null);
 
@@ -59,11 +61,16 @@ export default function ButtonGrid({
     }
   }
 
+  // Main grid and each display area share horizontal space proportional to
+  // real hardware pixel widths. With mirabox (95-wide keys, 82-wide strip)
+  // this makes the strip column visibly narrower than a key column.
+  const mainFlex = columns * keySize.width;
+
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 items-stretch">
     <div
-      className="grid gap-2 flex-1"
-      style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+      className="grid gap-2"
+      style={{ gridTemplateColumns: `repeat(${columns}, 1fr)`, flex: `${mainFlex} 0 0` }}
     >
       {Array.from({ length: rows * columns }, (_, i) => {
         const col = i % columns;
@@ -81,8 +88,9 @@ export default function ButtonGrid({
             onDragOver={(e) => handleDragOver(e, key)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, col, row)}
+            style={{ aspectRatio: `${keySize.width} / ${keySize.height}` }}
             className={cn(
-              "aspect-square rounded border-2 flex flex-col items-center justify-center p-1 text-xs transition-all min-h-[44px]",
+              "rounded border-2 flex flex-col items-center justify-center p-1 text-xs transition-all min-h-[44px]",
               isSelected
                 ? "border-primary bg-primary/10 dark:glow-primary"
                 : btn
@@ -127,44 +135,61 @@ export default function ButtonGrid({
       })}
     </div>
 
-    {/* Display area columns (e.g. Mirabox side strip) */}
-    {displayAreas.map((area) => (
-      <div key={area.id} className="flex flex-col gap-2" style={{ width: `calc(100% / ${columns + displayAreas.length})` }}>
-        {Array.from({ length: area.rows }, (_, row) => {
-          const pos: [number, number] = [area.col, row];
-          const key = `${area.col},${row}`;
-          const btn = buttonMap.get(key);
-          const isSelected = selectedPos?.[0] === area.col && selectedPos?.[1] === row;
-          const previewUrl = displayAreaPreviews[`${area.id}:${row}`];
-          return (
-            <button
-              key={row}
-              onClick={() => onSelect(pos)}
-              onDragOver={(e) => handleDragOver(e, key)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, area.col, row)}
-              className={cn(
-                "aspect-square rounded border-2 flex flex-col items-center justify-center p-1 text-xs transition-all min-h-[44px]",
-                isSelected
-                  ? "border-primary bg-primary/10 dark:glow-primary"
-                  : btn
-                    ? "border-outline-variant dark:border-outline bg-surface-container hover:border-primary/60"
-                    : "border-dashed border-outline-variant/50 dark:border-outline/50 hover:border-primary/60 bg-background/50",
-                dragOverPos === key && "border-primary bg-primary/20 scale-105",
-              )}
-            >
-              {previewUrl ? (
-                <img src={previewUrl} alt={key} className="w-full h-full object-cover rounded" draggable={false} />
-              ) : btn ? (
-                <span className="truncate w-full text-center text-[10px] font-mono">{btn.label ?? btn.preset ?? key}</span>
-              ) : (
-                <Plus className="w-3 h-3 text-muted-foreground/30" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    ))}
+    {/* Display area columns (e.g. Mirabox side strip) — rendered at real
+        aspect ratio so a user can see that the side display is not a normal
+        key column. Dashed border marks it as non-button space; the "STRIP"
+        label floats over the top border (fieldset-legend style) so it
+        doesn't push the first cell down out of alignment with the main
+        grid. */}
+    {displayAreas.map((area) => {
+      return (
+        <div
+          key={area.id}
+          className="relative flex flex-col rounded border border-dashed border-outline-variant/70 dark:border-outline/70 bg-surface-container-low/40 gap-2"
+          style={{ flex: `${area.pixelWidth} 0 0` }}
+          title={`Display strip (${area.pixelWidth}×${area.pixelHeight}px, ${area.rows} segments)`}
+        >
+          <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 text-[9px] font-display font-semibold uppercase tracking-wider text-muted-foreground bg-background leading-none">
+            Strip
+          </span>
+          <div className="flex flex-col gap-2 flex-1">
+            {Array.from({ length: area.rows }, (_, row) => {
+              const pos: [number, number] = [area.col, row];
+              const key = `${area.col},${row}`;
+              const btn = buttonMap.get(key);
+              const isSelected = selectedPos?.[0] === area.col && selectedPos?.[1] === row;
+              const previewUrl = displayAreaPreviews[`${area.id}:${row}`];
+              return (
+                <button
+                  key={row}
+                  onClick={() => onSelect(pos)}
+                  onDragOver={(e) => handleDragOver(e, key)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, area.col, row)}
+                  className={cn(
+                    "flex-1 min-h-0 rounded border-2 flex flex-col items-center justify-center p-1 text-xs transition-all",
+                    isSelected
+                      ? "border-primary bg-primary/10 dark:glow-primary"
+                      : btn
+                        ? "border-outline-variant dark:border-outline bg-surface-container hover:border-primary/60"
+                        : "border-dashed border-outline-variant/50 dark:border-outline/50 hover:border-primary/60 bg-background/50",
+                    dragOverPos === key && "border-primary bg-primary/20 scale-105",
+                  )}
+                >
+                  {previewUrl ? (
+                    <img src={previewUrl} alt={key} className="w-full h-full object-cover rounded" draggable={false} />
+                  ) : btn ? (
+                    <span className="truncate w-full text-center text-[10px] font-mono">{btn.label ?? btn.preset ?? key}</span>
+                  ) : (
+                    <Plus className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    })}
     </div>
   );
 }
