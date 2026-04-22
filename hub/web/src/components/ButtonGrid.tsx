@@ -12,6 +12,7 @@ interface ButtonGridProps {
   onSelect(pos: [number, number]): void;
   onDrop?(pos: [number, number], data: BrowserDropData): void;
   previews?: Record<string, string>;
+  previewsLoading?: boolean;
   displayAreas?: DisplayAreaInfo[];
   displayAreaPreviews?: Record<string, string>;
   keySize?: { width: number; height: number };
@@ -25,6 +26,7 @@ export default function ButtonGrid({
   onSelect,
   onDrop,
   previews = {},
+  previewsLoading = false,
   displayAreas = [],
   displayAreaPreviews = {},
   keySize = { width: 1, height: 1 },
@@ -111,6 +113,9 @@ export default function ButtonGrid({
                   />
                 );
               }
+              if (btn && previewsLoading) {
+                return <div className="w-full h-full rounded bg-muted-foreground/10 animate-pulse" />;
+              }
               if (btn) {
                 return (
                   <>
@@ -178,6 +183,8 @@ export default function ButtonGrid({
                 >
                   {previewUrl ? (
                     <img src={previewUrl} alt={key} className="w-full h-full object-cover rounded" draggable={false} />
+                  ) : btn && previewsLoading ? (
+                    <div className="w-full h-full rounded bg-muted-foreground/10 animate-pulse" />
                   ) : btn ? (
                     <span className="truncate w-full text-center text-[10px] font-mono">{btn.label ?? btn.preset ?? key}</span>
                   ) : (

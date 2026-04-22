@@ -20,9 +20,13 @@ export function msIcon(name?: string) {
     if (slash > 0) {
       const pluginId = rest.slice(0, slash);
       const iconName = rest.slice(slash + 1);
+      // ?color= substitutes currentColor in the SVG server-side so monochrome
+      // logos (Slack, Claude Code, etc.) are visible on dark surfaces.
+      // Brand-colored SVGs with hardcoded fills (Spotify, Discord) are
+      // unaffected.
       return (
         <img
-          src={`/api/plugin-icons/${encodeURIComponent(pluginId)}/${encodeURIComponent(iconName)}`}
+          src={`/api/plugin-icons/${encodeURIComponent(pluginId)}/${encodeURIComponent(iconName)}?color=%23ffffff`}
           alt={iconName}
           className="w-4 h-4 shrink-0 object-contain"
         />

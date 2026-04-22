@@ -108,7 +108,9 @@ function PluginGroup({
   search: string;
   onItemClick?: (item: BrowserDropData) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // Plugins collapsed by default so the left bar isn't a wall of entries
+  // on page load. Search below auto-expands matching groups.
+  const [open, setOpen] = useState(false);
   const isMisconfigured =
     plugin.health.status === "misconfigured" || plugin.health.status === "error";
 
@@ -135,6 +137,10 @@ function PluginGroup({
     return null;
   }
 
+  // When the user is searching, expand matching groups regardless of their
+  // own collapsed state so results are visible.
+  const showContents = open || !!q;
+
   return (
     <div>
       <button
@@ -143,7 +149,7 @@ function PluginGroup({
         className="flex items-center gap-2 px-2 py-1.5 w-full text-sm font-medium hover:bg-accent/30 rounded transition-colors"
       >
         <ChevronRight
-          className={cn("w-3.5 h-3.5 transition-transform text-muted-foreground", open && "rotate-90")}
+          className={cn("w-3.5 h-3.5 transition-transform text-muted-foreground", showContents && "rotate-90")}
         />
         <span className="shrink-0">{msIcon(plugin.icon)}</span>
         <span className="flex-1 text-left truncate">{plugin.name}</span>
@@ -154,7 +160,7 @@ function PluginGroup({
         )}
       </button>
 
-      {open && (
+      {showContents && (
         <div className="ml-3 space-y-1">
           {presets.length > 0 && (
             <Section label="Presets">

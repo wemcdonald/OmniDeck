@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { api, type PageConfig, type ButtonConfig, type DisplayAreaInfo } from "../lib/api";
 import { usePluginCatalog } from "../hooks/usePluginCatalog";
 import ButtonGrid from "../components/ButtonGrid";
@@ -29,13 +29,20 @@ export default function PageEditor() {
     localStorage.setItem(BROWSER_KEY, String(next));
   }
 
+  // Seed the per-page query from the pages-list cache so navigating from the
+  // Pages index to an individual page renders instantly instead of waiting
+  // for an /api/config/pages/:id round-trip.
   const { data: pageData } = useQuery({
     queryKey: ["config", "page", id],
     queryFn: () => api.pages.get(id!),
     enabled: !!id,
+    initialData: () => {
+      const list = queryClient.getQueryData<PageConfig[]>(["config", "pages"]);
+      return list?.find((p) => p.page === id);
+    },
   });
 
-  const { data: previews = {} } = useQuery({
+  const { data: previews = {}, isPending: previewsLoading } = useQuery({
     queryKey: ["deck", "preview", id],
     queryFn: () => api.pages.preview(id!),
     enabled: !!id,
@@ -133,10 +140,13 @@ export default function PageEditor() {
     handleDrop(selectedPos, data);
   }
 
-  if (!page) return <p className="text-muted-foreground p-4">Loading...</p>;
-
-  const columns = page.columns ?? deckInfo?.keyColumns ?? 5;
+  // Never block the whole editor on network. Render the layout immediately
+  // and let individual sections (grid, preview, catalog) pop in as their
+  // queries resolve.
+  const columns = page?.columns ?? deckInfo?.keyColumns ?? 5;
   const rows = deckInfo ? Math.ceil(deckInfo.keyCount / columns) : 3;
+  const buttons = page?.buttons ?? [];
+  const totalSlots = columns * rows + displayAreas.reduce((s, a) => s + a.rows, 0);
 
   return (
     <div className="h-full flex flex-col lg:flex-row overflow-hidden -m-4 md:-m-6">
@@ -178,22 +188,36 @@ export default function PageEditor() {
 
       {/* Center panel: Deck grid */}
       <div className="flex-1 p-4 flex flex-col gap-3 overflow-auto min-w-0">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold font-display">{page.name ?? page.page}</h2>
-          <span className="text-xs text-muted-foreground font-mono">
-            {page.buttons.length} / {columns * rows + displayAreas.reduce((s, a) => s + a.rows, 0)}
+        <div className="flex items-center gap-3">
+          <Link
+            to="/pages"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title="Back to all pages"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>All Pages</span>
+          </Link>
+          <span className="text-muted-foreground/40">/</span>
+          <h2 className="font-semibold font-display flex-1 min-w-0 truncate">
+            {page ? (page.name ?? page.page) : (
+              <span className="inline-block h-4 w-32 rounded bg-muted-foreground/20 animate-pulse align-middle" />
+            )}
+          </h2>
+          <span className="text-xs text-muted-foreground font-mono shrink-0">
+            {buttons.length} / {totalSlots}
           </span>
         </div>
         <div className="flex-1 flex items-start min-h-0">
           <div className="w-full max-w-lg">
             <ButtonGrid
-              buttons={page.buttons}
+              buttons={buttons}
               columns={columns}
               rows={rows}
               selectedPos={selectedPos}
               onSelect={setSelectedPos}
               onDrop={handleDrop}
               previews={previews}
+              previewsLoading={previewsLoading}
               displayAreas={displayAreas}
               keySize={deckInfo?.keySize}
             />
