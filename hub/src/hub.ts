@@ -1351,7 +1351,7 @@ export class Hub {
     // lower opacity a state provider has already set.
     if (!this.isButtonAvailableNow(effectiveButton)) {
       const current = state.opacity ?? 1;
-      if (current > 0.4) state.opacity = 0.4;
+      if (current > 0.2) state.opacity = 0.2;
     }
 
     // If the button has meaningful config but resolved to nothing visible, show an

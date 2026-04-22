@@ -168,9 +168,9 @@ describe("Hub", () => {
 
     const button = { pos: [0, 0] as [number, number], action: "sound.mute", target: "macbook", label: "Mute", icon: "ms:volume-off" };
 
-    // Offline → opacity 0.4
+    // Offline → opacity 0.2
     const offlineState = internals.resolveButtonState(button);
-    expect(offlineState.opacity).toBe(0.4);
+    expect(offlineState.opacity).toBe(0.2);
 
     // Online → opacity undefined (no dim applied)
     internals.connectedAgents.add("macbook");
