@@ -296,6 +296,13 @@ async function runManaged(args: CliArgs) {
           hub_name: response.hub_name ?? "OmniDeck",
           credentials: creds,
         });
+        // Pair-mode is single-shot: the Tauri shell takes over (hot-add IPC
+        // or starting the main sidecar) once it sees the "paired" event, so
+        // this process must exit. Otherwise the pair WS stays open, the
+        // shell drops our stdout read end, and emit/log writes spin in
+        // EPIPE retries pinning a CPU core. setImmediate lets the stdout
+        // write drain before exit.
+        setImmediate(() => process.exit(0));
       },
       onPairFailed: (error) => {
         emit({ type: "pair_failed", error });

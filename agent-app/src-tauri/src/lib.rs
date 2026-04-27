@@ -84,7 +84,7 @@ async fn cmd_pair(
         .map_err(|e| e.to_string())?;
 
     let config_dir = get_config_dir();
-    let (mut rx, _child) = sidecar
+    let (mut rx, child) = sidecar
         .args([
             "--managed", "--pair",
             "--hub-url", &hub_url,
@@ -93,6 +93,14 @@ async fn cmd_pair(
         ])
         .spawn()
         .map_err(|e| e.to_string())?;
+
+    // The pair sidecar is single-shot — once we've seen "paired" /
+    // "pair_failed" / "error" we don't need it anymore. The agent itself
+    // exits after emitting these, but we don't rely on that: dropping
+    // `child` does NOT kill the process (CommandChild has no kill-on-drop),
+    // and if the agent ever stayed alive, the shell would close stdout's
+    // read end and the agent would spin in EPIPE retries at 100% CPU.
+    let mut child_slot = Some(child);
 
     while let Some(event) = rx.recv().await {
         if let CommandEvent::Stdout(line) = event {
@@ -123,14 +131,17 @@ async fn cmd_pair(
                         } else {
                             manager.0.start(&app, &config_dir);
                         }
+                        if let Some(c) = child_slot.take() { let _ = c.kill(); }
                         return Ok(msg);
                     }
                     "pair_failed" => {
                         let error = msg.get("error").and_then(|e| e.as_str()).unwrap_or("Unknown error");
+                        if let Some(c) = child_slot.take() { let _ = c.kill(); }
                         return Err(error.to_string());
                     }
                     "error" => {
                         let error = msg.get("message").and_then(|e| e.as_str()).unwrap_or("Unknown error");
+                        if let Some(c) = child_slot.take() { let _ = c.kill(); }
                         return Err(error.to_string());
                     }
                     _ => {}
@@ -139,6 +150,7 @@ async fn cmd_pair(
         }
     }
 
+    if let Some(c) = child_slot.take() { let _ = c.kill(); }
     Err("Pairing process ended unexpectedly".to_string())
 }
 
